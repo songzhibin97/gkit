@@ -3,7 +3,9 @@ package goroutine
 import (
 	"Songzhibin/GKit/log"
 	"context"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Goroutine:
@@ -12,7 +14,8 @@ type Goroutine struct {
 	// m: 最大goroutine的数量
 	m int64
 	// n: 当前goroutine的数量
-	n int64
+	n    int64
+	wait sync.WaitGroup
 	// 日志库
 	log.Logger
 	// ctx context
@@ -37,6 +40,7 @@ func NewGoroutine(ctx context.Context, m int64, logger log.Logger) *Goroutine {
 // _go: 封装goroutine 使其安全执行
 func (g *Goroutine) _go() {
 	atomic.AddInt64(&g.n, 1)
+	g.wait.Add(1)
 	go func() {
 		// recover 避免野生goroutine panic后主程退出
 		defer func() {
@@ -47,6 +51,7 @@ func (g *Goroutine) _go() {
 			}
 		}()
 		defer atomic.AddInt64(&g.n, -1)
+		defer g.wait.Done()
 		for {
 			select {
 			case f, ok := <-g.task:
@@ -100,6 +105,18 @@ func (g *Goroutine) Shutdown() {
 	}
 	g.cancel()
 	close(g.task)
+	ch := make(chan struct{})
+	go func() {
+		g.wait.Wait()
+		ch <- struct{}{}
+	}()
+	// 增加优雅退出超时控制
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	select {
+	case <-ctx.Done():
+	case <-ch:
+	}
 }
 
 func (g *Goroutine) trick() {

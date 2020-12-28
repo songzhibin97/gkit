@@ -7,7 +7,7 @@ package goroutine
 import (
 	"context"
 	"fmt"
-	"math"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -23,7 +23,7 @@ func TestNewGoroutine(t *testing.T) {
 	g := NewGoroutine(context.Background(), 10, &testLogger{t})
 	for i := 0; i < 100; i++ {
 		fmt.Println(g.AddTask(func() {
-			if math.Round(10) > 5 {
+			if rand.Int31n(10) > 5 {
 				panic(i)
 			}
 			fmt.Println("start:", i)
@@ -34,7 +34,6 @@ func TestNewGoroutine(t *testing.T) {
 		if i == 26 {
 			g.ChangeMax(5)
 		}
-		time.Sleep(time.Second)
 	}
 
 	g.Shutdown()
