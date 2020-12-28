@@ -2,9 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/timeout/ctime.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/timeout/ctime_test.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/log/helper.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/log/helper_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/log/lever.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/log/logger.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/log/logger_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -39,38 +42,85 @@
     <property name="last_opened_file_path" value="$USER_HOME$" />
     <property name="vue.rearranger.settings.migration" value="true" />
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink">
-    <configuration name="Songzhibin/GKit/timeout 中的 TestShrink" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/log 中的 TestDebugHelper">
+    <configuration name="Songzhibin/GKit/log 中的 TestDebugHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/timeout" />
+      <working_directory value="$PROJECT_DIR$/log" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/timeout" />
+      <package value="Songzhibin/GKit/log" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestShrink\E$" />
+      <pattern value="^\QTestDebugHelper\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/timeout 中的 TestShrink/上游链路设置链路时间且当前时间超时时间大于流转链路时间" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/log 中的 TestErrorHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/timeout" />
+      <working_directory value="$PROJECT_DIR$/log" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/timeout" />
+      <package value="Songzhibin/GKit/log" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestShrink\E$/^\Q上游链路设置链路时间且当前时间超时时间大于流转链路时间\E$" />
+      <pattern value="^\QTestErrorHelper\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Songzhibin/GKit/log 中的 TestHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/log" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/log" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestHelper\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Songzhibin/GKit/log 中的 TestInfoHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/log" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/log" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestInfoHelper\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Songzhibin/GKit/log 中的 TestWarnHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/log" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/log" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestWarnHelper\E$" />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink/上游链路设置链路时间且当前时间超时时间大于流转链路时间" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestDebugHelper" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestErrorHelper" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestInfoHelper" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestWarnHelper" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestHelper" />
       </list>
     </recent_temporary>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/log/helper.go</url>
+          <line>45</line>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
