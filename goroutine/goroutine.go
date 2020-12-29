@@ -28,6 +28,7 @@ type Goroutine struct {
 	task chan func()
 }
 
+// NewGoroutine: 实例化方法
 func NewGoroutine(ctx context.Context, m int64, logger log.Logger) *Goroutine {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Goroutine{
@@ -99,7 +100,7 @@ func (g *Goroutine) ChangeMax(m int64) {
 	atomic.StoreInt64(&g.m, m)
 }
 
-// Shutdown: 关闭
+// Shutdown: 优雅关闭
 // 符合幂等性
 func (g *Goroutine) Shutdown() {
 	if atomic.SwapInt32(&g.close, 1) == 1 {
@@ -107,20 +108,36 @@ func (g *Goroutine) Shutdown() {
 	}
 	g.cancel()
 	close(g.task)
-	ch := make(chan struct{})
-	go func() {
+	_ = Delegate(5*time.Second, func() error {
 		g.wait.Wait()
-		ch <- struct{}{}
+		return nil
+	})
+}
+
+// trick: Debug使用
+func (g *Goroutine) trick() {
+	g.Logger.Print(atomic.LoadInt64(&g.m), atomic.LoadInt64(&g.n), len(g.task))
+}
+
+// Delegate: 委托执行 一般用于回收函数超时控制
+func Delegate(t time.Duration, f func() error) error {
+	ch := make(chan error)
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				<-ch
+				return
+			}
+		}()
+		ch <- f()
 	}()
 	// 增加优雅退出超时控制
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), t)
 	defer cancel()
 	select {
 	case <-ctx.Done():
-	case <-ch:
+		return ctx.Err()
+	case err := <-ch:
+		return err
 	}
-}
-
-func (g *Goroutine) trick() {
-	g.Logger.Print(atomic.LoadInt64(&g.m), atomic.LoadInt64(&g.n), len(g.task))
 }

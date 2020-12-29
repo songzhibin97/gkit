@@ -2,13 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/egroup/errgroup.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/log/log.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/timeout/timeout.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/egroup/conf.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/egroup/liftcycle.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/egroup/option.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/timeout/ctime.go" beforeDir="false" afterPath="$PROJECT_DIR$/timeout/ctime.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/timeout/ctime_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/timeout/ctime_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -43,7 +41,7 @@
     <property name="last_opened_file_path" value="$USER_HOME$" />
     <property name="vue.rearranger.settings.migration" value="true" />
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine">
     <configuration name="Songzhibin/GKit/goroutine 中的 TestNewGoroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/goroutine" />
@@ -101,8 +99,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink" />
         <item itemvalue="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink" />
         <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestDebugHelper" />
         <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestErrorHelper" />
         <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestInfoHelper" />
