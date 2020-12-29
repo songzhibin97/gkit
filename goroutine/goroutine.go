@@ -132,7 +132,15 @@ func Delegate(t time.Duration, f func() error) error {
 		ch <- f()
 	}()
 	// 增加优雅退出超时控制
-	ctx, cancel := context.WithTimeout(context.Background(), t)
+	var (
+		ctx    context.Context
+		cancel context.CancelFunc
+	)
+	if t > 0 {
+		ctx, cancel = context.WithTimeout(context.Background(), t)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
 	defer cancel()
 	select {
 	case <-ctx.Done():

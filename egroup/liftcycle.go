@@ -3,8 +3,10 @@ package egroup
 import (
 	"Songzhibin/GKit/goroutine"
 	"context"
+	"fmt"
 	"golang.org/x/sync/errgroup"
 	"os"
+	"os/signal"
 	"syscall"
 )
 
@@ -40,7 +42,7 @@ func (l *LifeAdmin) AddMember(la LifeAdminer) {
 	})
 }
 
-// AddMember: 添加程序表(通过外部接口 LifeAdminer 添加)
+// AddMember: 添加成员表(通过外部接口 LifeAdminer 添加)
 func (l *LifeAdmin) Start() error {
 	ctx := context.Background()
 	ctx, l.shutdown = context.WithCancel(ctx)
@@ -65,6 +67,24 @@ func (l *LifeAdmin) Start() error {
 			}
 		}(m)
 	}
+	// 判断是否需要监听信号
+	if len(l.opts.signals) == 0 || l.opts.handler == nil {
+		return g.Wait()
+	}
+	c := make(chan os.Signal, len(l.opts.signals))
+	// 监听信号
+	signal.Notify(c, l.opts.signals...)
+	g.Go(func() error {
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case sig := <-c:
+				fmt.Println("捕获到信号")
+				l.opts.handler(l, sig)
+			}
+		}
+	})
 	return g.Wait()
 }
 

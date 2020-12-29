@@ -2,10 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/egroup/conf.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/egroup/liftcycle.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/egroup/option.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/egroup/liftcycle_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/egroup/conf.go" beforeDir="false" afterPath="$PROJECT_DIR$/egroup/conf.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/egroup/liftcycle.go" beforeDir="false" afterPath="$PROJECT_DIR$/egroup/liftcycle.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -41,7 +41,18 @@
     <property name="last_opened_file_path" value="$USER_HOME$" />
     <property name="vue.rearranger.settings.migration" value="true" />
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start">
+    <configuration name="Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/egroup" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/egroup" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestLifeAdmin_Start\E$" />
+      <method v="2" />
+    </configuration>
     <configuration name="Songzhibin/GKit/goroutine 中的 TestNewGoroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/goroutine" />
@@ -75,17 +86,6 @@
       <pattern value="^\QTestErrorHelper\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/log 中的 TestInfoHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/log" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/log" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestInfoHelper\E$" />
-      <method v="2" />
-    </configuration>
     <configuration name="Songzhibin/GKit/timeout 中的 TestShrink" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/timeout" />
@@ -99,11 +99,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" />
         <item itemvalue="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine" />
         <item itemvalue="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink" />
         <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestDebugHelper" />
         <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestErrorHelper" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestInfoHelper" />
       </list>
     </recent_temporary>
   </component>
@@ -118,6 +118,11 @@
           <url>file://$PROJECT_DIR$/log/helper.go</url>
           <line>45</line>
           <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/egroup/liftcycle.go</url>
+          <line>91</line>
+          <option name="timeStamp" value="9" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
