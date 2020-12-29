@@ -1,7 +1,3 @@
-/******
-** @创建时间 : 2020/12/28 16:39
-** @作者 : SongZhiBin
-******/
 package goroutine
 
 import (
