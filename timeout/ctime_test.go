@@ -1,8 +1,4 @@
-/******
-** @创建时间 : 2020/12/28 11:50
-** @作者 : SongZhiBin
-******/
-package ctime
+package timeout
 
 import (
 	"context"
@@ -24,8 +20,8 @@ func TestShrink(t *testing.T) {
 	}{
 		{"上游没有设置链路超时时间", args{c: context.Background(), d: 10}, 10},
 
-		{"上游链路设置链路时间且当前时间超时时间大于流转链路时间", args{c:c1, d: 10}, 5},
-		{"上路链路设置超时时间事件小于当前时间", args{c:c1, d: 3}, 3},
+		{"上游链路设置链路时间且当前时间超时时间大于流转链路时间", args{c: c1, d: 10}, 5},
+		{"上路链路设置超时时间事件小于当前时间", args{c: c1, d: 3}, 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

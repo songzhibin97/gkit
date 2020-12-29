@@ -1,5 +1,7 @@
 package goroutine
 
+// package goroutine: 管理goroutine并发量托管任务以及兜底
+
 import (
 	"Songzhibin/GKit/log"
 	"context"

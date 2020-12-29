@@ -1,4 +1,4 @@
-package ctime
+package timeout
 
 import (
 	"context"
