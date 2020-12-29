@@ -11,9 +11,11 @@ type Option func(o *options)
 // options
 type options struct {
 	// startTimeout: 启动超时时间
+	// <=0 不启动超时时间,注意要在shutdown处理关闭通知
 	startTimeout time.Duration
 
 	// stopTimeout: 关闭超时时间
+	// <=0 不启动超时时间
 	stopTimeout time.Duration
 
 	// signals: 信号集
