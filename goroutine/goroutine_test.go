@@ -18,6 +18,7 @@ func (t *testLogger) Print(kv ...interface{}) {
 func TestNewGoroutine(t *testing.T) {
 	g := NewGoroutine(context.Background(), 10, &testLogger{t})
 	for i := 0; i < 100; i++ {
+		i := i
 		fmt.Println(g.AddTask(func() {
 			if rand.Int31n(10) > 5 {
 				panic(i)

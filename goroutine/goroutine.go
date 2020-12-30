@@ -4,7 +4,9 @@ package goroutine
 
 import (
 	"Songzhibin/GKit/log"
+	"Songzhibin/GKit/timeout"
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -108,10 +110,10 @@ func (g *Goroutine) Shutdown() {
 	}
 	g.cancel()
 	close(g.task)
-	_ = Delegate(5*time.Second, func() error {
+	fmt.Println(Delegate(context.TODO(), 10*time.Second, func(context.Context) error {
 		g.wait.Wait()
 		return nil
-	})
+	}))
 }
 
 // trick: Debug使用
@@ -120,7 +122,7 @@ func (g *Goroutine) trick() {
 }
 
 // Delegate: 委托执行 一般用于回收函数超时控制
-func Delegate(t time.Duration, f func() error) error {
+func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) error) error {
 	ch := make(chan error)
 	go func() {
 		defer func() {
@@ -129,22 +131,21 @@ func Delegate(t time.Duration, f func() error) error {
 				return
 			}
 		}()
-		ch <- f()
+		ch <- f(c)
 	}()
 	// 增加优雅退出超时控制
 	var (
-		ctx    context.Context
 		cancel context.CancelFunc
 	)
 	if t > 0 {
-		ctx, cancel = context.WithTimeout(context.Background(), t)
+		_, c, cancel = timeout.Shrink(c, t)
 	} else {
-		ctx, cancel = context.WithCancel(context.Background())
+		c, cancel = context.WithCancel(c)
 	}
 	defer cancel()
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-c.Done():
+		return c.Err()
 	case err := <-ch:
 		return err
 	}

@@ -12,14 +12,14 @@ import (
 
 // LifeAdminer: 生命周期管理接口
 type LifeAdminer interface {
-	Start() error
-	Shutdown()
+	Start(ctx context.Context) error
+	Shutdown(ctx context.Context) error
 }
 
 // Member: 成员
 type Member struct {
-	Start    func() error
-	Shutdown func()
+	Start    func(ctx context.Context) error
+	Shutdown func(ctx context.Context) error
 }
 
 // LifeAdmin: 生命周期管理
@@ -54,15 +54,12 @@ func (l *LifeAdmin) Start() error {
 				g.Go(func() error {
 					// 等待异常或信号关闭触发
 					<-ctx.Done()
-					return goroutine.Delegate(l.opts.stopTimeout, func() error {
-						m.Shutdown()
-						return nil
-					})
+					return goroutine.Delegate(ctx, l.opts.stopTimeout, m.Shutdown)
 				})
 			}
 			if m.Start != nil {
 				g.Go(func() error {
-					return goroutine.Delegate(l.opts.startTimeout, m.Start)
+					return goroutine.Delegate(ctx, l.opts.startTimeout, m.Start)
 				})
 			}
 		}(m)

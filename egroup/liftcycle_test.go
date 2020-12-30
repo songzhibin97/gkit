@@ -1,6 +1,7 @@
 package egroup
 
 import (
+	"Songzhibin/GKit/goroutine"
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -15,15 +16,16 @@ func TestLifeAdmin_Start(t *testing.T) {
 		Addr: ":8080",
 	}
 	admin.Add(Member{
-		Start: func() error {
+		Start: func(ctx context.Context) error {
 			t.Log("http start")
 			srv.Handler = gin.Default()
-
-			return srv.ListenAndServe()
+			return goroutine.Delegate(ctx,-1, func(ctx context.Context) error {
+				return srv.ListenAndServe()
+			})
 		},
-		Shutdown: func() {
+		Shutdown: func(ctx context.Context) error {
 			t.Log("http shutdown")
-			srv.Shutdown(context.Background())
+			return srv.Shutdown(context.Background())
 		},
 	})
 	fmt.Println("error", admin.Start())
