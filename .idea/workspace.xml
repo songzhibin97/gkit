@@ -3,12 +3,12 @@
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
       <change afterPath="$PROJECT_DIR$/egroup/errgroup.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/errors/signal.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/goroutine/option.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/egroup/liftcycle.go" beforeDir="false" afterPath="$PROJECT_DIR$/egroup/liftcycle.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/egroup/liftcycle_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/egroup/liftcycle_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/goroutine/goroutine_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine_test.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/log/lever.go" beforeDir="false" afterPath="$PROJECT_DIR$/log/level.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -26,6 +26,9 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GoLibraries">
+    <option name="indexEntireGoPath" value="false" />
+  </component>
   <component name="ProjectId" id="1mEP1LH4HD28HnAABXDQJ9iKk7m" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
@@ -40,8 +43,14 @@
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="go.import.settings.migrated" value="true" />
     <property name="go.sdk.automatically.set" value="true" />
+    <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
     <property name="last_opened_file_path" value="$USER_HOME$" />
     <property name="vue.rearranger.settings.migration" value="true" />
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/egroup" />
+    </key>
   </component>
   <component name="RunManager" selected="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start">
     <configuration name="Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -113,6 +122,9 @@
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="VgoProject">
+    <integration-enabled>true</integration-enabled>
+  </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
@@ -120,11 +132,6 @@
           <url>file://$PROJECT_DIR$/log/helper.go</url>
           <line>45</line>
           <option name="timeStamp" value="5" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/goroutine/goroutine.go</url>
-          <line>124</line>
-          <option name="timeStamp" value="6" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

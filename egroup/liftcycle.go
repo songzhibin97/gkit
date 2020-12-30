@@ -4,7 +4,6 @@ import (
 	"Songzhibin/GKit/goroutine"
 	"context"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
 	"syscall"
@@ -46,7 +45,7 @@ func (l *LifeAdmin) AddMember(la LifeAdminer) {
 func (l *LifeAdmin) Start() error {
 	ctx := context.Background()
 	ctx, l.shutdown = context.WithCancel(ctx)
-	g, ctx := errgroup.WithContext(ctx)
+	g := WithContext(ctx)
 	for _, m := range l.members {
 		func(m Member) {
 			// 如果有shutdown进行注册

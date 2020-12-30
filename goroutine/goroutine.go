@@ -3,10 +3,9 @@ package goroutine
 // package goroutine: 管理goroutine并发量托管任务以及兜底
 
 import (
-	"Songzhibin/GKit/log"
+	"Songzhibin/GKit/errors"
 	"Songzhibin/GKit/timeout"
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,13 +14,13 @@ import (
 // Goroutine:
 type Goroutine struct {
 	close int32
-	// m: 最大goroutine的数量
-	m int64
+
 	// n: 当前goroutine的数量
-	n    int64
+	n int64
+	// 参数选项
+	options
+	// wait
 	wait sync.WaitGroup
-	// 日志库
-	log.Logger
 	// ctx context
 	ctx context.Context
 	// cancel
@@ -31,14 +30,20 @@ type Goroutine struct {
 }
 
 // NewGoroutine: 实例化方法
-func NewGoroutine(ctx context.Context, m int64, logger log.Logger) *Goroutine {
+func NewGoroutine(ctx context.Context, opts ...Option) *Goroutine {
 	ctx, cancel := context.WithCancel(ctx)
+	options := options{
+		stopTimeout: 10 * time.Second,
+		max:         10,
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
 	return &Goroutine{
-		m:      m,
-		ctx:    ctx,
-		cancel: cancel,
-		task:   make(chan func(), m),
-		Logger: logger,
+		ctx:     ctx,
+		cancel:  cancel,
+		task:    make(chan func(), options.max),
+		options: options,
 	}
 }
 
@@ -51,7 +56,9 @@ func (g *Goroutine) _go() {
 		defer func() {
 			if err := recover(); err != nil {
 				// recover panic
-				g.Print("Panic", err)
+				if g.logger != nil {
+					g.logger.Print("Panic", err)
+				}
 				return
 			}
 		}()
@@ -66,7 +73,7 @@ func (g *Goroutine) _go() {
 				}
 				// 执行函数
 				f()
-				if atomic.LoadInt64(&g.m) < atomic.LoadInt64(&g.n) {
+				if atomic.LoadInt64(&g.max) < atomic.LoadInt64(&g.n) {
 					// 如果已经超出预定值,则该goroutine退出
 					return
 				}
@@ -84,41 +91,49 @@ func (g *Goroutine) AddTask(f func()) bool {
 	if atomic.LoadInt32(&g.close) != 0 {
 		return false
 	}
-	if atomic.LoadInt64(&g.m) > atomic.LoadInt64(&g.n) {
+	if atomic.LoadInt64(&g.max) > atomic.LoadInt64(&g.n) {
 		g._go()
 	}
 	select {
 	case g.task <- f:
 		return true
-	default:
-		// todo 任务丢弃?
-		g.Logger.Print("任务丢弃")
-		return false
+		//default:
+		//	// todo 任务丢弃?
+		//	if g.logger != nil {
+		//		g.logger.Print("任务丢弃")
+		//	}
+		//	return false
 	}
 }
 
 // ChangeMax: 修改pool上限值
 func (g *Goroutine) ChangeMax(m int64) {
-	atomic.StoreInt64(&g.m, m)
+	atomic.StoreInt64(&g.max, m)
 }
 
 // Shutdown: 优雅关闭
 // 符合幂等性
-func (g *Goroutine) Shutdown() {
+func (g *Goroutine) Shutdown() error {
 	if atomic.SwapInt32(&g.close, 1) == 1 {
-		return
+		return errors.ErrRepeatClose
 	}
 	g.cancel()
 	close(g.task)
-	fmt.Println(Delegate(context.TODO(), 10*time.Second, func(context.Context) error {
+	err := Delegate(context.TODO(), g.stopTimeout, func(context.Context) error {
 		g.wait.Wait()
 		return nil
-	}))
+	})
+	if g.logger != nil {
+		g.logger.Print(err)
+	}
+	return err
 }
 
 // trick: Debug使用
 func (g *Goroutine) trick() {
-	g.Logger.Print(atomic.LoadInt64(&g.m), atomic.LoadInt64(&g.n), len(g.task))
+	if g.logger != nil {
+		g.logger.Print(atomic.LoadInt64(&g.max), atomic.LoadInt64(&g.n), len(g.task))
+	}
 }
 
 // Delegate: 委托执行 一般用于回收函数超时控制
