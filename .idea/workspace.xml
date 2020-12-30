@@ -2,13 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/egroup/errgroup.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/errors/signal.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/goroutine/option.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/cache/singleflight/singleflight.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/cache/singleflight/singleflight_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/egroup/liftcycle.go" beforeDir="false" afterPath="$PROJECT_DIR$/egroup/liftcycle.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/goroutine/goroutine_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/errors/signal.go" beforeDir="false" afterPath="$PROJECT_DIR$/errors/signal.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,13 +28,16 @@
     <option name="indexEntireGoPath" value="false" />
   </component>
   <component name="ProjectId" id="1mEP1LH4HD28HnAABXDQJ9iKk7m" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
     <option name="showMembers" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="DefaultGoTemplateProperty" value="Go File" />
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
@@ -52,75 +53,77 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start">
-    <configuration name="Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestDo1">
+    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestDo1" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/egroup" />
+      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/egroup" />
+      <package value="Songzhibin/GKit/cache/singleflight" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestLifeAdmin_Start\E$" />
+      <pattern value="^\QTestDo1\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/goroutine 中的 TestNewGoroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDo" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/goroutine" />
+      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/goroutine" />
+      <package value="Songzhibin/GKit/cache/singleflight" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestNewGoroutine\E$" />
+      <pattern value="^\QTestPanicDo\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/log 中的 TestDebugHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/log" />
+      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/log" />
+      <package value="Songzhibin/GKit/cache/singleflight" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestDebugHelper\E$" />
+      <pattern value="^\QTestPanicDoChan\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/log 中的 TestErrorHelper" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoSharedByDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/log" />
+      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/log" />
+      <package value="Songzhibin/GKit/cache/singleflight" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestErrorHelper\E$" />
+      <pattern value="^\QTestPanicDoSharedByDoChan\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/timeout 中的 TestShrink" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="go test Songzhibin/GKit/cache/singleflight" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/timeout" />
+      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/timeout" />
+      <package value="Songzhibin/GKit/cache/singleflight" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestShrink\E$" />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/timeout 中的 TestShrink" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestDebugHelper" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/log 中的 TestErrorHelper" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestDo1" />
+        <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDo" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoSharedByDoChan" />
       </list>
     </recent_temporary>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />
   </component>
   <component name="VgoProject">
     <integration-enabled>true</integration-enabled>
