@@ -4,7 +4,6 @@ import (
 	"Songzhibin/GKit/goroutine"
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"testing"
 )
@@ -18,8 +17,7 @@ func TestLifeAdmin_Start(t *testing.T) {
 	admin.Add(Member{
 		Start: func(ctx context.Context) error {
 			t.Log("http start")
-			srv.Handler = gin.Default()
-			return goroutine.Delegate(ctx,-1, func(ctx context.Context) error {
+			return goroutine.Delegate(ctx, -1, func(ctx context.Context) error {
 				return srv.ListenAndServe()
 			})
 		},

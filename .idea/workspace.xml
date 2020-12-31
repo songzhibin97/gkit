@@ -2,11 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/cache/singleflight/singleflight.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/cache/singleflight/singleflight_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/errors/signal.go" beforeDir="false" afterPath="$PROJECT_DIR$/errors/signal.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/egroup/liftcycle_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/egroup/liftcycle_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,7 +50,7 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestDo1">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start">
     <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestDo1" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/cache/singleflight" />
@@ -87,15 +84,15 @@
       <pattern value="^\QTestPanicDoChan\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoSharedByDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
+      <working_directory value="$PROJECT_DIR$/egroup" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/cache/singleflight" />
+      <package value="Songzhibin/GKit/egroup" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestPanicDoSharedByDoChan\E$" />
+      <pattern value="^\QTestLifeAdmin_Start\E$" />
       <method v="2" />
     </configuration>
     <configuration name="go test Songzhibin/GKit/cache/singleflight" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -110,11 +107,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" />
         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestDo1" />
         <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDo" />
         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoSharedByDoChan" />
       </list>
     </recent_temporary>
   </component>
