@@ -33,6 +33,7 @@ func init() {
 			panic(fmt.Sprintf("cGroup cpu init failed!err:=%v", err))
 		}
 	}
+	// 开启定时任务
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()

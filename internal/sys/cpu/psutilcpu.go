@@ -3,7 +3,7 @@ package cpu
 import (
 	"time"
 
-	"github.com/shirou/gopsutil/cpu"
+	c "github.com/shirou/gopsutil/cpu"
 )
 
 type psutilCPU struct {
@@ -21,7 +21,7 @@ func newPsutilCPU(interval time.Duration) (cpu *psutilCPU, err error) {
 
 func (ps *psutilCPU) Usage() (u uint64, err error) {
 	var percents []float64
-	percents, err = cpu.Percent(ps.interval, false)
+	percents, err = c.Percent(ps.interval, false)
 	if err == nil {
 		u = uint64(percents[0] * 10)
 	}
@@ -29,11 +29,11 @@ func (ps *psutilCPU) Usage() (u uint64, err error) {
 }
 
 func (ps *psutilCPU) Info() (info Info) {
-	stats, err := cpu.Info()
+	stats, err := c.Info()
 	if err != nil {
 		return
 	}
-	cores, err := cpu.Counts(true)
+	cores, err := c.Counts(true)
 	if err != nil {
 		return
 	}
