@@ -2,15 +2,13 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/internal/internal.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/restrictor/limiter.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/restrictor/restrictor.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/overload/restrictor.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/restrictor/lbucket/ibucket.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/restrictor/tbucket/tbucket.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tmp/build-errors.log" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/sys/cpu/cgroupcpu.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/sys/cpu/cgroupcpu.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/sys/cpu/cpu.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/sys/cpu/cpu.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/sys/cpu/psutilcpu.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/sys/cpu/psutilcpu.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/sys/cpu/util.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/sys/cpu/util.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/restrictor/limiter.go" beforeDir="false" afterPath="$PROJECT_DIR$/overload/limiter.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -58,7 +56,7 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 Test_CPUUsage">
+  <component name="RunManager" selected="Go 测试.go test Songzhibin/GKit/cache/singleflight">
     <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestDo1" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/cache/singleflight" />
@@ -115,11 +113,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 Test_CPUUsage" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 TestStat" />
         <item itemvalue="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" />
         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestDo1" />
-        <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
       </list>
     </recent_temporary>
   </component>
