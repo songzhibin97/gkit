@@ -2,13 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/restrictor/rate/rate.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/restrictor/rate/rate_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/restrictor/tbucket/limiter.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/limiter.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/restrictor/tbucket/tbucket.go" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -57,40 +54,7 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.go test Songzhibin/GKit/cache/singleflight">
-    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestDo1" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/cache/singleflight" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestDo1\E$" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/egroup" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/egroup" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestLifeAdmin_Start\E$" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Songzhibin/GKit/internal/sys/cpu 中的 TestStat" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/sys/cpu" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/sys/cpu" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestStat\E$" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/restrictor/ratelimite 中的 TestRateLimit">
     <configuration name="Songzhibin/GKit/internal/sys/cpu 中的 Test_CPUUsage" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/internal/sys/cpu" />
@@ -100,6 +64,39 @@
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
       <pattern value="^\QTest_CPUUsage\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Songzhibin/GKit/restrictor 中的 TestRate" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/restrictor" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/restrictor" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestRate\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Songzhibin/GKit/restrictor/rate 中的 TestRate" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/restrictor/rate" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/restrictor/rate" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestRate\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Songzhibin/GKit/restrictor/ratelimite 中的 TestRateLimit" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/restrictor/ratelimite" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/restrictor/ratelimite" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestRateLimit\E$" />
       <method v="2" />
     </configuration>
     <configuration name="go test Songzhibin/GKit/cache/singleflight" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -114,11 +111,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.Songzhibin/GKit/restrictor/ratelimite 中的 TestRateLimit" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/restrictor/rate 中的 TestRate" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/restrictor 中的 TestRate" />
         <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 Test_CPUUsage" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 TestStat" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/egroup 中的 TestLifeAdmin_Start" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestDo1" />
       </list>
     </recent_temporary>
   </component>
