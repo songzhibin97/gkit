@@ -2,8 +2,13 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
+      <change afterPath="$PROJECT_DIR$/restrictor/rate/rate.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/restrictor/tbucket/limiter.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/tbucket/limiter.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/restrictor/tbucket/limiter.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/limiter.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/restrictor/tbucket/tbucket.go" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,6 +53,7 @@
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/restrictor" />
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>

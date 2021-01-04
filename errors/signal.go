@@ -5,6 +5,7 @@ import "errors"
 var (
 	ErrRepeatClose = errors.New("重复关闭")
 	ErrGoExit      = errors.New("go关闭")
+	ErrTimeOut     = errors.New("超时")
 )
 
 // IsRepeatClose: 重复关闭
