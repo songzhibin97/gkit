@@ -54,6 +54,11 @@ type Group struct {
 	m  map[string]*call // lazily initialized
 }
 
+// NewSingleFlight: 实例化方法
+func NewSingleFlight() Singler {
+	return &Group{}
+}
+
 // 异步返回的channel
 type Result struct {
 	Val    interface{}
