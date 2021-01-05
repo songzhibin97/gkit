@@ -2,10 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/restrictor/rate/rate_test.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite_test.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/goroutine/goer.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,16 +54,16 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/restrictor/ratelimite 中的 TestRateLimit">
-    <configuration name="Songzhibin/GKit/internal/sys/cpu 中的 Test_CPUUsage" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine">
+    <configuration name="Songzhibin/GKit/goroutine 中的 TestNewGoroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/sys/cpu" />
+      <working_directory value="$PROJECT_DIR$/goroutine" />
       <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/sys/cpu" />
+      <package value="Songzhibin/GKit/goroutine" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTest_CPUUsage\E$" />
+      <pattern value="^\QTestNewGoroutine\E$" />
       <method v="2" />
     </configuration>
     <configuration name="Songzhibin/GKit/restrictor 中的 TestRate" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -111,11 +111,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine" />
         <item itemvalue="Go 测试.Songzhibin/GKit/restrictor/ratelimite 中的 TestRateLimit" />
         <item itemvalue="Go 测试.Songzhibin/GKit/restrictor/rate 中的 TestRate" />
         <item itemvalue="Go 测试.Songzhibin/GKit/restrictor 中的 TestRate" />
         <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 Test_CPUUsage" />
       </list>
     </recent_temporary>
   </component>

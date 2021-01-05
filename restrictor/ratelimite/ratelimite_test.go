@@ -15,7 +15,7 @@ func TestRateLimit(t *testing.T) {
 	// 创建填充速度为指定速率和容量大小的令牌桶
 	// NewBucketWithRate(0.1, 200) 表示每秒填充20个令牌
 	//func NewBucketWithRate(rate float64, capacity int64) *Bucket
-	
+
 	bucket := ratelimit.NewBucket(time.Second/2, 4)
 	af, wf := NewRateLimit(bucket)
 	// 暂停3秒,等待桶满
