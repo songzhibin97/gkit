@@ -16,7 +16,7 @@ import (
 )
 
 func TestDo(t *testing.T) {
-	var g Group
+	var g = NewSingleFlight()
 	v, err, _ := g.Do("key", func() (interface{}, error) {
 		return "bar", nil
 	})
@@ -29,7 +29,7 @@ func TestDo(t *testing.T) {
 }
 
 func TestDoErr(t *testing.T) {
-	var g Group
+	var g = NewSingleFlight()
 	someErr := errors.New("Some error")
 	v, err, _ := g.Do("key", func() (interface{}, error) {
 		return nil, someErr
@@ -43,7 +43,7 @@ func TestDoErr(t *testing.T) {
 }
 
 func TestDoDupSuppress(t *testing.T) {
-	var g Group
+	var g = NewSingleFlight()
 	var wg1, wg2 sync.WaitGroup
 	c := make(chan string, 1)
 	var calls int32
@@ -87,66 +87,8 @@ func TestDoDupSuppress(t *testing.T) {
 	}
 }
 
-func TestForget(t *testing.T) {
-	var g Group
-
-	var (
-		firstStarted  = make(chan struct{})
-		unblockFirst  = make(chan struct{})
-		firstFinished = make(chan struct{})
-	)
-
-	go func() {
-		g.Do("key", func() (i interface{}, e error) {
-			close(firstStarted)
-			<-unblockFirst
-			close(firstFinished)
-			return
-		})
-	}()
-	<-firstStarted
-	g.Forget("key")
-
-	unblockSecond := make(chan struct{})
-	secondResult := g.DoChan("key", func() (i interface{}, e error) {
-		<-unblockSecond
-		return 2, nil
-	})
-
-	close(unblockFirst)
-	<-firstFinished
-
-	thirdResult := g.DoChan("key", func() (i interface{}, e error) {
-		return 3, nil
-	})
-
-	close(unblockSecond)
-	<-secondResult
-	r := <-thirdResult
-	if r.Val != 2 {
-		t.Errorf("We should receive result produced by second call, expected: 2, got %d", r.Val)
-	}
-}
-
-func TestDoChan(t *testing.T) {
-	var g Group
-	ch := g.DoChan("key", func() (interface{}, error) {
-		return "bar", nil
-	})
-
-	res := <-ch
-	v := res.Val
-	err := res.Err
-	if got, want := fmt.Sprintf("%v (%T)", v, v), "bar (string)"; got != want {
-		t.Errorf("Do = %v; want %v", got, want)
-	}
-	if err != nil {
-		t.Errorf("Do error = %v", err)
-	}
-}
-
 func TestPanicDo(t *testing.T) {
-	var g Group
+	var g = NewSingleFlight()
 	fn := func() (interface{}, error) {
 		panic("invalid memory address or nil pointer dereference")
 	}
@@ -183,7 +125,7 @@ func TestPanicDo(t *testing.T) {
 }
 
 func TestGoexitDo(t *testing.T) {
-	var g Group
+	var g = NewSingleFlight()
 	fn := func() (interface{}, error) {
 		runtime.Goexit()
 		return nil, nil
@@ -224,11 +166,11 @@ func TestPanicDoChan(t *testing.T) {
 			recover()
 		}()
 
-		g := new(Group)
+		var g = NewSingleFlight()
 		ch := g.DoChan("", func() (interface{}, error) {
 			panic("Panicking in DoChan")
 		})
-		<-ch
+		t.Log(<-ch)
 		t.Fatalf("DoChan unexpectedly returned")
 	}
 
@@ -265,7 +207,7 @@ func TestPanicDoSharedByDoChan(t *testing.T) {
 		blocked := make(chan struct{})
 		unblock := make(chan struct{})
 
-		g := new(Group)
+		var g = NewSingleFlight()
 		go func() {
 			defer func() {
 				recover()

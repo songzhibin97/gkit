@@ -2,10 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/goroutine/goer.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cache/singleflight/singleflight.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singleflight.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cache/singleflight/singleflight_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singleflight_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cache/singleflight/singler.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,7 +47,7 @@
     <property name="go.sdk.automatically.set" value="true" />
     <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
     <property name="last_opened_file_path" value="$USER_HOME$" />
-    <property name="settings.editor.selected.configurable" value="go.vgo" />
+    <property name="settings.editor.selected.configurable" value="project.scopes" />
     <property name="vue.rearranger.settings.migration" value="true" />
   </component>
   <component name="RecentsManager">
@@ -54,7 +56,18 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan">
+    <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/cache/singleflight" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QTestPanicDoChan\E$" />
+      <method v="2" />
+    </configuration>
     <configuration name="Songzhibin/GKit/goroutine 中的 TestNewGoroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/goroutine" />
@@ -64,17 +77,6 @@
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
       <pattern value="^\QTestNewGoroutine\E$" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Songzhibin/GKit/restrictor 中的 TestRate" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/restrictor" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/restrictor" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestRate\E$" />
       <method v="2" />
     </configuration>
     <configuration name="Songzhibin/GKit/restrictor/rate 中的 TestRate" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -111,11 +113,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" />
+        <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
         <item itemvalue="Go 测试.Songzhibin/GKit/goroutine 中的 TestNewGoroutine" />
         <item itemvalue="Go 测试.Songzhibin/GKit/restrictor/ratelimite 中的 TestRateLimit" />
         <item itemvalue="Go 测试.Songzhibin/GKit/restrictor/rate 中的 TestRate" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/restrictor 中的 TestRate" />
-        <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
       </list>
     </recent_temporary>
   </component>
