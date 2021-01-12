@@ -25,16 +25,9 @@ func TestWindow(t *testing.T) {
 }
 
 func BenchmarkWindow(b *testing.B) {
-	w := InitWindow()
-	go func() {
-		for {
-			w.Show()
-		}
-	}()
+	var w = InitWindow()
 	for i := 0; i < b.N; i++ {
 		w.AddIndex(strconv.Itoa(i), uint(i))
+		w.Show()
 	}
 }
-
-// BenchmarkWindow   	 2047443	      1269 ns/op
-// BenchmarkWindow    	   10000	    274342 ns/op
