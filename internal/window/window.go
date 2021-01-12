@@ -80,7 +80,6 @@ func (w *Window) Sentinel() {
 			return
 		}
 	}
-
 }
 
 // Shutdown: 关闭
