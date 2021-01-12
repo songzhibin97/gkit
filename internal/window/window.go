@@ -42,11 +42,10 @@ type Window struct {
 	// close: 是否关闭
 	close uint32
 
-	// bufLock: buffer 锁
-	bufLock []sync.Mutex
 
 	// buffer: 根据窗口大小生成的buffer数组
-	buffer []map[string]uint
+	// map[string]uint
+	buffer []atomic.Value
 
 	// total: 所有指标
 	total map[string]uint
@@ -64,22 +63,21 @@ func (w *Window) Sentinel() {
 			}
 			w.Lock()
 			// 先收集上一次buffer的数据
-			w.bufLock[w.index].Lock()
-			for k, v := range w.buffer[w.index] {
+			m := w.buffer[w.index].Load().(map[string]uint)
+			for k, v := range m {
 				w.total[k] += v
 			}
-			w.bufLock[w.index].Unlock()
-			// +1
-			index := (w.index + 1) % w.size
 
+			index := (w.index + 1) % w.size
+			m = w.buffer[index].Load().(map[string]uint)
 			// 清空原来的数据
-			for k, v := range w.buffer[index] {
+			for k, v := range m {
 				w.total[k] -= v
 				if w.total[k] <= 0 {
 					delete(w.total, k)
 				}
 			}
-			w.buffer[index] = make(map[string]uint)
+			w.buffer[index].Store(make(map[string]uint))
 			// 最后在赋值
 			w.index = index
 			w.Unlock()
@@ -101,9 +99,13 @@ func (w *Window) Shutdown() {
 // AddIndex: 添加指标
 func (w *Window) AddIndex(k string, v uint) {
 	index := w.index
-	w.bufLock[index].Lock()
-	w.buffer[index][k] += v
-	w.bufLock[index].Unlock()
+	m := w.buffer[index].Load().(map[string]uint)
+	n := make(map[string]uint)
+	for s, u := range m {
+		n[s] = u
+	}
+	n[k] += v
+	w.buffer[index].Store(n)
 }
 
 // Show: 展示total

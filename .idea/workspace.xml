@@ -3,7 +3,9 @@
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/window/init.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/window/init.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/window/init_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/window/init_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/window/window.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/window/window.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -52,7 +54,7 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow">
     <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/cache/singleflight" />
@@ -108,8 +110,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
         <item itemvalue="Go 测试.init_test.go" />
         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" />
         <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
@@ -133,11 +135,6 @@
           <url>file://$PROJECT_DIR$/log/helper.go</url>
           <line>45</line>
           <option name="timeStamp" value="5" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/internal/window/window.go</url>
-          <line>55</line>
-          <option name="timeStamp" value="10" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
