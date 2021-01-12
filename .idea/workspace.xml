@@ -2,12 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
+      <change afterPath="$PROJECT_DIR$/internal/window/init.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/internal/window/window.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cache/singleflight/singleflight.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singleflight.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cache/singleflight/singleflight_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singleflight_test.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cache/singleflight/singler.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
