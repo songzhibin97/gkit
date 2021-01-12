@@ -1,7 +1,3 @@
-/******
-** @创建时间 : 2021/1/12 11:56
-** @作者 : SongZhiBin
-******/
 package window
 
 import (
@@ -38,5 +34,4 @@ func BenchmarkWindow(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		w.AddIndex(strconv.Itoa(i), uint(i))
 	}
-
 }
