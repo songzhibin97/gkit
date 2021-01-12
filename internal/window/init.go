@@ -44,7 +44,9 @@ func InitWindow(options ...Option) Windower {
 		option(&w.Conf)
 	}
 	w.buffer = make([]map[string]uint, w.size)
-	w.buffer[0] = make(map[string]uint)
+	for i := uint(0); i < w.size; i++ {
+		w.buffer[i] = make(map[string]uint)
+	}
 	w.total = make(map[string]uint)
 	w.bufLock = make([]sync.Mutex, w.size)
 	w.ctx, w.cancel = context.WithCancel(w.ctx)

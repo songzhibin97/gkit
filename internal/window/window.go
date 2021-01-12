@@ -63,18 +63,25 @@ func (w *Window) Sentinel() {
 				return
 			}
 			w.Lock()
-			w.index = (w.index + 1) % w.size
-			// 懒加载
-			if w.buffer[w.index] != nil {
-				// 清空原来的数据
-				for k, v := range w.buffer[w.index] {
-					w.total[k] -= v
-					if w.total[k] <= 0 {
-						delete(w.total, k)
-					}
+			// 先收集上一次buffer的数据
+			w.bufLock[w.index].Lock()
+			for k, v := range w.buffer[w.index] {
+				w.total[k] += v
+			}
+			w.bufLock[w.index].Unlock()
+			// +1
+			index := (w.index + 1) % w.size
+
+			// 清空原来的数据
+			for k, v := range w.buffer[index] {
+				w.total[k] -= v
+				if w.total[k] <= 0 {
+					delete(w.total, k)
 				}
 			}
-			w.buffer[w.index] = make(map[string]uint)
+			w.buffer[index] = make(map[string]uint)
+			// 最后在赋值
+			w.index = index
 			w.Unlock()
 		case <-w.ctx.Done():
 			return
