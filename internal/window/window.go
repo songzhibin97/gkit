@@ -2,7 +2,6 @@ package window
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -27,8 +26,6 @@ type Conf struct {
 
 // Window: 窗口对象
 type Window struct {
-	// sync.Mutex: 互斥锁
-	sync.Mutex
 
 	// Conf: 配置信息
 	Conf
@@ -42,32 +39,46 @@ type Window struct {
 	// close: 是否关闭
 	close uint32
 
-	// bufLock: 环形锁
-	bufLock []sync.Mutex
+	// communication: 通讯 channel 将kv数据发送到临界区
+	communication chan Index
 
 	// buffer: 根据窗口大小生成的buffer数组
 	// map[string]uint
 	buffer []atomic.Value
-
 }
 
 // Sentinel: 初始化window对象后 后台开始滚动计数并同步更新到total
 func (w *Window) Sentinel() {
 	tick := time.Tick(w.interval)
+	m := make(map[string]uint)
 	for {
 		select {
+		case info, ok := <-w.communication:
+			if !ok {
+				return
+			}
+			m[info.Name] += info.Score
 		case _, ok := <-tick:
 			if !ok {
 				// 退出
 				return
 			}
 			index := (w.index + 1) % w.size
-			w.buffer[index].Store(make(map[string]uint))
+			w.buffer[w.index].Store(m)
+			m = make(map[string]uint)
 			// 最后在赋值
 			w.index = index
 		case <-w.ctx.Done():
 			return
 		}
+	}
+}
+
+// TemporaryBuffer: 临界区buffer 收集kv在时钟信号到来的时候上载到 buffer 中
+func (w *Window) TemporaryBuffer() {
+	m := make(map[string]uint)
+	for info := range w.communication {
+		m[info.Name] += info.Score
 	}
 }
 
@@ -82,16 +93,10 @@ func (w *Window) Shutdown() {
 
 // AddIndex: 添加指标
 func (w *Window) AddIndex(k string, v uint) {
-	index := w.index
-	w.bufLock[index].Lock()
-	defer w.bufLock[index].Unlock()
-	m := w.buffer[index].Load().(map[string]uint)
-	n := make(map[string]uint, len(m))
-	for s, u := range m {
-		n[s] = u
+	w.communication <- Index{
+		Name:  k,
+		Score: v,
 	}
-	n[k] += v
-	w.buffer[index].Store(n)
 }
 
 // Show: 展示total

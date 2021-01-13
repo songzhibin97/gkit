@@ -1,0 +1,60 @@
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"ChangeListManager\">\n    <list default=\"true\" id=\"e4abfee6-9943-4f6d-be26-4120a1afe87f\" name=\"默认的\" comment=\"\">\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\n      <change beforePath=\"$PROJECT_DIR$/internal/window/init_test.go\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/internal/window/init_test.go\" afterDir=\"false\" />\n    </list>\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\n  </component>\n  <component name=\"FileTemplateManagerImpl\">\n    <option name=\"RECENT_TEMPLATES\">\n      <list>\n        <option value=\"Go File\" />\n      </list>\n    </option>\n  </component>\n  <component name=\"GOROOT\" url=\"file:///usr/local/Cellar/go/1.15.5/libexec\" />\n  <component name=\"Git.Settings\">\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\n  </component>\n  <component name=\"GoLibraries\">\n    <option name=\"indexEntireGoPath\" value=\"false\" />\n  </component>\n  <component name=\"ProjectId\" id=\"1mEP1LH4HD28HnAABXDQJ9iKk7m\" />\n  <component name=\"ProjectLevelVcsManager\" settingsEditedManually=\"true\">\n    <ConfirmationsSetting value=\"2\" id=\"Add\" />\n  </component>\n  <component name=\"ProjectViewState\">\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\n    <option name=\"showLibraryContents\" value=\"true\" />\n    <option name=\"showMembers\" value=\"true\" />\n  </component>\n  <component name=\"PropertiesComponent\">\n    <property name=\"ASKED_ADD_EXTERNAL_FILES\" value=\"true\" />\n    <property name=\"DefaultGoTemplateProperty\" value=\"Go File\" />\n    <property name=\"RunOnceActivity.OpenProjectViewOnStart\" value=\"true\" />\n    <property name=\"RunOnceActivity.ShowReadmeOnStart\" value=\"true\" />\n    <property name=\"WebServerToolWindowFactoryState\" value=\"false\" />\n    <property name=\"go.import.settings.migrated\" value=\"true\" />\n    <property name=\"go.sdk.automatically.set\" value=\"true\" />\n    <property name=\"go.tried.to.enable.integration.vgo.integrator\" value=\"true\" />\n    <property name=\"last_opened_file_path\" value=\"$USER_HOME$\" />\n    <property name=\"settings.editor.selected.configurable\" value=\"project.scopes\" />\n    <property name=\"vue.rearranger.settings.migration\" value=\"true\" />\n  </component>\n  <component name=\"RecentsManager\">\n    <key name=\"MoveFile.RECENT_KEYS\">\n      <recent name=\"$PROJECT_DIR$/restrictor\" />\n      <recent name=\"$PROJECT_DIR$/egroup\" />\n    </key>\n  </component>\n  <component name=\"RunManager\" selected=\"Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow\">\n    <configuration name=\"Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan\" type=\"GoTestRunConfiguration\" factoryName=\"Go Test\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"GKit\" />\n      <working_directory value=\"$PROJECT_DIR$/cache/singleflight\" />\n      <framework value=\"gotest\" />\n      <kind value=\"PACKAGE\" />\n      <package value=\"Songzhibin/GKit/cache/singleflight\" />\n      <directory value=\"$PROJECT_DIR$\" />\n      <filePath value=\"$PROJECT_DIR$\" />\n      <pattern value=\"^\\QTestPanicDoChan\\E$\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"Songzhibin/GKit/internal/window 中的 BenchmarkWindow\" type=\"GoTestRunConfiguration\" factoryName=\"Go Test\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"GKit\" />\n      <working_directory value=\"$PROJECT_DIR$/internal/window\" />\n      <framework value=\"gobench\" />\n      <kind value=\"PACKAGE\" />\n      <package value=\"Songzhibin/GKit/internal/window\" />\n      <directory value=\"$PROJECT_DIR$\" />\n      <filePath value=\"$PROJECT_DIR$\" />\n      <pattern value=\"^\\QBenchmarkWindow\\E$\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"Songzhibin/GKit/internal/window 中的 TestWindow\" type=\"GoTestRunConfiguration\" factoryName=\"Go Test\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"GKit\" />\n      <working_directory value=\"$PROJECT_DIR$/internal/window\" />\n      <framework value=\"gotest\" />\n      <kind value=\"PACKAGE\" />\n      <package value=\"Songzhibin/GKit/internal/window\" />\n      <directory value=\"$PROJECT_DIR$\" />\n      <filePath value=\"$PROJECT_DIR$\" />\n      <pattern value=\"^\\QTestWindow\\E$\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"go test Songzhibin/GKit/cache/singleflight\" type=\"GoTestRunConfiguration\" factoryName=\"Go Test\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"GKit\" />\n      <working_directory value=\"$PROJECT_DIR$/cache/singleflight\" />\n      <framework value=\"gotest\" />\n      <kind value=\"PACKAGE\" />\n      <package value=\"Songzhibin/GKit/cache/singleflight\" />\n      <directory value=\"$PROJECT_DIR$\" />\n      <filePath value=\"$PROJECT_DIR$\" />\n      <method v=\"2\" />\n    </configuration>\n    <configuration name=\"init_test.go\" type=\"GoTestRunConfiguration\" factoryName=\"Go Test\" temporary=\"true\" nameIsGenerated=\"true\">\n      <module name=\"GKit\" />\n      <working_directory value=\"$PROJECT_DIR$/internal/window\" />\n      <framework value=\"gotest\" />\n      <kind value=\"FILE\" />\n      <package value=\"Songzhibin/GKit\" />\n      <directory value=\"$PROJECT_DIR$\" />\n      <filePath value=\"$PROJECT_DIR$/internal/window/init_test.go\" />\n      <method v=\"2\" />\n    </configuration>\n    <recent_temporary>\n      <list>\n        <item itemvalue=\"Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow\" />\n        <item itemvalue=\"Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow\" />\n        <item itemvalue=\"Go 测试.init_test.go\" />\n        <item itemvalue=\"Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan\" />\n        <item itemvalue=\"Go 测试.go test Songzhibin/GKit/cache/singleflight\" />\n      </list>\n    </recent_temporary>\n  </component>\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\n  <component name=\"TypeScriptGeneratedFilesManager\">\n    <option name=\"version\" value=\"3\" />\n  </component>\n  <component name=\"VcsManagerConfiguration\">\n    <option name=\"ADD_EXTERNAL_FILES_SILENTLY\" value=\"true\" />\n  </component>\n  <component name=\"VgoProject\">\n    <integration-enabled>true</integration-enabled>\n  </component>\n  <component name=\"XDebuggerManager\">\n    <breakpoint-manager>\n      <breakpoints>\n        <line-breakpoint enabled=\"true\" type=\"DlvLineBreakpoint\">\n          <url>file://$PROJECT_DIR$/log/helper.go</url>\n          <line>45</line>\n          <option name=\"timeStamp\" value=\"5\" />\n        </line-breakpoint>\n        <line-breakpoint enabled=\"true\" type=\"DlvLineBreakpoint\">\n          <url>file://$PROJECT_DIR$/internal/window/window.go</url>\n          <line>55</line>\n          <option name=\"timeStamp\" value=\"10\" />\n        </line-breakpoint>\n      </breakpoints>\n    </breakpoint-manager>\n  </component>\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision 4c5d26c27112123eb2809764f90fb5e97d8b11d5)
++++ b/.idea/workspace.xml	(date 1610454830816)
+@@ -19,6 +19,11 @@
+   </component>
+   <component name="GOROOT" url="file:///usr/local/Cellar/go/1.15.5/libexec" />
+   <component name="Git.Settings">
++    <option name="RECENT_BRANCH_BY_REPOSITORY">
++      <map>
++        <entry key="$PROJECT_DIR$" value="master" />
++      </map>
++    </option>
+     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+   </component>
+   <component name="GoLibraries">
+@@ -52,7 +57,7 @@
+       <recent name="$PROJECT_DIR$/egroup" />
+     </key>
+   </component>
+-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow">
++  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow">
+     <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+       <module name="GKit" />
+       <working_directory value="$PROJECT_DIR$/cache/singleflight" />
+@@ -108,8 +113,8 @@
+     </configuration>
+     <recent_temporary>
+       <list>
+-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
+         <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow" />
++        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
+         <item itemvalue="Go 测试.init_test.go" />
+         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" />
+         <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
+@@ -119,6 +124,18 @@
+   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+   <component name="TypeScriptGeneratedFilesManager">
+     <option name="version" value="3" />
++  </component>
++  <component name="Vcs.Log.Tabs.Properties">
++    <option name="TAB_STATES">
++      <map>
++        <entry key="MAIN">
++          <value>
++            <State />
++          </value>
++        </entry>
++      </map>
++    </option>
++    <option name="oldMeFiltersMigrated" value="true" />
+   </component>
+   <component name="VcsManagerConfiguration">
+     <option name="ADD_EXTERNAL_FILES_SILENTLY" value="true" />

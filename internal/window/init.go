@@ -2,7 +2,6 @@ package window
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -48,7 +47,7 @@ func InitWindow(options ...Option) Windower {
 	for i := uint(0); i < w.size; i++ {
 		w.buffer[i].Store(make(map[string]uint))
 	}
-	w.bufLock = make([]sync.Mutex, w.size)
+	w.communication = make(chan Index, w.size)
 	w.ctx, w.cancel = context.WithCancel(w.ctx)
 	// 开启哨兵
 	go w.Sentinel()
