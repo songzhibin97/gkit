@@ -63,22 +63,12 @@ func (w *Window) Sentinel() {
 				// 退出
 				return
 			}
-			index := (w.index + 1) % w.size
 			w.buffer[w.index].Store(m)
 			m = make(map[string]uint)
-			// 最后在赋值
-			w.index = index
+			w.index = (w.index + 1) % w.size
 		case <-w.ctx.Done():
 			return
 		}
-	}
-}
-
-// TemporaryBuffer: 临界区buffer 收集kv在时钟信号到来的时候上载到 buffer 中
-func (w *Window) TemporaryBuffer() {
-	m := make(map[string]uint)
-	for info := range w.communication {
-		m[info.Name] += info.Score
 	}
 }
 
