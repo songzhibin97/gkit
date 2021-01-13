@@ -84,7 +84,7 @@ func (w *Window) Shutdown() {
 
 // AddIndex: 添加指标
 func (w *Window) AddIndex(k string, v uint) {
-	if atomic.LoadUint32(&w.close) == 1{
+	if atomic.LoadUint32(&w.close) == 1 {
 		return
 	}
 	w.communication <- Index{

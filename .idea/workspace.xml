@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
+      <change afterPath="$PROJECT_DIR$/overload/bbr/bbr.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/window/window.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/window/window.go" afterDir="false" />
     </list>
@@ -65,7 +66,7 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow">
     <configuration name="Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/cache/singleflight" />
@@ -88,6 +89,17 @@
       <pattern value="^\QBenchmarkWindow\E$" />
       <method v="2" />
     </configuration>
+    <configuration name="Songzhibin/GKit/internal/window 中的 BenchmarkWindow2" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/internal/window" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/internal/window" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QBenchmarkWindow2\E$" />
+      <method v="2" />
+    </configuration>
     <configuration name="Songzhibin/GKit/internal/window 中的 TestWindow" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/internal/window" />
@@ -97,16 +109,6 @@
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
       <pattern value="^\QTestWindow\E$" />
-      <method v="2" />
-    </configuration>
-    <configuration name="go test Songzhibin/GKit/cache/singleflight" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/cache/singleflight" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/cache/singleflight" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
       <method v="2" />
     </configuration>
     <configuration name="init_test.go" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -121,11 +123,11 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow2" />
         <item itemvalue="Go 测试.init_test.go" />
         <item itemvalue="Go 测试.Songzhibin/GKit/cache/singleflight 中的 TestPanicDoChan" />
-        <item itemvalue="Go 测试.go test Songzhibin/GKit/cache/singleflight" />
       </list>
     </recent_temporary>
   </component>
