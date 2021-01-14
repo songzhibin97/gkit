@@ -2,9 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/internal/container/group/group.go" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/internal/container/group/group_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/container/group/group_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/group/group_test.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -66,7 +65,18 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_ReSet">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/container/group 中的 BenchmarkGroup_Get">
+    <configuration name="Songzhibin/GKit/internal/container/group 中的 BenchmarkGroup_Get" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/internal/container/group" />
+      <framework value="gobench" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/internal/container/group" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QBenchmarkGroup_Get\E$" />
+      <method v="2" />
+    </configuration>
     <configuration name="Songzhibin/GKit/internal/container/group 中的 TestGroup_Get" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/internal/container/group" />
@@ -100,17 +110,6 @@
       <pattern value="^\QBenchmarkWindow\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/internal/window 中的 BenchmarkWindow2" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/window" />
-      <framework value="gobench" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/window" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QBenchmarkWindow2\E$" />
-      <method v="2" />
-    </configuration>
     <configuration name="Songzhibin/GKit/internal/window 中的 TestWindow" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/internal/window" />
@@ -124,11 +123,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 BenchmarkGroup_Get" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_ReSet" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_Get" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow2" />
       </list>
     </recent_temporary>
   </component>

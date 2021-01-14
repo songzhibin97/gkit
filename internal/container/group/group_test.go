@@ -3,6 +3,7 @@ package group
 import (
 	"github.com/stretchr/testify/assert"
 	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -54,4 +55,15 @@ func TestGroup_ReSet(t *testing.T) {
 	})
 	v = g.Get("user")
 	assert.Equal(t, v.(int), 2)
+}
+
+func BenchmarkGroup_Get(b *testing.B) {
+	g := NewGroup(func() interface{} {
+		return 1
+	})
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < 100; j++ {
+			g.Get(strconv.Itoa(j))
+		}
+	}
 }
