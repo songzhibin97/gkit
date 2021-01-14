@@ -11,17 +11,6 @@ type Group struct {
 	objs map[string]interface{}
 }
 
-// NewGroup: Group 实例化方法
-func NewGroup(f func() interface{}) *Group {
-	if f == nil {
-		panic("container.group: 不能为新函数分配nil")
-	}
-	return &Group{
-		f:    f,
-		objs: make(map[string]interface{}),
-	}
-}
-
 // Get: 根据key 获取 value
 func (g *Group) Get(key string) interface{} {
 	g.RLock()
@@ -52,4 +41,15 @@ func (g *Group) ReSet(nf func() interface{}) {
 	defer g.Unlock()
 	g.f = nf
 	g.objs = make(map[string]interface{})
+}
+
+// NewGroup: Group 实例化方法
+func NewGroup(f func() interface{}) Grouper {
+	if f == nil {
+		panic("container.group: 不能为新函数分配nil")
+	}
+	return &Group{
+		f:    f,
+		objs: make(map[string]interface{}),
+	}
 }

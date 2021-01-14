@@ -33,10 +33,6 @@ func TestGroup_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g = &Group{
-				f:    g.f,
-				objs: g.objs,
-			}
 			if got := g.Get(tt.args.key); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Get() = %v, want %v", got, tt.want)
 			}
