@@ -1,11 +1,15 @@
 package ratelimite
 
 import (
-	"Songzhibin/GKit/errors"
 	"Songzhibin/GKit/restrictor"
 	"context"
+	"errors"
 	"github.com/juju/ratelimit"
 	"time"
+)
+
+var (
+	ErrTimeOut = errors.New("restrictor/ratelimite: 超时")
 )
 
 // package ratelimite: https://pkg.go.dev/github.com/juju/ratelimit 实现 limiter 接口
@@ -18,13 +22,13 @@ func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.Wa
 			// 获取超时时间
 			if d, ok := ctx.Deadline(); ok {
 				if !bucket.WaitMaxDuration(int64(n), time.Until(d)) {
-					return errors.ErrTimeOut
+					return ErrTimeOut
 				}
 				return nil
 			}
 			// 表示context没有设置超时时间
 			if bucket.WaitMaxDuration(int64(n), 100*time.Millisecond) {
-				return errors.ErrTimeOut
+				return ErrTimeOut
 			}
 			return nil
 		}

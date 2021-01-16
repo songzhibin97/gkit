@@ -3,12 +3,16 @@ package goroutine
 // package goroutine: 管理goroutine并发量托管任务以及兜底
 
 import (
-	"Songzhibin/GKit/errors"
 	"Songzhibin/GKit/timeout"
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
+)
+
+var (
+	ErrRepeatClose = errors.New("goroutine/goroutine :重复关闭")
 )
 
 // Goroutine:
@@ -115,7 +119,7 @@ func (g *Goroutine) ChangeMax(m int64) {
 // 符合幂等性
 func (g *Goroutine) Shutdown() error {
 	if atomic.SwapInt32(&g.close, 1) == 1 {
-		return errors.ErrRepeatClose
+		return ErrRepeatClose
 	}
 	g.cancel()
 	close(g.task)
