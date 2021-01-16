@@ -29,10 +29,10 @@ type Pool interface {
 // Config: Pool 选项
 type Config struct {
 	// Active: 池中的连接数, 如果为 <= 0 则无限制
-	Active int
+	Active uint64
 
 	// Idle: 最大空闲数
-	Idle int
+	Idle uint64
 
 	// IdleTimeout: 关闭后等待 time.Duration 连接归还
 	IdleTimeout time.Duration
@@ -44,6 +44,7 @@ type Config struct {
 	Wait bool
 }
 
+// item:
 type item struct {
 	createdAt time.Time
 	c         io.Closer

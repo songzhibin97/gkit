@@ -2,12 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/internal/container/pool/list.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/errors/signal.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/container/pool/list.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/list.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/container/pool/pool.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/pool.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/ratelimite/ratelimite.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
