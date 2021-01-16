@@ -3,7 +3,6 @@ package pool
 import (
 	"context"
 	"errors"
-	"io"
 	"time"
 )
 
@@ -19,11 +18,15 @@ var (
 	nowFunc = time.Now
 )
 
+type Shutdown interface {
+	Shutdown() error
+}
+
 // Pool interface.
 type Pool interface {
-	Get(ctx context.Context) (io.Closer, error)
-	Put(ctx context.Context, c io.Closer, forceClose bool) error
-	Close() error
+	Get(ctx context.Context) (Shutdown, error)
+	Put(ctx context.Context, c Shutdown, forceClose bool) error
+	Shutdown
 }
 
 // Config: Pool 选项
@@ -47,7 +50,7 @@ type Config struct {
 // item:
 type item struct {
 	createdAt time.Time
-	c         io.Closer
+	c         Shutdown
 }
 
 // expire: 是否到期
@@ -59,6 +62,6 @@ func (i *item) expire(timeout time.Duration) bool {
 }
 
 // close: 关闭
-func (i *item) close() error {
-	return i.c.Close()
+func (i *item) shutdown() error {
+	return i.c.Shutdown()
 }
