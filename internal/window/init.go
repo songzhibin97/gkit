@@ -31,7 +31,7 @@ func SetContext(c context.Context) Option {
 }
 
 // InitWindow: 实例化
-func InitWindow(options ...Option) Windower {
+func InitWindow(options ...Option) SlidingWindow {
 	w := Window{
 		// 默认值:
 		Conf: Conf{

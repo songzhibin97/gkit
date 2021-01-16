@@ -1,6 +1,7 @@
 package goroutine
 
-type Goer interface {
+// GGroup
+type GGroup interface {
 	// ChangeMax: 更改buffer大小
 	ChangeMax(m int64)
 

@@ -30,7 +30,7 @@ type Goroutine struct {
 }
 
 // NewGoroutine: 实例化方法
-func NewGoroutine(ctx context.Context, opts ...Option) Goer {
+func NewGoroutine(ctx context.Context, opts ...Option) GGroup {
 	ctx, cancel := context.WithCancel(ctx)
 	options := options{
 		stopTimeout: 10 * time.Second,

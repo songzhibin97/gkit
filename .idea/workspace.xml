@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="" />
+    <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
+      <change afterPath="$PROJECT_DIR$/internal/container/pool/pool.go" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/internal/stat/stat.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cache/singleflight/singleflight.go" beforeDir="false" afterPath="$PROJECT_DIR$/cache/singleflight/singleflight.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cache/singleflight/singler.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/goroutine/goer.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/ggroup.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/goroutine/goroutine.go" beforeDir="false" afterPath="$PROJECT_DIR$/goroutine/goroutine.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/container/group/group.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/group/group.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/container/group/group_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/group/group_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/container/group/grouper.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/group/grouper.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/sys/cpu/cpu_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/sys/cpu/cpu_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/window/init.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/window/init.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/window/windower.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/window/slidingwindow.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/restrictor/limiter.go" beforeDir="false" afterPath="$PROJECT_DIR$/restrictor/limiter.go" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -62,29 +78,7 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_Get">
-    <configuration name="Songzhibin/GKit/internal/container/group 中的 BenchmarkGroup_Get" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/container/group" />
-      <framework value="gobench" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/container/group" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QBenchmarkGroup_Get\E$" />
-      <method v="2" />
-    </configuration>
-    <configuration name="Songzhibin/GKit/internal/container/group 中的 TestGroup_Get" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
-      <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/container/group" />
-      <framework value="gotest" />
-      <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/container/group" />
-      <directory value="$PROJECT_DIR$" />
-      <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestGroup_Get\E$" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 TestStat">
     <configuration name="Songzhibin/GKit/internal/container/group 中的 TestGroup_ReSet" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
       <working_directory value="$PROJECT_DIR$/internal/container/group" />
@@ -96,15 +90,15 @@
       <pattern value="^\QTestGroup_ReSet\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/internal/window 中的 BenchmarkWindow" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/internal/sys/cpu 中的 TestStat" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/window" />
-      <framework value="gobench" />
+      <working_directory value="$PROJECT_DIR$/internal/sys/cpu" />
+      <framework value="gotest" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/window" />
+      <package value="Songzhibin/GKit/internal/sys/cpu" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QBenchmarkWindow\E$" />
+      <pattern value="^\QTestStat\E$" />
       <method v="2" />
     </configuration>
     <configuration name="Songzhibin/GKit/internal/window 中的 TestWindow" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
@@ -118,13 +112,33 @@
       <pattern value="^\QTestWindow\E$" />
       <method v="2" />
     </configuration>
+    <configuration name="go test Songzhibin/GKit/goroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/goroutine" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/goroutine" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="go test Songzhibin/GKit/internal/container/group" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="GKit" />
+      <working_directory value="$PROJECT_DIR$/internal/container/group" />
+      <framework value="gotest" />
+      <kind value="PACKAGE" />
+      <package value="Songzhibin/GKit/internal/container/group" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_Get" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 BenchmarkGroup_Get" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 TestStat" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_ReSet" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 BenchmarkWindow" />
+        <item itemvalue="Go 测试.go test Songzhibin/GKit/internal/container/group" />
+        <item itemvalue="Go 测试.go test Songzhibin/GKit/goroutine" />
       </list>
     </recent_temporary>
   </component>
@@ -149,17 +163,6 @@
   </component>
   <component name="VgoProject">
     <integration-enabled>true</integration-enabled>
-  </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/log/helper.go</url>
-          <line>45</line>
-          <option name="timeStamp" value="5" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/GKit$Songzhibin_GKit_internal_window__BenchmarkWindow.out" NAME="Songzhibin/GKit/internal/window 中的 BenchmarkWindow 覆盖结果" MODIFIED="1610455135555" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="GoCoverage" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" />

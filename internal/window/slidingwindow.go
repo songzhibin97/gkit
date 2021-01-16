@@ -1,6 +1,7 @@
 package window
 
-type Windower interface {
+// SlidingWindow: 滑动窗口接口化
+type SlidingWindow interface {
 	// Sentinel: 哨兵
 	Sentinel()
 

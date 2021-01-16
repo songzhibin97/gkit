@@ -44,7 +44,7 @@ func (g *Group) ReSet(nf func() interface{}) {
 }
 
 // NewGroup: Group 实例化方法
-func NewGroup(f func() interface{}) Grouper {
+func NewGroup(f func() interface{}) LazyLoadGroup {
 	if f == nil {
 		panic("container.group: 不能为新函数分配nil")
 	}

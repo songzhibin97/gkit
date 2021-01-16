@@ -1,7 +1,6 @@
 package group
 
 import (
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"strconv"
 	"testing"
@@ -45,12 +44,12 @@ func TestGroup_ReSet(t *testing.T) {
 		return 1
 	})
 	v := g.Get("user")
-	assert.Equal(t, v.(int), 1)
+	t.Log(reflect.DeepEqual(v.(int), 1))
 	g.ReSet(func() interface{} {
 		return 2
 	})
 	v = g.Get("user")
-	assert.Equal(t, v.(int), 2)
+	t.Log(reflect.DeepEqual(v.(int), 2))
 }
 
 func BenchmarkGroup_Get(b *testing.B) {
