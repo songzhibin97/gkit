@@ -19,23 +19,17 @@ var (
 	nowFunc = time.Now
 )
 
-type Shutdown interface {
+type IShutdown interface {
 	Shutdown() error
 }
 
 // Pool interface.
 type Pool interface {
-	Get(ctx context.Context) (Shutdown, error)
-	Put(ctx context.Context, c Shutdown, forceClose bool) error
-	Shutdown
+	Get(ctx context.Context) (IShutdown, error)
+	Put(ctx context.Context, c IShutdown, forceClose bool) error
+	Shutdown() error
 }
 
-//// shutdown: 实现 Shutdown 接口 用于 mock
-//type shutdown struct{}
-//
-//func (s *shutdown) Shutdown() error {
-//	return nil
-//}
 
 // Config: Pool 选项
 type Config struct {
@@ -58,7 +52,7 @@ type Config struct {
 // item:
 type item struct {
 	createdAt time.Time
-	s         Shutdown
+	s         IShutdown
 }
 
 // expire: 是否到期

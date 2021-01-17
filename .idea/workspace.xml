@@ -2,9 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change afterPath="$PROJECT_DIR$/internal/container/pool/slice.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/container/pool/list.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/list.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/container/pool/list_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/list_test.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/container/pool/pool.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/pool.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -67,67 +68,69 @@
       <recent name="$PROJECT_DIR$/egroup" />
     </key>
   </component>
-  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 TestStat">
-    <configuration name="Songzhibin/GKit/internal/container/group 中的 TestGroup_ReSet" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+  <component name="RunManager" selected="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList1">
+    <configuration name="Songzhibin/GKit/internal/container/pool 中的 BenchmarkList1" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/container/group" />
-      <framework value="gotest" />
+      <working_directory value="$PROJECT_DIR$/internal/container/pool" />
+      <framework value="gobench" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/container/group" />
+      <package value="Songzhibin/GKit/internal/container/pool" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestGroup_ReSet\E$" />
+      <pattern value="^\QBenchmarkList1\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/internal/sys/cpu 中的 TestStat" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/internal/container/pool 中的 BenchmarkList2" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/sys/cpu" />
-      <framework value="gotest" />
+      <working_directory value="$PROJECT_DIR$/internal/container/pool" />
+      <framework value="gobench" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/sys/cpu" />
+      <package value="Songzhibin/GKit/internal/container/pool" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestStat\E$" />
+      <pattern value="^\QBenchmarkList2\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="Songzhibin/GKit/internal/window 中的 TestWindow" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/internal/container/pool 中的 BenchmarkList4" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/window" />
-      <framework value="gotest" />
+      <working_directory value="$PROJECT_DIR$/internal/container/pool" />
+      <framework value="gobench" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/window" />
+      <package value="Songzhibin/GKit/internal/container/pool" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
-      <pattern value="^\QTestWindow\E$" />
+      <pattern value="^\QBenchmarkList4\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="go test Songzhibin/GKit/goroutine" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/internal/container/pool 中的 BenchmarkList5" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/goroutine" />
-      <framework value="gotest" />
+      <working_directory value="$PROJECT_DIR$/internal/container/pool" />
+      <framework value="gobench" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/goroutine" />
+      <package value="Songzhibin/GKit/internal/container/pool" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QBenchmarkList5\E$" />
       <method v="2" />
     </configuration>
-    <configuration name="go test Songzhibin/GKit/internal/container/group" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+    <configuration name="Songzhibin/GKit/internal/container/pool 中的 BenchmarkPool3" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
       <module name="GKit" />
-      <working_directory value="$PROJECT_DIR$/internal/container/group" />
-      <framework value="gotest" />
+      <working_directory value="$PROJECT_DIR$/internal/container/pool" />
+      <framework value="gobench" />
       <kind value="PACKAGE" />
-      <package value="Songzhibin/GKit/internal/container/group" />
+      <package value="Songzhibin/GKit/internal/container/pool" />
       <directory value="$PROJECT_DIR$" />
       <filePath value="$PROJECT_DIR$" />
+      <pattern value="^\QBenchmarkPool3\E$" />
       <method v="2" />
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/sys/cpu 中的 TestStat" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/group 中的 TestGroup_ReSet" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/window 中的 TestWindow" />
-        <item itemvalue="Go 测试.go test Songzhibin/GKit/internal/container/group" />
-        <item itemvalue="Go 测试.go test Songzhibin/GKit/goroutine" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList1" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList5" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList4" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkPool3" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList2" />
       </list>
     </recent_temporary>
   </component>

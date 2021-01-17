@@ -14,7 +14,7 @@ var _ Pool = &List{}
 // List:
 type List struct {
 	// f: item
-	f func(ctx context.Context) (Shutdown, error)
+	f func(ctx context.Context) (IShutdown, error)
 
 	// mu: 互斥锁, 保护以下字段
 	mu sync.Mutex
@@ -131,7 +131,7 @@ func (l *List) signal() {
 }
 
 // Get: 获取
-func (l *List) Get(ctx context.Context) (Shutdown, error) {
+func (l *List) Get(ctx context.Context) (IShutdown, error) {
 	l.mu.Lock()
 	// 判断是否关闭
 	if atomic.LoadUint32(&l.closed) == 1 {
@@ -140,7 +140,7 @@ func (l *List) Get(ctx context.Context) (Shutdown, error) {
 	}
 	for {
 		for i, n := 0, l.idles.Len(); i < n; i++ {
-			e := l.idles.Back()
+			e := l.idles.Front()
 			if e == nil {
 				break
 			}
@@ -199,9 +199,9 @@ func (l *List) Get(ctx context.Context) (Shutdown, error) {
 }
 
 // Put: 回收
-func (l *List) Put(ctx context.Context, s Shutdown, forceClose bool) error {
+func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 	l.mu.Lock()
-	if atomic.LoadUint32(&l.closed) == 1 && !forceClose {
+	if atomic.LoadUint32(&l.closed) == 0 && !forceClose {
 		// 插入到链表头
 		l.idles.PushFront(item{createdAt: nowFunc(), s: s})
 		// 判断闲置数量是否达到阈值
@@ -223,7 +223,7 @@ func (l *List) Put(ctx context.Context, s Shutdown, forceClose bool) error {
 	return s.Shutdown()
 }
 
-// Shutdown: 关闭
+// IShutdown: 关闭
 func (l *List) Shutdown() error {
 	l.mu.Lock()
 	idles := l.idles
