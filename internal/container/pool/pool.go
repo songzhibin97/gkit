@@ -7,6 +7,7 @@ import (
 )
 
 // package pool: 连接池
+const minDuration = 100 * time.Millisecond
 
 var (
 	// ErrPoolExhausted: 连接以耗尽

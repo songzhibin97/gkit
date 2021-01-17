@@ -19,7 +19,7 @@ type List struct {
 	// mu: 互斥锁, 保护以下字段
 	mu sync.Mutex
 
-	// cond:
+	// cond: 发送信号,通知有回收动作,在等待的可以再次尝试获取资源
 	cond chan struct{}
 
 	// cleanerCh: 清空 ch
@@ -36,17 +36,6 @@ type List struct {
 
 	// idles: 链表
 	idles list.List
-}
-
-// NewList: 实例化
-func NewList(c *Config) *List {
-	if c == nil || c.Active < c.Idle {
-		panic("config nil或Idle必须<=有效")
-	}
-	l := &List{conf: c}
-	l.cond = make(chan struct{})
-	l.Init(c.IdleTimeout)
-	return l
 }
 
 // Reload: 重新设置配置文件
@@ -74,15 +63,18 @@ func (l *List) Init(d time.Duration) {
 	if l.cleanerCh == nil {
 		l.cleanerCh = make(chan struct{}, 1)
 		// 开启定时任务
-		go l.Timer()
+		go l.Timer(l.conf.IdleTimeout)
 	}
-
 }
 
 // Timer: 定时任务
-func (l *List) Timer() {
+func (l *List) Timer(d time.Duration) {
+
+	if d < minDuration {
+		d = minDuration
+	}
 	// ticker: 定时任务
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(d)
 	for {
 		select {
 		// 触发条件:
@@ -191,13 +183,13 @@ func (l *List) Get(ctx context.Context) (Shutdown, error) {
 		l.mu.Unlock()
 
 		// 控制链路超时时间
-		_, nctx, cancel := timeout.Shrink(ctx, wt)
+		_, nCtx, cancel := timeout.Shrink(ctx, wt)
 
 		// 超时/收到了某应用回收的信号
 		select {
-		case <-nctx.Done():
+		case <-nCtx.Done():
 			cancel()
-			return nil, nctx.Err()
+			return nil, nCtx.Err()
 		case <-l.cond:
 		}
 		// 自旋,再次尝试获得句柄
@@ -247,4 +239,15 @@ func (l *List) Shutdown() error {
 		_ = e.Value.(item).s.Shutdown()
 	}
 	return nil
+}
+
+// NewList: 实例化
+func NewList(c *Config) *List {
+	if c == nil || c.Active < c.Idle {
+		panic("config nil或Idle必须<=Active")
+	}
+	l := &List{conf: c}
+	l.cond = make(chan struct{})
+	l.Init(c.IdleTimeout)
+	return l
 }
