@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-//var _ Pool = &List{}
+var _ Pool = &List{}
 
 // List:
 type List struct {
@@ -45,7 +45,7 @@ func NewList(c *Config) *List {
 	}
 	l := &List{conf: c}
 	l.cond = make(chan struct{})
-	l.startCleanerLocked(c.IdleTimeout)
+	l.Init(c.IdleTimeout)
 	return l
 }
 
@@ -56,8 +56,8 @@ func (l *List) Reload(c *Config) {
 	l.conf = c
 }
 
-// startCleanerLocked
-func (l *List) startCleanerLocked(d time.Duration) {
+// Init: 初始化
+func (l *List) Init(d time.Duration) {
 	// 如果 <= 0 放弃设置
 	if d <= 0 {
 		return
@@ -65,7 +65,7 @@ func (l *List) startCleanerLocked(d time.Duration) {
 	// 如果时间间隔d小于等待超时,并且 cleanerCh 不为nil 监听信号
 	if d < l.conf.IdleTimeout && l.cleanerCh != nil {
 		select {
-		// 尝试发送信号: 如果阻塞有可能已经在执行了 可以跳过
+		// 发送立即清除旧配置的信号,如果阻塞说明在时间周期内进行清洁,跳过
 		case l.cleanerCh <- struct{}{}:
 		default:
 		}
@@ -73,13 +73,14 @@ func (l *List) startCleanerLocked(d time.Duration) {
 	// 懒加载
 	if l.cleanerCh == nil {
 		l.cleanerCh = make(chan struct{}, 1)
-		go l.staleCleaner()
+		// 开启定时任务
+		go l.Timer()
 	}
 
 }
 
-// staleCleaner:
-func (l *List) staleCleaner() {
+// Timer: 定时任务
+func (l *List) Timer() {
 	// ticker: 定时任务
 	ticker := time.NewTicker(100 * time.Millisecond)
 	for {
