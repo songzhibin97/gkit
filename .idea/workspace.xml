@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/container/pool/list.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/list.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/container/pool/list_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/list_test.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/internal/container/pool/pool.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/container/pool/pool.go" afterDir="false" />
-    </list>
+    <list default="true" id="e4abfee6-9943-4f6d-be26-4120a1afe87f" name="默认的" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -127,10 +121,10 @@
     <recent_temporary>
       <list>
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList1" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList5" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList4" />
-        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkPool3" />
         <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList2" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkPool3" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList4" />
+        <item itemvalue="Go 测试.Songzhibin/GKit/internal/container/pool 中的 BenchmarkList5" />
       </list>
     </recent_temporary>
   </component>

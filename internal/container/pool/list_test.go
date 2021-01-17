@@ -23,11 +23,11 @@ func (c *connection) HandleQuick() {
 }
 
 func (c *connection) HandleNormal() {
-	time.Sleep(20 * time.Millisecond)
+	//time.Sleep(20 * time.Millisecond)
 }
 
 func (c *connection) HandleSlow() {
-	time.Sleep(500 * time.Millisecond)
+	//time.Sleep(500 * time.Millisecond)
 }
 
 func (c *connection) Shutdown() error {
@@ -238,7 +238,7 @@ func BenchmarkList1(b *testing.B) {
 			}
 			c1 := connection{pool: pool, c: conn}
 			c1.HandleQuick()
-			c1.Shutdown()
+			_ = c1.Shutdown()
 		}
 	})
 }
@@ -266,7 +266,7 @@ func BenchmarkList2(b *testing.B) {
 			}
 			c1 := connection{pool: pool, c: conn}
 			c1.HandleNormal()
-			c1.Shutdown()
+			_ = c1.Shutdown()
 		}
 	})
 }
@@ -294,7 +294,7 @@ func BenchmarkPool3(b *testing.B) {
 			}
 			c1 := connection{pool: pool, c: conn}
 			c1.HandleSlow()
-			c1.Shutdown()
+			_ = c1.Shutdown()
 		}
 	})
 }
@@ -322,7 +322,7 @@ func BenchmarkList4(b *testing.B) {
 			}
 			c1 := connection{pool: pool, c: conn}
 			c1.HandleSlow()
-			c1.Shutdown()
+			_ = c1.Shutdown()
 		}
 	})
 }
@@ -350,7 +350,7 @@ func BenchmarkList5(b *testing.B) {
 			}
 			c1 := connection{pool: pool, c: conn}
 			c1.HandleSlow()
-			c1.Shutdown()
+			_ = c1.Shutdown()
 		}
 	})
 }
