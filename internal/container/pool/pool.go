@@ -29,6 +29,13 @@ type Pool interface {
 	Shutdown
 }
 
+//// shutdown: 实现 Shutdown 接口 用于 mock
+//type shutdown struct{}
+//
+//func (s *shutdown) Shutdown() error {
+//	return nil
+//}
+
 // Config: Pool 选项
 type Config struct {
 	// Active: 池中的连接数, 如果为 <= 0 则无限制
@@ -50,7 +57,7 @@ type Config struct {
 // item:
 type item struct {
 	createdAt time.Time
-	c         Shutdown
+	s         Shutdown
 }
 
 // expire: 是否到期
@@ -63,5 +70,5 @@ func (i *item) expire(timeout time.Duration) bool {
 
 // close: 关闭
 func (i *item) shutdown() error {
-	return i.c.Shutdown()
+	return i.s.Shutdown()
 }
