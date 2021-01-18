@@ -215,6 +215,30 @@ func TestListStaleClean(t *testing.T) {
 	assert.NotEqual(t, conn1.id, conn3.id)
 }
 
+func BenchmarkList(b *testing.B) {
+	config := &Config{
+		Active:      30,
+		Idle:        30,
+		IdleTimeout: 90 * time.Second,
+		WaitTimeout: 10 * time.Millisecond,
+		Wait:        false,
+	}
+	pool := NewList(config)
+	pool.f = func(ctx context.Context) (IShutdown, error) {
+		return &shutdown{}, nil
+	}
+	for i := 0; i < b.N; i++ {
+		conn, err := pool.Get(context.TODO())
+		if err != nil {
+			b.Error(err)
+			continue
+		}
+		c1 := connection{pool: pool, c: conn}
+		c1.HandleQuick()
+		_ = pool.Put(context.TODO(), conn, false)
+	}
+}
+
 func BenchmarkList1(b *testing.B) {
 	config := &Config{
 		Active:      30,
