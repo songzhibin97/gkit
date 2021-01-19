@@ -69,7 +69,6 @@ func (l *List) Init(d time.Duration) {
 
 // Timer: 定时任务
 func (l *List) Timer(d time.Duration) {
-
 	if d < minDuration {
 		d = minDuration
 	}
@@ -226,10 +225,12 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 // IShutdown: 关闭
 func (l *List) Shutdown() error {
 	l.mu.Lock()
+	if atomic.SwapUint32(&l.closed,1) == 1 {
+		return ErrPoolClosed
+	}
 	idles := l.idles
 	// .Init 重新初始化链表 快速清空
 	l.idles.Init()
-	atomic.StoreUint32(&l.closed, 1)
 	if idles.Len() > 0 {
 		atomic.AddUint64(&l.active, ^uint64(idles.Len()-1))
 	}
