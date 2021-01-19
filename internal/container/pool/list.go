@@ -146,9 +146,11 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			ic := e.Value.(item)
 			l.idles.Remove(e)
 			l.mu.Unlock()
+			// 没有过期的可以直接返回了
 			if !ic.expire(l.conf.IdleTimeout) {
 				return ic.s, nil
 			}
+			// 清理 重新获取锁
 			_ = ic.s.Shutdown()
 			l.mu.Lock()
 			l.release()
@@ -162,8 +164,8 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 		// 判断是否需要新增
 		if l.conf.Active == 0 || l.active < l.conf.Active {
 			newItem := l.f
-			atomic.AddUint64(&l.active, 1)
 			l.mu.Unlock()
+			atomic.AddUint64(&l.active, 1)
 			// 新增:
 			c, err := newItem(ctx)
 			if err != nil {
@@ -173,7 +175,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			return c, err
 		}
 		// 如果满了判断是否需要等待
-		if l.conf.WaitTimeout == 0 || !l.conf.Wait {
+		if l.conf.WaitTimeout == 0 && !l.conf.Wait {
 			l.mu.Unlock()
 			return nil, ErrPoolExhausted
 		}
@@ -225,7 +227,7 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 // IShutdown: 关闭
 func (l *List) Shutdown() error {
 	l.mu.Lock()
-	if atomic.SwapUint32(&l.closed,1) == 1 {
+	if atomic.SwapUint32(&l.closed, 1) == 1 {
 		return ErrPoolClosed
 	}
 	idles := l.idles

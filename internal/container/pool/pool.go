@@ -7,7 +7,10 @@ import (
 )
 
 // package pool: 连接池
-const minDuration = 100 * time.Millisecond
+const (
+	minDuration      = 100 * time.Millisecond
+	defaultIdleItems = 2
+)
 
 var (
 	// ErrPoolExhausted: 连接以耗尽
@@ -29,7 +32,6 @@ type Pool interface {
 	Put(ctx context.Context, c IShutdown, forceClose bool) error
 	Shutdown() error
 }
-
 
 // Config: Pool 选项
 type Config struct {
