@@ -73,8 +73,8 @@ type Group struct {
 	group group.LazyLoadGroup
 }
 
-// InitBBr: 初始化
-func InitBBr() {
+// init: 启动后台收集cpu信息
+func init() {
 	go cpuProc()
 }
 
