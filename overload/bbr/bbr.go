@@ -4,6 +4,7 @@ import (
 	"Songzhibin/GKit/internal/container/group"
 	"Songzhibin/GKit/internal/stat"
 	cupstat "Songzhibin/GKit/internal/sys/cpu"
+	"Songzhibin/GKit/log"
 	"Songzhibin/GKit/overload"
 	"context"
 	"math"
@@ -85,6 +86,7 @@ func cpuProc() {
 	defer func() {
 		ticker.Stop()
 		if err := recover(); err != nil {
+			log.NewHelper(log.Terminal, log.LevelDebug).Errorf("rate.limit.cpuproc() err(%+v)", err)
 			go cpuProc()
 		}
 	}()

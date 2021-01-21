@@ -2,6 +2,7 @@ package log
 
 import "testing"
 
+
 type testLogger struct {
 	*testing.T
 }

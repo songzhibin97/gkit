@@ -13,8 +13,17 @@ type log struct {
 	kv []interface{}
 }
 
+// Print: 实现接口
 func (l *log) Print(kv ...interface{}) {
 	l.log.Print(append(l.kv, kv...)...)
+}
+
+// newLogger: 实例化 log 对象
+func newLogger(l Logger, kv ...interface{}) *log {
+	return &log{
+		log: l,
+		kv:  kv,
+	}
 }
 
 // With .

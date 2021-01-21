@@ -1,6 +1,16 @@
 package log
 
-import "fmt"
+import (
+	"fmt"
+)
+
+var Terminal = &terminal{}
+
+type terminal struct{}
+
+func (t *terminal) Print(i ...interface{}) {
+	fmt.Println(i)
+}
 
 type Helper struct {
 	Logger
