@@ -4,7 +4,6 @@ import (
 	"Songzhibin/GKit/internal/stat"
 	"Songzhibin/GKit/overload"
 	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"sync"
@@ -67,7 +66,7 @@ func TestBBR(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	fmt.Println("drop: ", drop)
+	t.Log("drop: ", drop)
 }
 
 func TestBBRMaxPass(t *testing.T) {
