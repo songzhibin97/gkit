@@ -45,6 +45,19 @@ default:
 ## goroutine
 
 池化,控制野生goroutine
+```go
+g := goroutine.NewGoroutine(context.Background())
+// 改变 pool 上限
+g.ChangeMax(n) 
+
+// 添加异步任务,内部会调用协程
+// 如果 返回 false 可能代表任务已经满了 直接丢弃
+// 这部分逻辑需要参考 
+g.AddTast(func()) bool
+
+// 关闭池,回收资源
+g.Shutdown() 
+```
 
 ## egroup
 
