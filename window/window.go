@@ -47,8 +47,8 @@ type Window struct {
 	buffer []atomic.Value
 }
 
-// Sentinel: 初始化window对象后 后台开始滚动计数并同步更新到total
-func (w *Window) Sentinel() {
+// sentinel: 初始化window对象后 后台开始滚动计数并同步更新到total
+func (w *Window) sentinel() {
 	tick := time.Tick(w.interval)
 	m := make(map[string]uint)
 	for {

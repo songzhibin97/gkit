@@ -50,6 +50,6 @@ func InitWindow(options ...Option) SlidingWindow {
 	w.communication = make(chan Index, w.size)
 	w.ctx, w.cancel = context.WithCancel(w.ctx)
 	// 开启哨兵
-	go w.Sentinel()
+	go w.sentinel()
 	return &w
 }

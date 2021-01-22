@@ -2,8 +2,8 @@ package window
 
 // SlidingWindow: 滑动窗口接口化
 type SlidingWindow interface {
-	// Sentinel: 哨兵
-	Sentinel()
+	// sentinel: 哨兵
+	sentinel()
 
 	// Shutdown: 优雅关闭
 	Shutdown()
