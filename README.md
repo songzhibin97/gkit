@@ -32,9 +32,9 @@ d, nCtx, cancel := Shrink(context.Background(), 5*time.Second)
 // 一般判断该服务的下游超时时间,如果d过于小,可以直接放弃
 select {
 case <-nCtx.Done():
-cancel()
+    cancel()
 default:
-// ...
+    // ...
 }
 ```
 
