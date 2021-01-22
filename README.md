@@ -45,15 +45,16 @@ default:
 ## goroutine
 
 池化,控制野生goroutine
+
 ```go
 g := goroutine.NewGoroutine(context.Background())
 // 改变 pool 上限
-g.ChangeMax(n) 
+g.ChangeMax(n)
 
 // 添加异步任务,内部会调用协程
 // 如果 返回 false 可能代表任务已经满了 直接丢弃
 // 这部分逻辑需要参考 
-g.AddTast(func()) bool
+g.AddTast(func ()) bool
 
 // 关闭池,回收资源
 g.Shutdown() 
@@ -78,6 +79,22 @@ g.Shutdown()
 ## overload
 
 过载保护
+
+### 普通使用
+
+```go
+// 先建立Group
+group := NewGroup()
+// 如果没有就会创建
+limiter := group.Get("key")
+f, err := limiter.Allow(ctx)
+if err != nil {
+	// 代表已经过载了,服务不允许接入
+	return
+}
+// Op:流量实际的操作类型回写记录指标
+f(overload.DoneInfo{Op: overload.Success})
+```
 
 ## downgrade
 
