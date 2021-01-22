@@ -80,8 +80,7 @@ g.Shutdown()
 
 过载保护
 
-### 普通使用
-
+**普通使用**
 ```go
 // 先建立Group
 group := NewGroup()
