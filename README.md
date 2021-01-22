@@ -62,7 +62,7 @@ g.Shutdown()
 
 ## egroup
 
-组件声明周期管理
+组件生命周期管理
 ```go
 // errorGroup 
 // 级联控制,如果有组件发生错误,会通知group所有组件退出
