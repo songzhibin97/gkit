@@ -28,6 +28,7 @@ type IShutdown interface {
 
 // Pool interface.
 type Pool interface {
+	New(f func(ctx context.Context) (IShutdown, error))
 	Get(ctx context.Context) (IShutdown, error)
 	Put(ctx context.Context, c IShutdown, forceClose bool) error
 	Shutdown() error
@@ -35,13 +36,13 @@ type Pool interface {
 
 // Config: Pool 选项
 type Config struct {
-	// Active: 池中的连接数, 如果为 <= 0 则无限制
+	// Active: 池中的连接数, 如果为 == 0 则无限制
 	Active uint64
 
 	// Idle: 最大空闲数
 	Idle uint64
 
-	// IdleTimeout: 关闭后等待 time.Duration 连接归还
+	// IdleTimeout: 空闲等待的时间
 	IdleTimeout time.Duration
 
 	// WaitTimeout: 如果设置 WaitTimeout 如果池内资源已经耗尽,将会等待 time.Duration 时间, 直到某个连接退回

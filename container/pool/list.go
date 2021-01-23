@@ -13,8 +13,8 @@ var _ Pool = &List{}
 
 // List:
 type List struct {
-	// F: item
-	F func(ctx context.Context) (IShutdown, error)
+	// f: item
+	f func(ctx context.Context) (IShutdown, error)
 
 	// mu: 互斥锁, 保护以下字段
 	mu sync.Mutex
@@ -163,7 +163,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 		}
 		// 判断是否需要新增
 		if l.conf.Active == 0 || l.active < l.conf.Active {
-			newItem := l.F
+			newItem := l.f
 			l.mu.Unlock()
 			atomic.AddUint64(&l.active, 1)
 			// 新增:
@@ -244,8 +244,15 @@ func (l *List) Shutdown() error {
 	return nil
 }
 
+// New: 初始化锁
+func (l *List) New(f func(ctx context.Context) (IShutdown, error)) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.f = f
+}
+
 // NewList: 实例化
-func NewList(c *Config) *List {
+func NewList(c *Config) Pool {
 	if c == nil || c.Active < c.Idle {
 		panic("config nil或Idle必须<=Active")
 	}
