@@ -44,9 +44,9 @@ func TestListGetPut(t *testing.T) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	// test Get Put
 	conn, err := pool.Get(context.TODO())
@@ -69,19 +69,16 @@ func TestListPut(t *testing.T) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{
 			IShutdown: &shutdown{},
 			id:        id,
 		}, nil
-	}
+	})
 
 	// test Put(ctx, conn, true)
 	conn, err := pool.Get(context.TODO())
-	//if !reflect.DeepEqual(nil, err) {
-	//	t.Log("err:", err)
-	//}
 	assert.Nil(t, err)
 	conn1 := conn.(*connID)
 	// Put(ctx, conn, true) drop the connection.
@@ -106,10 +103,10 @@ func TestListIdleTimeout(t *testing.T) {
 		IdleTimeout: 1 * time.Millisecond,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{id: id, IShutdown: &shutdown{}}, nil
-	}
+	})
 	// test Put(ctx, conn, true)
 	conn, err := pool.Get(context.TODO())
 
@@ -137,9 +134,9 @@ func TestListContextTimeout(t *testing.T) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 	// test context timeout
 	ctx, cancel := context.WithTimeout(context.TODO(), 100*time.Millisecond)
 	defer cancel()
@@ -164,9 +161,9 @@ func TestListPoolExhausted(t *testing.T) {
 		Wait: false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	ctx, cancel := context.WithTimeout(context.TODO(), 100*time.Millisecond)
 	defer cancel()
@@ -194,10 +191,10 @@ func TestListStaleClean(t *testing.T) {
 		Wait: false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{id: id, IShutdown: &shutdown{}}, nil
-	}
+	})
 	conn, err := pool.Get(context.TODO())
 	assert.Nil(t, err)
 	conn1 := conn.(*connID)
@@ -224,9 +221,9 @@ func BenchmarkList(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 	for i := 0; i < b.N; i++ {
 		conn, err := pool.Get(context.TODO())
 		if err != nil {
@@ -248,9 +245,9 @@ func BenchmarkList1(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -276,9 +273,9 @@ func BenchmarkList2(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -304,9 +301,9 @@ func BenchmarkPool3(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -332,9 +329,9 @@ func BenchmarkList4(b *testing.B) {
 		Wait: false,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
@@ -360,9 +357,9 @@ func BenchmarkList5(b *testing.B) {
 		Wait: true,
 	}
 	pool := NewList(config)
-	pool.F = func(ctx context.Context) (IShutdown, error) {
+	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
-	}
+	})
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

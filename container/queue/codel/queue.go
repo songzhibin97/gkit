@@ -5,6 +5,7 @@ import (
 	"context"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -105,7 +106,6 @@ func (q *Queue) Push(ctx context.Context) (err error) {
 		ts: time.Now().UnixNano() / int64(time.Millisecond),
 	}
 	select {
-
 	case q.packets <- r:
 	default:
 		// 如果缓冲区阻塞,直接将 err 赋值,并且将资源放回pool中
@@ -150,8 +150,8 @@ func (q *Queue) Pop() {
 
 // controlLaw: CoDel 控制率
 func (q *Queue) controlLaw(now int64) int64 {
-	q.dropNext = now + int64(float64(q.conf.Width)/math.Sqrt(float64(q.count)))
-	return q.dropNext
+	atomic.StoreInt64(&q.dropNext, now+int64(float64(q.conf.Width)/math.Sqrt(float64(q.count))))
+	return atomic.LoadInt64(&q.dropNext)
 }
 
 // judge: 决定数据包是否丢弃
@@ -162,36 +162,36 @@ func (q *Queue) judge(p packet) (drop bool) {
 	q.mux.Lock()
 	defer q.mux.Unlock()
 	if sojurn < q.conf.Delay {
-		q.faTime = 0
-	} else if q.faTime == 0 {
-		q.faTime = now + q.conf.Width
-	} else if now >= q.faTime {
+		atomic.StoreInt64(&q.faTime, 0)
+	} else if atomic.LoadInt64(&q.faTime) == 0 {
+		atomic.StoreInt64(&q.faTime, now+q.conf.Width)
+	} else if now >= atomic.LoadInt64(&q.faTime) {
 		drop = true
 	}
 	if q.dropping {
 		if !drop {
 			// sojourn time below target - leave dropping state
 			q.dropping = false
-		} else if now > q.dropNext {
-			q.count++
-			q.dropNext = q.controlLaw(q.dropNext)
+		} else if now > atomic.LoadInt64(&q.dropNext) {
+			atomic.AddInt64(&q.count, 1)
+			q.controlLaw(atomic.LoadInt64(&q.dropNext))
 			drop = true
 			return
 		}
-	} else if drop && (now-q.dropNext < q.conf.Width || now-q.faTime >= q.conf.Width) {
+	} else if drop && (now-atomic.LoadInt64(&q.dropNext) < q.conf.Width || now-atomic.LoadInt64(&q.faTime) >= q.conf.Width) {
 		q.dropping = true
 		// If we're in a drop cycle, the drop rate that controlled the queue
 		// on the last cycle is a good starting point to control it now.
-		if now-q.dropNext < q.conf.Width {
-			if q.count > 2 {
-				q.count = q.count - 2
+		if now-atomic.LoadInt64(&q.dropNext) < q.conf.Width {
+			if atomic.LoadInt64(&q.count) > 2 {
+				atomic.AddInt64(&q.count, - 2)
 			} else {
-				q.count = 1
+				atomic.StoreInt64(&q.count, 1)
 			}
 		} else {
-			q.count = 1
+			atomic.StoreInt64(&q.count, 1)
 		}
-		q.dropNext = q.controlLaw(now)
+		q.controlLaw(now)
 		drop = true
 		return
 	}
