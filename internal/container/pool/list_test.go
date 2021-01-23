@@ -44,7 +44,7 @@ func TestListGetPut(t *testing.T) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 
@@ -69,7 +69,7 @@ func TestListPut(t *testing.T) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{
 			IShutdown: &shutdown{},
@@ -106,7 +106,7 @@ func TestListIdleTimeout(t *testing.T) {
 		IdleTimeout: 1 * time.Millisecond,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{id: id, IShutdown: &shutdown{}}, nil
 	}
@@ -137,7 +137,7 @@ func TestListContextTimeout(t *testing.T) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 	// test context timeout
@@ -164,7 +164,7 @@ func TestListPoolExhausted(t *testing.T) {
 		Wait: false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 
@@ -194,7 +194,7 @@ func TestListStaleClean(t *testing.T) {
 		Wait: false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{id: id, IShutdown: &shutdown{}}, nil
 	}
@@ -224,7 +224,7 @@ func BenchmarkList(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 	for i := 0; i < b.N; i++ {
@@ -248,7 +248,7 @@ func BenchmarkList1(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 
@@ -276,7 +276,7 @@ func BenchmarkList2(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 
@@ -304,7 +304,7 @@ func BenchmarkPool3(b *testing.B) {
 		Wait:        false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 
@@ -332,7 +332,7 @@ func BenchmarkList4(b *testing.B) {
 		Wait: false,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 
@@ -360,7 +360,7 @@ func BenchmarkList5(b *testing.B) {
 		Wait: true,
 	}
 	pool := NewList(config)
-	pool.f = func(ctx context.Context) (IShutdown, error) {
+	pool.F = func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	}
 

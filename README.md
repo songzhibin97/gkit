@@ -12,6 +12,11 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
         __\////////////____\///________\///__\///////////________\///________                                 
 ```
 
+# 目录结构
+```shell
+
+```
+
 ## errors
 
 封装一些error处理
@@ -153,13 +158,13 @@ g.Forget(key)
 group := bbr.NewGroup()
 // 如果没有就会创建
 limiter := group.Get("key")
-f, err := limiter.Allow(ctx)
+F, err := limiter.Allow(ctx)
 if err != nil {
 // 代表已经过载了,服务不允许接入
 return
 }
 // Op:流量实际的操作类型回写记录指标
-f(overload.DoneInfo{Op: overload.Success})
+F(overload.DoneInfo{Op: overload.Success})
 ```
 
 **中间件套用**
