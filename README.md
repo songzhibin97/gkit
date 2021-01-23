@@ -91,16 +91,16 @@ g.Forget(key)
 类似资源池
 ```go
 conf := &pool.Config{
-	    // Active: 池中最大数量,如果 == 0 则不进行显示
-		Active:      1,
-		// Idle: 最大空闲数
-		Idle:        1,
-		// IdleTimeout: 空闲等待的时间
-		IdleTimeout: 90 * time.Second,
-		// WaitTimeout: 如果已经用尽,等待连接归还的时间
-		WaitTimeout: 10 * time.Millisecond,
-		// Wait: 是否等待, 如果为 false WaitTimeout 不再有效
-		Wait:        false,
+    // Active: 池中最大数量,如果 == 0 则不进行显示
+    Active:      1,
+    // Idle: 最大空闲数
+    Idle:        1,
+    // IdleTimeout: 空闲等待的时间
+    IdleTimeout: 90 * time.Second,
+    // WaitTimeout: 如果已经用尽,等待连接归还的时间
+    WaitTimeout: 10 * time.Millisecond,
+    // Wait: 是否等待, 如果为 false WaitTimeout 不再有效
+    Wait:        false,
 }
 // 初始化pool 
 p := pool.NewList(conf)
