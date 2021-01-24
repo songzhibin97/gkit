@@ -150,6 +150,32 @@ q.Pop()
 
 熔断降级
 
+```go
+// 与 github.com/afex/hystrix-go/hystrix 使用方法一致,只是做了抽象封装,避免因为升级对服务造成影响
+
+// 拿到一个熔断器
+h := downgrade.NewFuse()
+
+// ConfigureCommand 根据name对应的熔断器配置
+// 没有配置则走默认配置
+h.ConfigureCommand(name, config)
+
+// type runFunc = func() error
+// type fallbackFunc = func(error) error
+// type runFuncC = func(context.Context) error
+// type fallbackFuncC = func(context.Context, error) error
+
+// Do: 同步执行 func() error, 没有超时控制 直到等到返回,
+// 如果返回 error != nil 则触发 fallbackFunc 进行降级
+h.Do(name, runFunc, fallbackFunc) error
+
+// Go: 异步执行 返回 channel
+h.Go(name, runFunc, fallbackFunc) chan error 
+
+// GoC: Do/Go 实际上最终调用的就是GoC, Do主处理了异步过程
+// GoC可以传入 context 保证链路超时控制
+h.GoC(ctx, name, runFuncC, fallbackFuncC) chan error
+```
 ## egroup
 
 组件生命周期管理
