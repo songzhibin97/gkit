@@ -19,6 +19,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
 ├── errors
+├── generator (发号器,snowflake)
 ├── goroutine (提供goroutine池,控制goroutine数量激增)
 ├── internal (core)
 ├── log (接口化日志,使用日志组件接入)
@@ -210,6 +211,24 @@ defer admin.shutdown()
 ## errors
 
 封装一些error处理
+
+## generator
+
+发号器
+
+### snowflake
+
+雪花算法
+
+```go
+f := generator.NewSnowflake(generator.Settings{
+	StartTime: time.Now(),
+	NodeID: 1,
+})
+
+// 获取id
+id,_ := f.NextID()
+```
 
 ## goroutine
 
