@@ -1,6 +1,7 @@
 package egroup
 
 import (
+	"Songzhibin/GKit/goroutine"
 	"context"
 	"sync"
 )
@@ -11,13 +12,15 @@ type Group struct {
 	cancel func()
 	wg     sync.WaitGroup
 	sync.Once
-	err error
+	goroutine goroutine.GGroup
+	err       error
 }
 
 // WithContext: 实例化方法
 func WithContext(ctx context.Context) *Group {
 	g := &Group{}
 	g.ctx, g.cancel = context.WithCancel(ctx)
+	g.goroutine = goroutine.NewGoroutine(ctx)
 	return g
 }
 
@@ -33,13 +36,7 @@ func (g *Group) Wait() error {
 // Go: 异步调用
 func (g *Group) Go(f func() error) {
 	g.wg.Add(1)
-	go func() {
-		// 兜底
-		defer func() {
-			if err := recover(); err != nil {
-				return
-			}
-		}()
+	g.goroutine.AddTask(func() {
 		defer g.wg.Done()
 		if err := f(); err != nil {
 			g.Once.Do(func() {
@@ -50,5 +47,5 @@ func (g *Group) Go(f func() error) {
 				}
 			})
 		}
-	}()
+	})
 }
