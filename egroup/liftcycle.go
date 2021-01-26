@@ -3,7 +3,6 @@ package egroup
 import (
 	"Songzhibin/GKit/goroutine"
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -76,7 +75,6 @@ func (l *LifeAdmin) Start() error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case sig := <-c:
-				fmt.Println("捕获到信号")
 				l.opts.handler(l, sig)
 			}
 		}
@@ -94,7 +92,7 @@ func (l *LifeAdmin) Shutdown() {
 // NewLifeAdmin: 实例化方法
 func NewLifeAdmin(opts ...Option) *LifeAdmin {
 	// 默认参数
-	options := options{
+	o := options{
 		startTimeout: startTimeout,
 		stopTimeout:  stopTimeout,
 		signals:      []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT},
@@ -108,7 +106,7 @@ func NewLifeAdmin(opts ...Option) *LifeAdmin {
 	}
 	// 选项模式填充参数
 	for _, opt := range opts {
-		opt(&options)
+		opt(&o)
 	}
-	return &LifeAdmin{opts: options}
+	return &LifeAdmin{opts: o}
 }
