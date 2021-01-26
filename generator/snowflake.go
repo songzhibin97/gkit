@@ -2,6 +2,8 @@ package generator
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"sync"
 	"time"
 )
@@ -112,6 +114,48 @@ func Decompose(id uint64) map[string]uint64 {
 		"sequence": sequence,
 		"node":     node,
 	}
+}
+
+// localIPv4: 获取本地IP
+func localIPv4() (net.IP, error) {
+	as, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, a := range as {
+		i, ok := a.(*net.IPNet)
+		if !ok || i.IP.IsLoopback() {
+			continue
+		}
+
+		ip := i.IP.To4()
+		if isPrivateIPv4(ip) {
+			return ip, nil
+		}
+	}
+	return nil, errors.New("no private ip address")
+}
+
+// isPrivateIPv4: 判断是否有效IP
+func isPrivateIPv4(ip net.IP) bool {
+	return ip != nil &&
+		(ip[0] == 10 || ip[0] == 172 && (ip[1] >= 16 && ip[1] < 32) || ip[0] == 192 && ip[1] == 168)
+}
+
+// IpToUint16: 将IP地址转化为uint16
+func IpToUint16(ip net.IP) (uint16, error) {
+	return uint16(ip[2])<<8 + uint16(ip[3]), nil
+}
+
+// LocalIpToUint16: 本地IP转化为uint16
+func LocalIpToUint16() (uint16, error) {
+	ip, err := localIPv4()
+	if err != nil {
+		return 0, err
+	}
+	fmt.Println(ip)
+	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
 // NewSnowflake: 初始化
