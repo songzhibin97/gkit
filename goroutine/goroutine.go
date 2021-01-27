@@ -6,6 +6,7 @@ import (
 	"Songzhibin/GKit/timeout"
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,18 +37,18 @@ type Goroutine struct {
 // NewGoroutine: 实例化方法
 func NewGoroutine(ctx context.Context, opts ...Option) GGroup {
 	ctx, cancel := context.WithCancel(ctx)
-	options := options{
+	o := options{
 		stopTimeout: 10 * time.Second,
 		max:         10,
 	}
 	for _, opt := range opts {
-		opt(&options)
+		opt(&o)
 	}
 	return &Goroutine{
 		ctx:     ctx,
 		cancel:  cancel,
-		task:    make(chan func(), options.max),
-		options: options,
+		task:    make(chan func(), o.max),
+		options: o,
 	}
 }
 
@@ -90,6 +91,7 @@ func (g *Goroutine) _go() {
 }
 
 // AddTask: 添加任务
+// 直到添加成功为止
 func (g *Goroutine) AddTask(f func()) bool {
 	// 判断channel是否关闭
 	if atomic.LoadInt32(&g.close) != 0 {
@@ -98,15 +100,24 @@ func (g *Goroutine) AddTask(f func()) bool {
 	if atomic.LoadInt64(&g.max) > atomic.LoadInt64(&g.n) {
 		g._go()
 	}
+	g.task <- f
+	return true
+}
+
+// AddTask: 添加任务
+func (g *Goroutine) AddTaskN(ctx context.Context, f func()) bool {
+	// 判断channel是否关闭
+	if atomic.LoadInt32(&g.close) != 0 {
+		return false
+	}
+	if atomic.LoadInt64(&g.max) > atomic.LoadInt64(&g.n) {
+		g._go()
+	}
 	select {
+	case <-ctx.Done():
+		return false
 	case g.task <- f:
 		return true
-		//default:
-		//	// todo 任务丢弃?
-		//	if g.logger != nil {
-		//		g.logger.Print("任务丢弃")
-		//	}
-		//	return false
 	}
 }
 
@@ -142,11 +153,19 @@ func (g *Goroutine) trick() {
 
 // Delegate: 委托执行 一般用于回收函数超时控制
 func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) error) error {
-	ch := make(chan error)
+	ch := make(chan error, 1)
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				<-ch
+				// panic兜底
+				switch e := err.(type) {
+				case string:
+					ch <- errors.New(e)
+				case error:
+					ch <- e
+				default:
+					ch <- errors.New(fmt.Sprintf("%+v\n", err))
+				}
 				return
 			}
 		}()
