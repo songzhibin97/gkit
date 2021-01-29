@@ -44,10 +44,8 @@
 
 
 
-
-|      |                       |                                  |
-| :--- | :-------------------- | :------------------------------- |
 | HTTP | RPC                   | 建议的错误详细信息               |
+| :--- | :-------------------- | :------------------------------- |
 | 400  | `INVALID_ARGUMENT`    | `google.rpc.BadRequest`          |
 | 400  | `FAILED_PRECONDITION` | `google.rpc.PreconditionFailure` |
 | 400  | `OUT_OF_RANGE`        | `google.rpc.BadRequest`          |
