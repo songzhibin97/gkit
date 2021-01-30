@@ -3,10 +3,14 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc/codes"
 )
 
 var _ error = (*ErrorCode)(nil)
+
+var ErrDetails = errors.New("no error details for status with code OK")
 
 // ErrorCode: 错误码
 type ErrorCode Status
@@ -23,6 +27,18 @@ func (e *ErrorCode) Is(target error) bool {
 	} else {
 		return e.Code == err.Code
 	}
+}
+
+// WithDetails: 增加Details
+func (e *ErrorCode) AddDetails(details ...proto.Message) error {
+	for _, detail := range details {
+		any, err := ptypes.MarshalAny(detail)
+		if err != nil {
+			return err
+		}
+		e.Details = append(e.Details, any)
+	}
+	return nil
 }
 
 // ErrToCode: error 中获取 Code 编码
