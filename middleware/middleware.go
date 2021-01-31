@@ -11,6 +11,9 @@ type Endpoint func(context.Context, interface{}) (interface{}, error)
 // MiddleWare: 方便链式操作
 type MiddleWare func(Endpoint) Endpoint
 
+// HandlerFunc: 错误处理
+type HandlerFunc func(error) error
+
 // Chain: 连接成链路
 // outer: 最外层的
 func Chain(outer MiddleWare, others ...MiddleWare) MiddleWare {
