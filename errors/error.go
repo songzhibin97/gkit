@@ -31,6 +31,9 @@ func (e *ErrorCode) Is(target error) bool {
 
 // WithDetails: 增加Details
 func (e *ErrorCode) AddDetails(details ...proto.Message) error {
+	if codes.Code(e.Code) == codes.OK {
+		return ErrDetails
+	}
 	for _, detail := range details {
 		any, err := ptypes.MarshalAny(detail)
 		if err != nil {
