@@ -3,6 +3,8 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"github.com/golang/protobuf/proto"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"testing"
 )
 
@@ -32,4 +34,24 @@ func TestErrorAs(t *testing.T) {
 	if !errors.As(err2, &err3) {
 		t.Errorf("error is not equal: %v", err2)
 	}
+}
+
+func TestAddDetails(t *testing.T) {
+	details := []proto.Message{
+		&errdetails.ErrorInfo{
+			Reason:   "reason",
+			Metadata: map[string]string{"message": "message"},
+		},
+	}
+	err1 := &ErrorCode{Code: 0}
+	err := err1.AddDetails(details...)
+	if !errors.Is(err, ErrDetails) {
+		t.Errorf("error is not equal: a: %v b: %v ", err, ErrDetails)
+	}
+	err2 := &ErrorCode{Code: 1}
+	err = err2.AddDetails(details...)
+	if err != nil {
+		t.Errorf("error is not nil %v", err)
+	}
+	t.Log(err2)
 }
