@@ -9,9 +9,12 @@ message Status {
   // code: status code
   int32 code = 1;
 
+  // reason:
+  string reason = 2;
+
   // message:
-  string message = 2;
+  string message = 3;
 
   // details:
-  repeated google.protobuf.Any details = 3;
+  repeated google.protobuf.Any details = 4;
 }

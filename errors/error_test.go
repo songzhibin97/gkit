@@ -19,6 +19,22 @@ func TestIsError(t *testing.T) {
 	if !errors.Is(s1, s2) {
 		t.Errorf("error is not equal: %+v -> %+v", s1, s2)
 	}
+
+	s1.Reason = "test"
+	s2.Reason = "test"
+
+	if !errors.Is(s1, s2) {
+		t.Errorf("error is not equal: %+v -> %+v", s1, s2)
+	}
+
+	if ErrToReason(s1) != "test" {
+		t.Errorf("error is not equal: %+v", s1)
+	}
+
+	if ErrToReason(s2) != "test" {
+		t.Errorf("error is not equal: %+v", s1)
+	}
+
 	err1 := &ErrorCode{Code: 1}
 	err2 := fmt.Errorf("warp err %w", err1)
 	if !errors.Is(err2, err1) {
