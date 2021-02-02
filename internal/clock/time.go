@@ -38,6 +38,7 @@ func init() {
 	SetTickerCreator(realTickerCreator)
 }
 
+// Clock: 时钟接口
 type Clock interface {
 	Now() time.Time
 	Sleep(d time.Duration)
@@ -50,7 +51,7 @@ type clockWrapper struct {
 	clock Clock
 }
 
-// RealClock wraps some APIs of time package.
+// RealClock: 真实使用的Clock对象
 type RealClock struct{}
 
 func NewRealClock() *RealClock {
@@ -77,7 +78,7 @@ func (t *RealClock) GetTimeNano() uint64 {
 	return uint64(t.Now().UnixNano())
 }
 
-// MockClock is used for testing.
+// MockClock: 测试使用的Clock对象
 type MockClock struct {
 	lock sync.RWMutex
 	now  time.Time
@@ -113,13 +114,13 @@ func (t *MockClock) GetTimeNano() uint64 {
 	return uint64(t.Now().UnixNano())
 }
 
-// Ticker interface encapsulates operations like time.Ticker.
+// Ticker: time.Ticker 对象封装
 type Ticker interface {
 	C() <-chan time.Time
 	Stop()
 }
 
-// RealTicker wraps time.Ticker.
+// RealTicker: 真实使用的 Ticker 对象
 type RealTicker struct {
 	t *time.Ticker
 }
@@ -138,8 +139,8 @@ func (t *RealTicker) Stop() {
 	t.t.Stop()
 }
 
-// MockTicker is usually used for testing.
-// MockTicker and MockClock are usually used together.
+// MockTicker: 测试使用的 Ticker 对象
+// MockTicker 和 MockClock 一般搭配使用
 type MockTicker struct {
 	lock   sync.Mutex
 	period time.Duration
@@ -197,17 +198,17 @@ func (t *MockTicker) checkLoop() {
 	}
 }
 
-// TickerCreator is used to create Ticker.
+// TickerCreator: 实例化Ticker.
 type TickerCreator interface {
 	NewTicker(d time.Duration) Ticker
 }
 
-// tickerCreatorWrapper is used for atomic operation.
+// tickerCreatorWrapper: 封装 atomic 操作
 type tickerCreatorWrapper struct {
 	tickerCreator TickerCreator
 }
 
-// RealTickerCreator is used to creates RealTicker which wraps time.Ticker.
+// RealTickerCreator: 创建真实的 RealTicker 和 time.Ticker 对象.
 type RealTickerCreator struct{}
 
 func NewRealTickerCreator() *RealTickerCreator {
@@ -218,8 +219,8 @@ func (tc *RealTickerCreator) NewTicker(d time.Duration) Ticker {
 	return NewRealTicker(d)
 }
 
-// MockTickerCreator is used create MockTicker which is usually used for testing.
-// MockTickerCreator and MockClock are usually used together.
+// MockTickerCreator: 创建 MockTicker 用于测试
+// MockTickerCreator 和 MockClock 通常一起使用
 type MockTickerCreator struct{}
 
 func NewMockTickerCreator() *MockTickerCreator {
@@ -230,24 +231,22 @@ func (tc *MockTickerCreator) NewTicker(d time.Duration) Ticker {
 	return NewMockTicker(d)
 }
 
-// SetClock sets the clock used by util package.
-// In general, no need to set it. It is usually used for testing.
+// SetClock: 设置 Clock
 func SetClock(c Clock) {
 	currentClock.Store(&clockWrapper{c})
 }
 
-// CurrentClock returns the current clock used by util package.
+// CurrentClock: 返回 Clock 对象
 func CurrentClock() Clock {
 	return currentClock.Load().(*clockWrapper).clock
 }
 
-// SetClock sets the ticker creator used by util package.
-// In general, no need to set it. It is usually used for testing.
+// SetTickerCreator: 设置 Ticker 对象.
 func SetTickerCreator(tc TickerCreator) {
 	currentTickerCreator.Store(&tickerCreatorWrapper{tc})
 }
 
-// CurrentTickerCreator returns the current ticker creator used by util package.
+// CurrentTickerCreator: 获取 Ticker 对象
 func CurrentTickerCreator() TickerCreator {
 	return currentTickerCreator.Load().(*tickerCreatorWrapper).tickerCreator
 }
@@ -256,33 +255,32 @@ func NewTicker(d time.Duration) Ticker {
 	return CurrentTickerCreator().NewTicker(d)
 }
 
-// FormatTimeMillis formats Unix timestamp (ms) to time string.
+// FormatTimeMillis: 将Unix时间戳(ms)格式化为时间字符串
 func FormatTimeMillis(tsMillis uint64) string {
 	return time.Unix(0, int64(tsMillis*UnixTimeUnitOffset)).Format(TimeFormat)
 }
 
-// FormatDate formats Unix timestamp (ms) to date string
+// FormatDate: 将Unix时间戳(ms)格式化为日期字符串
 func FormatDate(tsMillis uint64) string {
 	return time.Unix(0, int64(tsMillis*UnixTimeUnitOffset)).Format(DateFormat)
 }
 
-// Returns the current Unix timestamp in milliseconds.
+// GetTimeMillis: 返回当前的Unix时间戳(ms)
 func GetTimeMillis() uint64 {
 	return CurrentClock().GetTimeMillis()
 }
 
-// Returns the current Unix timestamp in nanoseconds.
+// GetTimeNano: 返回当前的Unix时间戳(ns)
 func GetTimeNano() uint64 {
 	return CurrentClock().GetTimeNano()
 }
 
-// Now returns the current local time.
+// Now: 返回当前本地时间。
 func Now() time.Time {
 	return CurrentClock().Now()
 }
 
-// Sleep pauses the current goroutine for at least the duration d.
-// A negative or zero duration causes Sleep to return immediately.
+// Sleep:
 func Sleep(d time.Duration) {
 	CurrentClock().Sleep(d)
 }
