@@ -1,6 +1,7 @@
-package atomicArray
+package array
 
 import (
+	"Songzhibin/GKit/internal/clock"
 	"Songzhibin/GKit/internal/safe"
 	"sync/atomic"
 	"unsafe"
@@ -8,7 +9,7 @@ import (
 
 const (
 	// PtrOffSize: 指针偏移量大小
-	PtrOffSize = int64(8)
+	PtrOffSize = uint64(8)
 )
 
 // BucketBuilder: Bucket 生成器
@@ -35,7 +36,7 @@ func (b *Bucket) reset(start uint64) {
 }
 
 // isHit: 判断是否命中该桶
-// bucketSize: 单位 ms
+// bucketSize: 桶的长度 单位 ms
 func (b *Bucket) isHit(now uint64, bucketSize uint64) bool {
 	return b.Start <= now && now < b.Start+bucketSize
 }
@@ -52,7 +53,7 @@ func calculateStartTime(now uint64, bucketSize uint64) uint64 {
 // AtomicArray: 原子数组
 type AtomicArray struct {
 	// length: array长度
-	length int64
+	length uint64
 
 	// base: 数据基地址
 	base unsafe.Pointer
@@ -60,7 +61,7 @@ type AtomicArray struct {
 }
 
 // offset: 偏移量
-func (a *AtomicArray) offset(index int64) (unsafe.Pointer, bool) {
+func (a *AtomicArray) offset(index uint64) (unsafe.Pointer, bool) {
 	if index < 0 || index >= a.length {
 		return nil, false
 	}
@@ -69,7 +70,7 @@ func (a *AtomicArray) offset(index int64) (unsafe.Pointer, bool) {
 }
 
 // getBucket: 根据偏移量获取bucket
-func (a *AtomicArray) getBucket(index int64) *Bucket {
+func (a *AtomicArray) getBucket(index uint64) *Bucket {
 	if offset, ok := a.offset(index); ok {
 		return (*Bucket)(atomic.LoadPointer((*unsafe.Pointer)(offset)))
 	}
@@ -78,21 +79,21 @@ func (a *AtomicArray) getBucket(index int64) *Bucket {
 
 // cas: compare and swap
 // 交换
-func (a *AtomicArray) cas(index int64, except, update *Bucket) bool {
+func (a *AtomicArray) cas(index uint64, except, update *Bucket) bool {
 	if offset, ok := a.offset(index); ok {
 		return atomic.CompareAndSwapPointer((*unsafe.Pointer)(offset), unsafe.Pointer(except), unsafe.Pointer(update))
 	}
 	return false
 }
 
-// NewAtomicArrayWithTim:
-func NewAtomicArrayWithTime(length int64, bucketSize uint64, now uint64, Builder BucketBuilder) *AtomicArray {
+// NewAtomicArrayWithTime: 初始化 AtomicArray, 需要手动传入 startTime 作为时间戳
+func NewAtomicArrayWithTime(length uint64, bucketSize uint64, now uint64, Builder BucketBuilder) *AtomicArray {
 	array := &AtomicArray{
 		length: length,
 		data:   make([]*Bucket, length),
 	}
 	id := now / bucketSize
-	index := int64(id) % length
+	index := id % length
 	startTime := calculateStartTime(now, bucketSize)
 	for i := index; i < length; i++ {
 		b := &Bucket{
@@ -103,7 +104,7 @@ func NewAtomicArrayWithTime(length int64, bucketSize uint64, now uint64, Builder
 		array.data[i] = b
 		startTime += bucketSize
 	}
-	for i := (int64)(0); i < index; i++ {
+	for i := (uint64)(0); i < index; i++ {
 		b := &Bucket{
 			Start: startTime,
 			Value: atomic.Value{},
@@ -117,4 +118,7 @@ func NewAtomicArrayWithTime(length int64, bucketSize uint64, now uint64, Builder
 	return array
 }
 
-
+// NewAtomicArray: 初始化 AtomicArray, startTime 为当前时间
+func NewAtomicArray(length uint64, bucketSize uint64, Builder BucketBuilder) *AtomicArray {
+	return NewAtomicArrayWithTime(length, bucketSize, clock.GetTimeMillis(), Builder)
+}
