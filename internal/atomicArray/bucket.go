@@ -1,6 +1,7 @@
 package atomicArray
 
 import (
+	"Songzhibin/GKit/internal/safe"
 	"sync/atomic"
 	"unsafe"
 )
@@ -9,6 +10,15 @@ const (
 	// PtrOffSize: 指针偏移量大小
 	PtrOffSize = int64(8)
 )
+
+// BucketBuilder: Bucket 生成器
+type BucketBuilder interface {
+	// NewEmptyBucket: 生成一个空桶
+	NewEmptyBucket() interface{}
+
+	// Reset: 重置桶
+	Reset(bw *Bucket, startTime uint64) *Bucket
+}
 
 // Bucket:
 type Bucket struct {
@@ -30,7 +40,7 @@ func (b *Bucket) isHit(now uint64, bucketSize uint64) bool {
 	return b.Start <= now && now < b.Start+bucketSize
 }
 
-// calculateStartTime: 计算各个桶的开始时间
+// calculateStartTime: 计算初始桶的时间
 func calculateStartTime(now uint64, bucketSize uint64) uint64 {
 	return now - (now % bucketSize)
 }
@@ -74,3 +84,37 @@ func (a *AtomicArray) cas(index int64, except, update *Bucket) bool {
 	}
 	return false
 }
+
+// NewAtomicArrayWithTim:
+func NewAtomicArrayWithTime(length int64, bucketSize uint64, now uint64, Builder BucketBuilder) *AtomicArray {
+	array := &AtomicArray{
+		length: length,
+		data:   make([]*Bucket, length),
+	}
+	id := now / bucketSize
+	index := int64(id) % length
+	startTime := calculateStartTime(now, bucketSize)
+	for i := index; i < length; i++ {
+		b := &Bucket{
+			Start: startTime,
+			Value: atomic.Value{},
+		}
+		b.Value.Store(Builder.NewEmptyBucket())
+		array.data[i] = b
+		startTime += bucketSize
+	}
+	for i := (int64)(0); i < index; i++ {
+		b := &Bucket{
+			Start: startTime,
+			Value: atomic.Value{},
+		}
+		b.Value.Store(Builder.NewEmptyBucket())
+		array.data[i] = b
+		startTime += bucketSize
+	}
+	header := (*safe.SliceModel)(unsafe.Pointer(&array.data))
+	array.base = header.Data
+	return array
+}
+
+
