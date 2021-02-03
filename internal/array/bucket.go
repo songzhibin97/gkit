@@ -2,7 +2,7 @@ package array
 
 import (
 	"Songzhibin/GKit/internal/clock"
-	"Songzhibin/GKit/internal/safe"
+	"Songzhibin/GKit/internal/sys/safe"
 	"sync/atomic"
 	"unsafe"
 )
