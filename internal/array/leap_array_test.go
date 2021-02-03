@@ -2,6 +2,7 @@ package array
 
 import (
 	"Songzhibin/GKit/internal/clock"
+	"Songzhibin/GKit/internal/sys/mutex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"reflect"
@@ -79,12 +80,12 @@ func Test_getTimeIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &SlidingWindow{
+			s := &LeapArray{
 				bucketSize:   tt.fields.bucketSize,
 				n:            tt.fields.n,
 				intervalSize: tt.fields.intervalSize,
 				array:        tt.fields.array,
-				mu:           mutex{},
+				mu:           mutex.Mutex{},
 			}
 			if got := s.getTimeIndex(tt.args.timeMillis); got != tt.want {
 				t.Errorf("getTimeIndex() = %v, want %v", got, tt.want)
@@ -127,12 +128,12 @@ func Test_calculateStartTime(t *testing.T) {
 
 func Test_getBucketOfTime(t *testing.T) {
 	now := uint64(1596199310000)
-	s := &SlidingWindow{
+	s := &LeapArray{
 		bucketSize:   BucketSize,
 		n:            N,
 		intervalSize: IntervalSize,
 		array:        NewAtomicArrayWithTime(N, BucketSize, now, &leapArrayMock{}),
-		mu:           mutex{},
+		mu:           mutex.Mutex{},
 	}
 	got, err := s.getBucketOfTime(now+801, new(leapArrayMock))
 	if err != nil {
@@ -189,12 +190,12 @@ func Test_getValueOfTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &SlidingWindow{
-				bucketSize: tt.fields.bucketSize,
-				n:      tt.fields.n,
-				intervalSize:     tt.fields.intervalSize,
-				array:            tt.fields.array,
-				mu:       mutex{},
+			s := &LeapArray{
+				bucketSize:   tt.fields.bucketSize,
+				n:            tt.fields.n,
+				intervalSize: tt.fields.intervalSize,
+				array:        tt.fields.array,
+				mu:           mutex.Mutex{},
 			}
 			got := s.getValueOfTime(tt.args.timeMillis)
 			for _, g := range got {
@@ -251,12 +252,12 @@ func Test_isDisable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			la := &SlidingWindow{
-				bucketSize: tt.fields.bucketSize,
-				n:      tt.fields.n,
-				intervalSize:     tt.fields.intervalSize,
-				array:            tt.fields.array,
-				mu:       mutex{},
+			la := &LeapArray{
+				bucketSize:   tt.fields.bucketSize,
+				n:            tt.fields.n,
+				intervalSize: tt.fields.intervalSize,
+				array:        tt.fields.array,
+				mu:           mutex.Mutex{},
 			}
 			if got := la.isDisable(tt.args.startTime, tt.args.ww); got != tt.want {
 				t.Errorf("isDisable() = %v, want %v", got, tt.want)
@@ -265,20 +266,20 @@ func Test_isDisable(t *testing.T) {
 	}
 }
 
-func TestNewSlidingWindow(t *testing.T) {
-	t.Run("TestNewSlidingWindow", func(t *testing.T) {
-		_, err := NewSlidingWindow(N, IntervalSize, &leapArrayMock{})
+func TestNewLeapArray(t *testing.T) {
+	t.Run("TestNewLeapArray", func(t *testing.T) {
+		_, err := NewLeapArray(N, IntervalSize, &leapArrayMock{})
 		assert.Nil(t, err)
 	})
 
-	t.Run("TestNewSlidingWindow_nil", func(t *testing.T) {
-		leapArray, err := NewSlidingWindow(N, IntervalSize, nil)
+	t.Run("TestNewLeapArray_nil", func(t *testing.T) {
+		leapArray, err := NewLeapArray(N, IntervalSize, nil)
 		assert.Nil(t, leapArray)
 		assert.Error(t, err, ErrBucketBuilderIsNil)
 	})
 
-	t.Run("TestNewSlidingWindow_Invalid_Parameters", func(t *testing.T) {
-		leapArray, err := NewSlidingWindow(30, IntervalSize, nil)
+	t.Run("TestNewLeapArray_Invalid_Parameters", func(t *testing.T) {
+		leapArray, err := NewLeapArray(30, IntervalSize, nil)
 		assert.Nil(t, leapArray)
 		assert.Error(t, err, ErrWindowNotSegmentation)
 	})

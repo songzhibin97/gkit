@@ -2,6 +2,7 @@ package array
 
 import (
 	"Songzhibin/GKit/internal/clock"
+	"Songzhibin/GKit/internal/sys/mutex"
 	"errors"
 	"runtime"
 	"sync/atomic"
@@ -16,7 +17,7 @@ var (
 // TimeChick: 自定义校验 时间戳 函数
 type TimeChick func(uint64) bool
 
-// SlidingWindow: 滑动窗口
+// LeapArray: 基于 Bucket 实现的 leap array
 // 例如: bucketSize == 200ms,intervalSize == 1000ms,所以n = 5
 // 假设当前是 时间是888ms 构建下图
 //   B0       B1      B2     B3      B4
@@ -24,7 +25,7 @@ type TimeChick func(uint64) bool
 //  1000    1200    1400    1600    800    (1000)
 //                                        ^
 //                                      time=888
-type SlidingWindow struct {
+type LeapArray struct {
 	// bucketSize: 桶的长度
 	bucketSize uint64
 
@@ -35,20 +36,20 @@ type SlidingWindow struct {
 	n uint64
 
 	// lock: 互斥自旋锁
-	mu mutex
+	mu mutex.Mutex
 
 	// array: 底层数组
 	array *AtomicArray
 }
 
 // getTimeIndex: 获取当前时间 命中的index索引
-func (s *SlidingWindow) getTimeIndex(now uint64) uint64 {
+func (s *LeapArray) getTimeIndex(now uint64) uint64 {
 	id := now / s.bucketSize
 	return id % s.array.length
 }
 
 // getBucketOfTime: 根据 时间戳获取到对应的桶
-func (s *SlidingWindow) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket, error) {
+func (s *LeapArray) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket, error) {
 	index := s.getTimeIndex(now)
 	start := calculateStartTime(now, s.bucketSize)
 
@@ -91,18 +92,18 @@ func (s *SlidingWindow) getBucketOfTime(now uint64, builder BucketBuilder) (*Buc
 }
 
 // GetBucket: 获取桶,封装 getBucketOfTime
-func (s *SlidingWindow) GetBucket(builder BucketBuilder) (*Bucket, error) {
+func (s *LeapArray) GetBucket(builder BucketBuilder) (*Bucket, error) {
 	return s.getBucketOfTime(clock.GetTimeMillis(), builder)
 }
 
 // isDisable: 判断当前桶是否被弃用
-func (s *SlidingWindow) isDisable(now uint64, b *Bucket) bool {
+func (s *LeapArray) isDisable(now uint64, b *Bucket) bool {
 	ws := atomic.LoadUint64(&b.Start)
 	return (now - ws) > s.intervalSize
 }
 
 // getValueOfTime: 通过 now 为基点 获取array所有桶
-func (s *SlidingWindow) getValueOfTime(now uint64) []*Bucket {
+func (s *LeapArray) getValueOfTime(now uint64) []*Bucket {
 	ret := make([]*Bucket, 0, s.array.length)
 	for i := (uint64)(0); i < s.array.length; i++ {
 		b := s.array.getBucket(i)
@@ -115,11 +116,11 @@ func (s *SlidingWindow) getValueOfTime(now uint64) []*Bucket {
 }
 
 // Values: getValueOfTime 封装
-func (s *SlidingWindow) Values() []*Bucket {
+func (s *LeapArray) Values() []*Bucket {
 	return s.getValueOfTime(clock.GetTimeMillis())
 }
 
-func (s *SlidingWindow) ValuesChick(now uint64, chick TimeChick) []*Bucket {
+func (s *LeapArray) ValuesChick(now uint64, chick TimeChick) []*Bucket {
 	ret := make([]*Bucket, 0, s.array.length)
 	for i := (uint64)(0); i < s.array.length; i++ {
 		b := s.array.getBucket(i)
@@ -131,8 +132,8 @@ func (s *SlidingWindow) ValuesChick(now uint64, chick TimeChick) []*Bucket {
 	return ret
 }
 
-// NewSlidingWindow: 初始化滑动窗口
-func NewSlidingWindow(n uint64, intervalSize uint64, builder BucketBuilder) (*SlidingWindow, error) {
+// NewLeapArray: 初始化 leap array
+func NewLeapArray(n uint64, intervalSize uint64, builder BucketBuilder) (*LeapArray, error) {
 	if builder == nil {
 		return nil, ErrBucketBuilderIsNil
 	}
@@ -140,7 +141,7 @@ func NewSlidingWindow(n uint64, intervalSize uint64, builder BucketBuilder) (*Sl
 		return nil, ErrWindowNotSegmentation
 	}
 	bucketSize := intervalSize / n
-	return &SlidingWindow{
+	return &LeapArray{
 		bucketSize:   bucketSize,
 		intervalSize: intervalSize,
 		n:            n,

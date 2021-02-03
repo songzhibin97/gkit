@@ -1,4 +1,4 @@
-package array
+package mutex
 
 import (
 	"Songzhibin/GKit/internal/clock"
@@ -9,7 +9,7 @@ import (
 )
 
 func Test_Mutex_TryLock(t *testing.T) {
-	var m mutex
+	var m Mutex
 	m.Lock()
 	clock.Sleep(time.Second)
 	if m.TryLock() {
@@ -23,12 +23,12 @@ func Test_Mutex_TryLock(t *testing.T) {
 }
 
 func utTriableMutexConcurrent(t *testing.T) {
-	m := &mutex{}
+	m := &Mutex{}
 	cnt := int32(0)
 	wg := &sync.WaitGroup{}
 	wg.Add(1000)
 	for i := 0; i < 1000; i++ {
-		go func(tm *mutex, wgi *sync.WaitGroup, cntPtr *int32, t *testing.T) {
+		go func(tm *Mutex, wgi *sync.WaitGroup, cntPtr *int32, t *testing.T) {
 			for {
 				if tm.TryLock() {
 					*cntPtr = *cntPtr + 1
