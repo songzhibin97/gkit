@@ -94,8 +94,7 @@ func (w *Window) AddIndex(k string, v uint) {
 }
 
 // Show: 展示total
-func (w *Window) Show() []Index {
-	res := make([]Index, 0)
+func (w *Window) Show() []interface{} {
 	m := make(map[string]uint)
 	for _, v := range w.buffer {
 		buf := v.Load().(map[string]uint)
@@ -103,6 +102,7 @@ func (w *Window) Show() []Index {
 			m[s] += u
 		}
 	}
+	res := make([]interface{}, 0, len(m))
 	for s, u := range m {
 		res = append(res, Index{
 			Name:  s,

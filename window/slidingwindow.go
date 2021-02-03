@@ -12,5 +12,5 @@ type SlidingWindow interface {
 	AddIndex(k string, v uint)
 
 	// Show: 展示信息
-	Show() []Index
+	Show() []interface{}
 }
