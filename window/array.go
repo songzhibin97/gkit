@@ -1,4 +1,4 @@
-package array
+package window
 
 import (
 	"Songzhibin/GKit/internal/clock"
@@ -7,50 +7,7 @@ import (
 	"unsafe"
 )
 
-const (
-	// PtrOffSize: 指针偏移量大小
-	PtrOffSize = uint64(8)
-)
-
-// BucketBuilder: Bucket 生成器
-type BucketBuilder interface {
-	// NewEmptyBucket: 生成一个空桶
-	NewEmptyBucket() interface{}
-
-	// Reset: 重置桶
-	Reset(bw *Bucket, startTime uint64) *Bucket
-}
-
-// Bucket:
-type Bucket struct {
-	// Start: 存储开始时间的时间戳
-	Start uint64
-
-	// Value: 实际挂载对象
-	Value atomic.Value
-}
-
-// reset: 重置开始时间戳
-func (b *Bucket) reset(start uint64) {
-	b.Start = start
-}
-
-// isHit: 判断是否命中该桶
-// bucketSize: 桶的长度 单位 ms
-func (b *Bucket) isHit(now uint64, bucketSize uint64) bool {
-	return b.Start <= now && now < b.Start+bucketSize
-}
-
-// calculateStartTime: 计算初始桶的时间
-func calculateStartTime(now uint64, bucketSize uint64) uint64 {
-	return now - (now % bucketSize)
-}
-
-//   B0       B1      B2     B3
-//   |_______|_______|_______|
-//  1000    1200    1400    1600
-
-// AtomicArray: 原子数组
+// AtomicArray: 封装原子操作, 底层维护 []*Bucket
 type AtomicArray struct {
 	// length: array长度
 	length uint64
@@ -60,28 +17,28 @@ type AtomicArray struct {
 	data []*Bucket
 }
 
-// offset: 偏移量
+// offset: 根据index获取底层的桶
 func (a *AtomicArray) offset(index uint64) (unsafe.Pointer, bool) {
-	if index < 0 || index >= a.length {
+	if index < 0 {
 		return nil, false
 	}
+	index = index % a.length
 	base := a.base
 	return unsafe.Pointer(uintptr(base) + uintptr(index*PtrOffSize)), true
 }
 
-// getBucket: 根据偏移量获取bucket
+// getBucket: 根据index获取底层bucket
 func (a *AtomicArray) getBucket(index uint64) *Bucket {
-	if offset, ok := a.offset(index); ok {
-		return (*Bucket)(atomic.LoadPointer((*unsafe.Pointer)(offset)))
+	if ptr, ok := a.offset(index); ok {
+		return (*Bucket)(atomic.LoadPointer((*unsafe.Pointer)(ptr)))
 	}
 	return nil
 }
 
-// cas: compare and swap
-// 交换
-func (a *AtomicArray) cas(index uint64, except, update *Bucket) bool {
-	if offset, ok := a.offset(index); ok {
-		return atomic.CompareAndSwapPointer((*unsafe.Pointer)(offset), unsafe.Pointer(except), unsafe.Pointer(update))
+// compareAndSwap: 比较交换
+func (a *AtomicArray) compareAndSwap(index uint64, old, new *Bucket) bool {
+	if ptr, ok := a.offset(index); ok {
+		return atomic.CompareAndSwapPointer((*unsafe.Pointer)(ptr), unsafe.Pointer(old), unsafe.Pointer(new))
 	}
 	return false
 }
