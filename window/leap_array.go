@@ -1,4 +1,4 @@
-package array
+package window
 
 import (
 	"Songzhibin/GKit/internal/clock"
@@ -26,6 +26,9 @@ type TimeChick func(uint64) bool
 //                                        ^
 //                                      time=888
 type LeapArray struct {
+	// lock: 互斥自旋锁
+	mu mutex.Mutex
+
 	// bucketSize: 桶的长度
 	bucketSize uint64
 
@@ -34,9 +37,6 @@ type LeapArray struct {
 
 	// n: 代表桶的个数
 	n uint64
-
-	// lock: 互斥自旋锁
-	mu mutex.Mutex
 
 	// array: 底层数组
 	array *AtomicArray
@@ -48,7 +48,7 @@ func (s *LeapArray) getTimeIndex(now uint64) uint64 {
 	return id % s.array.length
 }
 
-// getBucketOfTime: 根据 时间戳获取到对应的桶
+// getBucketOfTime: 根据时间戳获取到对应的桶
 func (s *LeapArray) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket, error) {
 	index := s.getTimeIndex(now)
 	start := calculateStartTime(now, s.bucketSize)
@@ -63,7 +63,7 @@ func (s *LeapArray) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket,
 				Value: atomic.Value{},
 			}
 			b.Value.Store(builder.NewEmptyBucket())
-			if s.array.cas(index, nil, b) {
+			if s.array.compareAndSwap(index, nil, b) {
 				return b, nil
 			}
 			runtime.Gosched()
@@ -120,6 +120,7 @@ func (s *LeapArray) Values() []*Bucket {
 	return s.getValueOfTime(clock.GetTimeMillis())
 }
 
+// ValuesChick: 加入自定义 TimeChick 过滤value
 func (s *LeapArray) ValuesChick(now uint64, chick TimeChick) []*Bucket {
 	ret := make([]*Bucket, 0, s.array.length)
 	for i := (uint64)(0); i < s.array.length; i++ {

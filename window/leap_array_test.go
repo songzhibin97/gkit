@@ -1,54 +1,13 @@
-package array
+package window
 
 import (
-	"Songzhibin/GKit/internal/clock"
 	"Songzhibin/GKit/internal/sys/mutex"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"reflect"
-	"sync/atomic"
 	"testing"
-	"unsafe"
 )
 
-const (
-	// BucketSize: 桶大小
-	BucketSize uint64 = 500
-	// N: 长度
-	N uint64 = 20
-	//IntervalSize: 时间间隔 10s
-	IntervalSize uint64 = 10 * 1000
-)
-
-func Test_bucket_Size(t *testing.T) {
-	b := &Bucket{
-		Start: clock.GetTimeMillis(),
-		Value: atomic.Value{},
-	}
-	if unsafe.Sizeof(*b) != 24 {
-		t.Errorf("the size of BucketWrap is not equal 24.\n")
-	}
-	if unsafe.Sizeof(b) != 8 {
-		t.Errorf("the size of BucketWrap pointer is not equal 8.\n")
-	}
-}
-
-// mock ArrayMock and implement BucketGenerator
-type leapArrayMock struct {
-	mock.Mock
-}
-
-func (bla *leapArrayMock) NewEmptyBucket() interface{} {
-	return new(int64)
-}
-
-func (bla *leapArrayMock) Reset(b *Bucket, startTime uint64) *Bucket {
-	b.Start = startTime
-	b.Value.Store(new(int64))
-	return b
-}
-
-func Test_getTimeIndex(t *testing.T) {
+func TestGetTimeIndex(t *testing.T) {
 	type fields struct {
 		bucketSize   uint64
 		n            uint64
@@ -65,12 +24,12 @@ func Test_getTimeIndex(t *testing.T) {
 		want   uint64
 	}{
 		{
-			name: "Test_getTimeIndex",
+			name: "TestGetTimeIndex",
 			fields: fields{
 				bucketSize:   BucketSize,
 				n:            N,
 				intervalSize: IntervalSize,
-				array:        NewAtomicArray(N, BucketSize, &leapArrayMock{}),
+				array:        NewAtomicArray(N, BucketSize, &Mock{}),
 			},
 			args: args{
 				timeMillis: 1576296044907,
@@ -94,7 +53,8 @@ func Test_getTimeIndex(t *testing.T) {
 	}
 }
 
-func Test_calculateStartTime(t *testing.T) {
+
+func TestCalculateStartTime(t *testing.T) {
 	type fields struct {
 	}
 	type args struct {
@@ -108,7 +68,7 @@ func Test_calculateStartTime(t *testing.T) {
 		want   uint64
 	}{
 		{
-			name:   "Test_calculateStartTime",
+			name:   "TestCalculateStartTime",
 			fields: fields{},
 			args: args{
 				timeMillis: 1576296044907,
@@ -126,16 +86,17 @@ func Test_calculateStartTime(t *testing.T) {
 	}
 }
 
-func Test_getBucketOfTime(t *testing.T) {
+
+func TestGetBucketOfTime(t *testing.T) {
 	now := uint64(1596199310000)
 	s := &LeapArray{
 		bucketSize:   BucketSize,
 		n:            N,
 		intervalSize: IntervalSize,
-		array:        NewAtomicArrayWithTime(N, BucketSize, now, &leapArrayMock{}),
+		array:        NewAtomicArrayWithTime(N, BucketSize, now, &Mock{}),
 		mu:           mutex.Mutex{},
 	}
-	got, err := s.getBucketOfTime(now+801, new(leapArrayMock))
+	got, err := s.getBucketOfTime(now+801, new(Mock))
 	if err != nil {
 		t.Errorf("getBucketOfTime() error = %v\n", err)
 		return
@@ -148,7 +109,8 @@ func Test_getBucketOfTime(t *testing.T) {
 	}
 }
 
-func Test_getValueOfTime(t *testing.T) {
+
+func TestGetValueOfTime(t *testing.T) {
 	type fields struct {
 		bucketSize   uint64
 		n            uint64
@@ -166,12 +128,12 @@ func Test_getValueOfTime(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Test_getValueOfTime",
+			name: "TestGetValueOfTime",
 			fields: fields{
 				bucketSize:   BucketSize,
 				n:            N,
 				intervalSize: IntervalSize,
-				array:        NewAtomicArrayWithTime(N, BucketSize, uint64(1596199310000), &leapArrayMock{}),
+				array:        NewAtomicArrayWithTime(N, BucketSize, uint64(1596199310000), &Mock{}),
 			},
 			args: args{
 				timeMillis: 1576296049907,
@@ -215,7 +177,8 @@ func Test_getValueOfTime(t *testing.T) {
 	}
 }
 
-func Test_isDisable(t *testing.T) {
+
+func TestIsDisable(t *testing.T) {
 	type fields struct {
 		bucketSize   uint64
 		n            uint64
@@ -224,7 +187,7 @@ func Test_isDisable(t *testing.T) {
 	}
 	type args struct {
 		startTime uint64
-		ww        *Bucket
+		b         *Bucket
 	}
 	tests := []struct {
 		name   string
@@ -233,16 +196,16 @@ func Test_isDisable(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "Test_isDisable",
+			name: "TestIsDisable",
 			fields: fields{
 				bucketSize:   BucketSize,
 				n:            N,
 				intervalSize: IntervalSize,
-				array:        NewAtomicArrayWithTime(N, BucketSize, uint64(1596199310000), &leapArrayMock{}),
+				array:        NewAtomicArrayWithTime(N, BucketSize, uint64(1596199310000), &Mock{}),
 			},
 			args: args{
 				startTime: 1576296044907,
-				ww: &Bucket{
+				b: &Bucket{
 					Start: 1576296004907,
 				},
 			},
@@ -259,7 +222,7 @@ func Test_isDisable(t *testing.T) {
 				array:        tt.fields.array,
 				mu:           mutex.Mutex{},
 			}
-			if got := la.isDisable(tt.args.startTime, tt.args.ww); got != tt.want {
+			if got := la.isDisable(tt.args.startTime, tt.args.b); got != tt.want {
 				t.Errorf("isDisable() = %v, want %v", got, tt.want)
 			}
 		})
@@ -268,17 +231,17 @@ func Test_isDisable(t *testing.T) {
 
 func TestNewLeapArray(t *testing.T) {
 	t.Run("TestNewLeapArray", func(t *testing.T) {
-		_, err := NewLeapArray(N, IntervalSize, &leapArrayMock{})
+		_, err := NewLeapArray(N, IntervalSize, &Mock{})
 		assert.Nil(t, err)
 	})
 
-	t.Run("TestNewLeapArray_nil", func(t *testing.T) {
+	t.Run("TestNewLeapArrayNil", func(t *testing.T) {
 		leapArray, err := NewLeapArray(N, IntervalSize, nil)
 		assert.Nil(t, leapArray)
 		assert.Error(t, err, ErrBucketBuilderIsNil)
 	})
 
-	t.Run("TestNewLeapArray_Invalid_Parameters", func(t *testing.T) {
+	t.Run("TestNewLeapArrayInvalidParameters", func(t *testing.T) {
 		leapArray, err := NewLeapArray(30, IntervalSize, nil)
 		assert.Nil(t, leapArray)
 		assert.Error(t, err, ErrWindowNotSegmentation)
