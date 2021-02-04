@@ -36,23 +36,19 @@ type Window struct {
 	size   int
 }
 
-// WindowOpts: 包含用于创建Window的参数
-type WindowOpts struct {
-	Size int
-}
 
 // NewWindow: 实例化 Window 对象
-func NewWindow(opts WindowOpts) *Window {
-	buckets := make([]Bucket, opts.Size)
+func NewWindow(size int) *Window {
+	buckets := make([]Bucket, size)
 	for offset := range buckets {
 		buckets[offset] = Bucket{Points: make([]float64, 0)}
 		nextOffset := offset + 1
-		if nextOffset == opts.Size {
+		if nextOffset == size {
 			nextOffset = 0
 		}
 		buckets[offset].next = &buckets[nextOffset]
 	}
-	return &Window{window: buckets, size: opts.Size}
+	return &Window{window: buckets, size: size}
 }
 
 // ResetWindow: 清空窗口中的所有存储桶。

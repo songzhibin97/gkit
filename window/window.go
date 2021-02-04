@@ -14,7 +14,7 @@ type Index struct {
 	Score uint
 }
 
-type Conf struct {
+type conf struct {
 	// size: 窗口大小
 	size uint
 
@@ -27,8 +27,8 @@ type Conf struct {
 // Window: 窗口对象
 type Window struct {
 
-	// Conf: 配置信息
-	Conf
+	// conf: 配置信息
+	conf
 
 	// index: 指针指向的位置
 	index uint

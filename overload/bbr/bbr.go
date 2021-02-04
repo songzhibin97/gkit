@@ -5,6 +5,7 @@ import (
 	"Songzhibin/GKit/internal/stat"
 	cupstat "Songzhibin/GKit/internal/sys/cpu"
 	"Songzhibin/GKit/log"
+	"Songzhibin/GKit/options"
 	"Songzhibin/GKit/overload"
 	"context"
 	"math"
@@ -22,28 +23,19 @@ var (
 
 	// initTime: 起始时间
 	initTime = time.Now()
-
-	// defaultConf: 默认配置
-	defaultConf = &Config{
-		// Window: 窗口周期
-		Window:    time.Second * 10,
-		WinBucket: 100,
-		// CPUThreshold: 阈值
-		CPUThreshold: 800,
-	}
 )
 
 // cpuGetter:
 type cpuGetter func() int64
 
-// Config: bbr 配置
-type Config struct {
-	Enabled      bool
-	Window       time.Duration
-	WinBucket    int
-	Rule         string
-	Debug        bool
-	CPUThreshold int64
+// config: bbr 配置
+type config struct {
+	debug        bool
+	enabled      bool
+	winBucket    int
+	cPUThreshold int64
+	window       time.Duration
+	rule         string
 }
 
 // Stat: bbr 指标信息
@@ -62,7 +54,7 @@ type BBR struct {
 	rtStat          stat.RollingCounter
 	inFlight        int64
 	winBucketPerSec int64
-	conf            *Config
+	conf            *config
 	prevDrop        atomic.Value
 	prevDropHit     int32
 	rawMaxPASS      int64
@@ -108,7 +100,7 @@ func (l *BBR) maxPASS() int64 {
 	}
 	rawMaxPass = int64(l.passStat.Reduce(func(iterator stat.Iterator) float64 {
 		var result = 1.0
-		for i := 1; iterator.Next() && i < l.conf.WinBucket; i++ {
+		for i := 1; iterator.Next() && i < l.conf.winBucket; i++ {
 			bucket := iterator.Bucket()
 			count := 0.0
 			for _, p := range bucket.Points {
@@ -133,7 +125,7 @@ func (l *BBR) minRT() int64 {
 	}
 	rawMinRT = int64(math.Ceil(l.rtStat.Reduce(func(iterator stat.Iterator) float64 {
 		var result = math.MaxFloat64
-		for i := 1; iterator.Next() && i < l.conf.WinBucket; i++ {
+		for i := 1; iterator.Next() && i < l.conf.winBucket; i++ {
 			bucket := iterator.Bucket()
 			if len(bucket.Points) == 0 {
 				continue
@@ -161,7 +153,7 @@ func (l *BBR) maxFlight() int64 {
 
 // shouldDrop: 判断是否应该降低
 func (l *BBR) shouldDrop() bool {
-	if l.cpu() < l.conf.CPUThreshold {
+	if l.cpu() < l.conf.cPUThreshold {
 		prevDrop, _ := l.prevDrop.Load().(time.Duration)
 		if prevDrop == 0 {
 			return false
@@ -225,16 +217,73 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	}, nil
 }
 
-// newLimiter: 实例化限制器
-func newLimiter(conf *Config) overload.Limiter {
-	// 判断传入配置是否为空,否则使用默认配置
-	if conf == nil {
-		conf = defaultConf
+// defaultConf: 默认配置
+func defaultConf() *config {
+	return &config{
+		// window: 窗口周期
+		window:    time.Second * 10,
+		winBucket: 100,
+		// cPUThreshold: 阈值
+		cPUThreshold: 800,
 	}
-	size := conf.WinBucket
-	bucketDuration := conf.Window / time.Duration(conf.WinBucket)
-	passStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: size, BucketDuration: bucketDuration})
-	rtStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: size, BucketDuration: bucketDuration})
+}
+
+// Option
+
+// SetDebug:
+func SetDebug(debug bool) options.Option {
+	return func(c interface{}) {
+		c.(*config).debug = debug
+	}
+}
+
+// SetEnabled:
+func SetEnabled(enabled bool) options.Option {
+	return func(c interface{}) {
+		c.(*config).enabled = enabled
+	}
+}
+
+// SetWinBucket
+func SetWinBucket(winBucket int) options.Option {
+	return func(c interface{}) {
+		c.(*config).winBucket = winBucket
+	}
+}
+
+// SetCPUThreshold
+func SetCPUThreshold(cPUThreshold int64) options.Option {
+	return func(c interface{}) {
+		c.(*config).cPUThreshold = cPUThreshold
+	}
+}
+
+// SetWindow
+func SetWindow(window time.Duration) options.Option {
+	return func(c interface{}) {
+		c.(*config).window = window
+	}
+}
+
+// SetRule
+func SetRule(rule string) options.Option {
+	return func(c interface{}) {
+		c.(*config).rule = rule
+	}
+}
+
+// newLimiter: 实例化限制器
+func newLimiter(options ...options.Option) overload.Limiter {
+	// 判断传入配置是否为空,否则使用默认配置
+	conf := defaultConf()
+	for _, opt := range options {
+		opt(conf)
+	}
+
+	size := conf.winBucket
+	bucketDuration := conf.window / time.Duration(conf.winBucket)
+	passStat := stat.NewRollingCounter(size, bucketDuration)
+	rtStat := stat.NewRollingCounter(size, bucketDuration)
 	cpu := func() int64 {
 		return atomic.LoadInt64(&cpu)
 	}
@@ -243,19 +292,16 @@ func newLimiter(conf *Config) overload.Limiter {
 		conf:            conf,
 		passStat:        passStat,
 		rtStat:          rtStat,
-		winBucketPerSec: int64(time.Second) / (int64(conf.Window) / int64(conf.WinBucket)),
+		winBucketPerSec: int64(time.Second) / (int64(conf.window) / int64(conf.winBucket)),
 	}
 	return limiter
 }
 
 // NewGroup: 实例化限制器容器
-func NewGroup(conf *Config) *Group {
+func NewGroup(options ...options.Option) *Group {
 	// 判断传入配置是否为空,否则使用默认配置
-	if conf == nil {
-		conf = defaultConf
-	}
 	_group := group.NewGroup(func() interface{} {
-		return newLimiter(conf)
+		return newLimiter(options...)
 	})
 	return &Group{
 		group: _group,

@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"Songzhibin/GKit/options"
 	"Songzhibin/GKit/timeout"
 	"container/list"
 	"context"
@@ -29,7 +30,7 @@ type List struct {
 	active uint64
 
 	// conf: 配置信息
-	conf *Config
+	conf *config
 
 	// closed:
 	closed uint32
@@ -39,10 +40,12 @@ type List struct {
 }
 
 // Reload: 重新设置配置文件
-func (l *List) Reload(c *Config) {
+func (l *List) Reload(options ...options.Option) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.conf = c
+	for _, option := range options {
+		option(l.conf)
+	}
 }
 
 // Init: 初始化
@@ -52,7 +55,7 @@ func (l *List) Init(d time.Duration) {
 		return
 	}
 	// 如果时间间隔d小于等待超时,并且 cleanerCh 不为nil 监听信号
-	if d < l.conf.IdleTimeout && l.cleanerCh != nil {
+	if d < l.conf.idleTimeout && l.cleanerCh != nil {
 		select {
 		// 发送立即清除旧配置的信号,如果阻塞说明在时间周期内进行清洁,跳过
 		case l.cleanerCh <- struct{}{}:
@@ -63,7 +66,7 @@ func (l *List) Init(d time.Duration) {
 	if l.cleanerCh == nil {
 		l.cleanerCh = make(chan struct{}, 1)
 		// 开启定时任务
-		go l.Timer(l.conf.IdleTimeout)
+		go l.Timer(l.conf.idleTimeout)
 	}
 }
 
@@ -84,7 +87,7 @@ func (l *List) Timer(d time.Duration) {
 		}
 		l.mu.Lock()
 		// 是否关闭 或者 没有设置超时时间
-		if atomic.LoadUint32(&l.closed) == 1 || l.conf.IdleTimeout <= 0 {
+		if atomic.LoadUint32(&l.closed) == 1 || l.conf.idleTimeout <= 0 {
 			l.mu.Unlock()
 			return
 		}
@@ -98,7 +101,7 @@ func (l *List) Timer(d time.Duration) {
 			// 断言为 item
 			ic := e.Value.(item)
 			// 判断时间是否超时
-			if !ic.expire(l.conf.IdleTimeout) {
+			if !ic.expire(l.conf.idleTimeout) {
 				break
 			}
 			// 如果已经超时,则删除此元素
@@ -147,7 +150,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			l.idles.Remove(e)
 			l.mu.Unlock()
 			// 没有过期的可以直接返回了
-			if !ic.expire(l.conf.IdleTimeout) {
+			if !ic.expire(l.conf.idleTimeout) {
 				return ic.s, nil
 			}
 			// 清理 重新获取锁
@@ -162,7 +165,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			return nil, ErrPoolClosed
 		}
 		// 判断是否需要新增
-		if l.conf.Active == 0 || l.active < l.conf.Active {
+		if l.conf.active == 0 || l.active < l.conf.active {
 			newItem := l.f
 			l.mu.Unlock()
 			atomic.AddUint64(&l.active, 1)
@@ -175,12 +178,12 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			return c, err
 		}
 		// 如果满了判断是否需要等待
-		if l.conf.WaitTimeout == 0 && !l.conf.Wait {
+		if l.conf.waitTimeout == 0 && !l.conf.wait {
 			l.mu.Unlock()
 			return nil, ErrPoolExhausted
 		}
 		// 获取超时时间,解锁进入等待状态
-		wt := l.conf.WaitTimeout
+		wt := l.conf.waitTimeout
 		l.mu.Unlock()
 
 		// 控制链路超时时间
@@ -206,7 +209,7 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 		// 插入到链表头
 		l.idles.PushFront(item{createdAt: nowFunc(), s: s})
 		// 判断闲置数量是否达到阈值
-		if uint64(l.idles.Len()) > l.conf.Idle {
+		if uint64(l.idles.Len()) > l.conf.idle {
 			// 拿到尾部淘汰的 shutdown
 			s = l.idles.Remove(l.idles.Back()).(item).s
 		} else {
@@ -252,12 +255,12 @@ func (l *List) New(f func(ctx context.Context) (IShutdown, error)) {
 }
 
 // NewList: 实例化
-func NewList(c *Config) Pool {
-	if c == nil || c.Active < c.Idle {
-		panic("config nil或Idle必须<=Active")
-	}
-	l := &List{conf: c}
+func NewList(options ...options.Option) Pool {
+	l := &List{conf: defaultConfig()}
 	l.cond = make(chan struct{})
-	l.Init(c.IdleTimeout)
+	for _, option := range options {
+		option(l.conf)
+	}
+	l.Init(l.conf.idleTimeout)
 	return l
 }

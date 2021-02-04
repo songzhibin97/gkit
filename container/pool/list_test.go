@@ -35,15 +35,7 @@ func (c *connection) Shutdown() error {
 }
 
 func TestListGetPut(t *testing.T) {
-	// new pool
-	config := &Config{
-		Active:      1,
-		Idle:        1,
-		IdleTimeout: 90 * time.Second,
-		WaitTimeout: 10 * time.Millisecond,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(1), SetIdle(1), SetIdleTimeout(90*time.Second), SetWait(false, 10*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -62,13 +54,7 @@ func TestListPut(t *testing.T) {
 		IShutdown
 		id int
 	}
-	config := &Config{
-		Active:      1,
-		Idle:        1,
-		IdleTimeout: 1 * time.Second,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(1), SetIdle(1), SetIdleTimeout(1*time.Second))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{
@@ -96,13 +82,7 @@ func TestListIdleTimeout(t *testing.T) {
 		IShutdown
 		id int
 	}
-	config := &Config{
-		Active: 1,
-		Idle:   1,
-		// conn timeout
-		IdleTimeout: 1 * time.Millisecond,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(1), SetIdle(1), SetIdleTimeout(1*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{id: id, IShutdown: &shutdown{}}, nil
@@ -126,14 +106,7 @@ func TestListIdleTimeout(t *testing.T) {
 
 func TestListContextTimeout(t *testing.T) {
 	// new pool
-	config := &Config{
-		Active:      1,
-		Idle:        1,
-		IdleTimeout: 90 * time.Second,
-		WaitTimeout: 10 * time.Millisecond,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(1), SetIdle(1), SetIdleTimeout(90*time.Second), SetWait(false, 10*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -153,14 +126,8 @@ func TestListContextTimeout(t *testing.T) {
 
 func TestListPoolExhausted(t *testing.T) {
 	// test pool exhausted
-	config := &Config{
-		Active:      1,
-		Idle:        1,
-		IdleTimeout: 90 * time.Second,
-		//		WaitTimeout: xtime.Duration(10 * time.Millisecond),
-		Wait: false,
-	}
-	pool := NewList(config)
+
+	pool := NewList(SetActive(1), SetIdle(1), SetIdleTimeout(90*time.Second))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -183,14 +150,7 @@ func TestListStaleClean(t *testing.T) {
 		IShutdown
 		id int
 	}
-	config := &Config{
-		Active:      1,
-		Idle:        1,
-		IdleTimeout: 1 * time.Second,
-		//		WaitTimeout: xtime.Duration(10 * time.Millisecond),
-		Wait: false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(1), SetIdle(1), SetIdleTimeout(1*time.Second))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		id = id + 1
 		return &connID{id: id, IShutdown: &shutdown{}}, nil
@@ -213,14 +173,7 @@ func TestListStaleClean(t *testing.T) {
 }
 
 func BenchmarkList(b *testing.B) {
-	config := &Config{
-		Active:      30,
-		Idle:        30,
-		IdleTimeout: 90 * time.Second,
-		WaitTimeout: 10 * time.Millisecond,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(30), SetIdle(30), SetIdleTimeout(90*time.Second), SetWait(false, 10*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -237,14 +190,7 @@ func BenchmarkList(b *testing.B) {
 }
 
 func BenchmarkList1(b *testing.B) {
-	config := &Config{
-		Active:      30,
-		Idle:        30,
-		IdleTimeout: 90 * time.Second,
-		WaitTimeout: 10 * time.Millisecond,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(30), SetIdle(30), SetIdleTimeout(90*time.Second), SetWait(false, 10*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -265,14 +211,7 @@ func BenchmarkList1(b *testing.B) {
 }
 
 func BenchmarkList2(b *testing.B) {
-	config := &Config{
-		Active:      30,
-		Idle:        30,
-		IdleTimeout: 90 * time.Second,
-		WaitTimeout: 10 * time.Millisecond,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(30), SetIdle(30), SetIdleTimeout(90*time.Second), SetWait(false, 10*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -293,14 +232,7 @@ func BenchmarkList2(b *testing.B) {
 }
 
 func BenchmarkPool3(b *testing.B) {
-	config := &Config{
-		Active:      30,
-		Idle:        30,
-		IdleTimeout: 90 * time.Second,
-		WaitTimeout: 10 * time.Millisecond,
-		Wait:        false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(30), SetIdle(30), SetIdleTimeout(90*time.Second), SetWait(false, 10*time.Millisecond))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -321,14 +253,7 @@ func BenchmarkPool3(b *testing.B) {
 }
 
 func BenchmarkList4(b *testing.B) {
-	config := &Config{
-		Active:      30,
-		Idle:        30,
-		IdleTimeout: 90 * time.Second,
-		//		WaitTimeout: xtime.Duration(10 * time.Millisecond),
-		Wait: false,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(30), SetIdle(30), SetIdleTimeout(90*time.Second))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})
@@ -349,14 +274,7 @@ func BenchmarkList4(b *testing.B) {
 }
 
 func BenchmarkList5(b *testing.B) {
-	config := &Config{
-		Active:      30,
-		Idle:        30,
-		IdleTimeout: 90 * time.Second,
-		//		WaitTimeout: xtime.Duration(10 * time.Millisecond),
-		Wait: true,
-	}
-	pool := NewList(config)
+	pool := NewList(SetActive(30), SetIdle(30), SetIdleTimeout(90*time.Second))
 	pool.New(func(ctx context.Context) (IShutdown, error) {
 		return &shutdown{}, nil
 	})

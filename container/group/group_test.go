@@ -1,64 +1,74 @@
 package group
 
 import (
-	"reflect"
+	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 )
 
-func TestGroup_Get(t *testing.T) {
+func TestGroupGet(t *testing.T) {
 	count := 0
 	g := NewGroup(func() interface{} {
 		count++
 		return count
 	})
-	type args struct {
-		key string
-	}
-	tests := []struct {
-		name string
-		args args
-		want interface{}
-	}{
-		{
-			"t1", args{key: "user"}, 1,
-		},
-		{
-			"t2", args{key: "avatar"}, 2,
-		},
-		{
-			"t2", args{key: "user"}, 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := g.Get(tt.args.key); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Get() = %v, want %v", got, tt.want)
-			}
-		})
-	}
+	v := g.Get("user")
+	assert.Equal(t, 1, v.(int))
+
+	v = g.Get("avatar")
+	assert.Equal(t, 2, v.(int))
+
+	v = g.Get("user")
+	assert.Equal(t, 1, v.(int))
+	assert.Equal(t, 2, count)
 }
 
-func TestGroup_ReSet(t *testing.T) {
+func TestGroupReset(t *testing.T) {
 	g := NewGroup(func() interface{} {
 		return 1
 	})
-	v := g.Get("user")
-	t.Log(reflect.DeepEqual(v.(int), 1))
+	g.Get("user")
+	call := false
 	g.ReSet(func() interface{} {
-		return 2
+		call = true
+		return 1
 	})
-	v = g.Get("user")
-	t.Log(reflect.DeepEqual(v.(int), 2))
+
+	length := 0
+	for range g.(*Group).objs {
+		length++
+	}
+
+	assert.Equal(t, 0, length)
+
+	g.Get("user")
+	assert.Equal(t, true, call)
 }
 
-func BenchmarkGroup_Get(b *testing.B) {
+func TestGroupClear(t *testing.T) {
+	g := NewGroup(func() interface{} {
+		return 1
+	})
+	g.Get("user")
+	length := 0
+	for range g.(*Group).objs {
+		length++
+	}
+	assert.Equal(t, 1, length)
+
+	g.Clear()
+	length = 0
+	for range g.(*Group).objs {
+		length++
+	}
+	assert.Equal(t, 0, length)
+}
+
+func BenchmarkGroupGet(b *testing.B) {
 	g := NewGroup(func() interface{} {
 		return 1
 	})
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < 100; j++ {
-			g.Get(strconv.Itoa(j))
-		}
+		g.Get(strconv.Itoa(i))
 	}
 }

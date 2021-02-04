@@ -2,8 +2,10 @@ package bbr
 
 import (
 	"Songzhibin/GKit/internal/stat"
+	"Songzhibin/GKit/options"
 	"Songzhibin/GKit/overload"
 	"context"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"sync"
@@ -12,12 +14,8 @@ import (
 	"time"
 )
 
-func confForTest() *Config {
-	return &Config{
-		Window:       time.Second,
-		WinBucket:    10,
-		CPUThreshold: 800,
-	}
+func confForTest() []options.Option {
+	return []options.Option{SetWindow(time.Second), SetWinBucket(10), SetCPUThreshold(800)}
 }
 
 func warmup(bbr *BBR, count int) {
@@ -41,12 +39,7 @@ func forceAllow(bbr *BBR) {
 }
 
 func TestBBR(t *testing.T) {
-	cfg := &Config{
-		Window:       time.Second * 5,
-		WinBucket:    50,
-		CPUThreshold: 100,
-	}
-	limiter := newLimiter(cfg)
+	limiter := newLimiter(SetWindow(time.Second*5), SetWinBucket(50), SetCPUThreshold(100))
 	var wg sync.WaitGroup
 	var drop int64
 	for i := 0; i < 100; i++ {
@@ -66,12 +59,12 @@ func TestBBR(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	t.Log("drop: ", drop)
+	fmt.Println("drop: ", drop)
 }
 
 func TestBBRMaxPass(t *testing.T) {
 	bucketDuration := time.Millisecond * 100
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	for i := 1; i <= 10; i++ {
 		bbr.passStat.Add(int64(i * 100))
 		time.Sleep(bucketDuration)
@@ -79,14 +72,14 @@ func TestBBRMaxPass(t *testing.T) {
 	assert.Equal(t, int64(1000), bbr.maxPASS())
 
 	// default max pass is equal to 1.
-	bbr = newLimiter(confForTest()).(*BBR)
+	bbr = newLimiter(confForTest()...).(*BBR)
 	assert.Equal(t, int64(1), bbr.maxPASS())
 }
 
 func TestBBRMinRt(t *testing.T) {
 	bucketDuration := time.Millisecond * 100
-	bbr := newLimiter(confForTest()).(*BBR)
-	rtStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: 10, BucketDuration: bucketDuration})
+	bbr := newLimiter(confForTest()...).(*BBR)
+	rtStat := stat.NewRollingCounter(10, bucketDuration)
 	for i := 0; i < 10; i++ {
 		for j := i*10 + 1; j <= i*10+10; j++ {
 			rtStat.Add(int64(j))
@@ -100,16 +93,16 @@ func TestBBRMinRt(t *testing.T) {
 
 	// default max min rt is equal to maxFloat64.
 	bucketDuration = time.Millisecond * 100
-	bbr = newLimiter(confForTest()).(*BBR)
-	bbr.rtStat = stat.NewRollingCounter(stat.RollingCounterOpts{Size: 10, BucketDuration: bucketDuration})
+	bbr = newLimiter(confForTest()...).(*BBR)
+	bbr.rtStat = stat.NewRollingCounter(10, bucketDuration)
 	assert.Equal(t, int64(1), bbr.minRT())
 }
 
 func TestBBRMaxQps(t *testing.T) {
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bucketDuration := time.Millisecond * 100
-	passStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: 10, BucketDuration: bucketDuration})
-	rtStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: 10, BucketDuration: bucketDuration})
+	passStat := stat.NewRollingCounter(10, bucketDuration)
+	rtStat := stat.NewRollingCounter(10, bucketDuration)
 	for i := 0; i < 10; i++ {
 		passStat.Add(int64((i + 2) * 100))
 		for j := i*10 + 1; j <= i*10+10; j++ {
@@ -126,13 +119,13 @@ func TestBBRMaxQps(t *testing.T) {
 
 func TestBBRShouldDrop(t *testing.T) {
 	var cpu int64
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bbr.cpu = func() int64 {
 		return cpu
 	}
 	bucketDuration := time.Millisecond * 100
-	passStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: 10, BucketDuration: bucketDuration})
-	rtStat := stat.NewRollingCounter(stat.RollingCounterOpts{Size: 10, BucketDuration: bucketDuration})
+	passStat := stat.NewRollingCounter(10, bucketDuration)
+	rtStat := stat.NewRollingCounter(10, bucketDuration)
 	for i := 0; i < 10; i++ {
 		passStat.Add(int64((i + 1) * 100))
 		for j := i*10 + 1; j <= i*10+10; j++ {
@@ -167,12 +160,7 @@ func TestBBRShouldDrop(t *testing.T) {
 }
 
 func TestGroup(t *testing.T) {
-	cfg := &Config{
-		Window:       time.Second * 5,
-		WinBucket:    50,
-		CPUThreshold: 100,
-	}
-	group := NewGroup(cfg)
+	group := NewGroup(SetWindow(time.Second * 5),SetWinBucket(50),SetCPUThreshold(100))
 	t.Run("get", func(t *testing.T) {
 		limiter := group.Get("test")
 		assert.NotNil(t, limiter)
@@ -180,7 +168,7 @@ func TestGroup(t *testing.T) {
 }
 
 func BenchmarkBBRAllowUnderLowLoad(b *testing.B) {
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bbr.cpu = func() int64 {
 		return 500
 	}
@@ -194,7 +182,7 @@ func BenchmarkBBRAllowUnderLowLoad(b *testing.B) {
 }
 
 func BenchmarkBBRAllowUnderHighLoad(b *testing.B) {
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bbr.cpu = func() int64 {
 		return 900
 	}
@@ -215,7 +203,7 @@ func BenchmarkBBRAllowUnderHighLoad(b *testing.B) {
 }
 
 func BenchmarkBBRShouldDropUnderLowLoad(b *testing.B) {
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bbr.cpu = func() int64 {
 		return 500
 	}
@@ -227,7 +215,7 @@ func BenchmarkBBRShouldDropUnderLowLoad(b *testing.B) {
 }
 
 func BenchmarkBBRShouldDropUnderHighLoad(b *testing.B) {
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bbr.cpu = func() int64 {
 		return 900
 	}
@@ -243,7 +231,7 @@ func BenchmarkBBRShouldDropUnderHighLoad(b *testing.B) {
 }
 
 func BenchmarkBBRShouldDropUnderUnstableLoad(b *testing.B) {
-	bbr := newLimiter(confForTest()).(*BBR)
+	bbr := newLimiter(confForTest()...).(*BBR)
 	bbr.cpu = func() int64 {
 		return 500
 	}
