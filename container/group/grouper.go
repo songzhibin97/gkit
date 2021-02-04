@@ -4,4 +4,5 @@ package group
 type LazyLoadGroup interface {
 	Get(key string) interface{}
 	ReSet(nf func() interface{})
+	Clear()
 }

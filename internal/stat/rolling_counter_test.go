@@ -9,11 +9,7 @@ import (
 func TestRollingCounterAdd(t *testing.T) {
 	size := 3
 	bucketDuration := time.Second
-	opts := RollingCounterOpts{
-		Size:           size,
-		BucketDuration: bucketDuration,
-	}
-	r := NewRollingCounter(opts)
+	r := NewRollingCounter(size, bucketDuration)
 	listBuckets := func() [][]float64 {
 		buckets := make([][]float64, 0)
 		r.Reduce(func(i Iterator) float64 {
@@ -45,11 +41,7 @@ func TestRollingCounterAdd(t *testing.T) {
 func TestRollingCounterReduce(t *testing.T) {
 	size := 3
 	bucketDuration := time.Second
-	opts := RollingCounterOpts{
-		Size:           size,
-		BucketDuration: bucketDuration,
-	}
-	r := NewRollingCounter(opts)
+	r := NewRollingCounter(size, bucketDuration)
 	for x := 0; x < size; x = x + 1 {
 		for i := 0; i <= x; i++ {
 			r.Add(1)
@@ -74,11 +66,7 @@ func TestRollingCounterReduce(t *testing.T) {
 func TestRollingCounterDataRace(t *testing.T) {
 	size := 3
 	bucketDuration := time.Millisecond * 10
-	opts := RollingCounterOpts{
-		Size:           size,
-		BucketDuration: bucketDuration,
-	}
-	r := NewRollingCounter(opts)
+	r := NewRollingCounter(size, bucketDuration)
 	var stop = make(chan bool)
 	go func() {
 		for {
@@ -116,11 +104,7 @@ func TestRollingCounterDataRace(t *testing.T) {
 func BenchmarkRollingCounterIncr(b *testing.B) {
 	size := 3
 	bucketDuration := time.Millisecond * 100
-	opts := RollingCounterOpts{
-		Size:           size,
-		BucketDuration: bucketDuration,
-	}
-	r := NewRollingCounter(opts)
+	r := NewRollingCounter(size, bucketDuration)
 	b.ResetTimer()
 	for i := 0; i <= b.N; i++ {
 		r.Add(1)
@@ -130,11 +114,7 @@ func BenchmarkRollingCounterIncr(b *testing.B) {
 func BenchmarkRollingCounterReduce(b *testing.B) {
 	size := 3
 	bucketDuration := time.Second
-	opts := RollingCounterOpts{
-		Size:           size,
-		BucketDuration: bucketDuration,
-	}
-	r := NewRollingCounter(opts)
+	r := NewRollingCounter(size, bucketDuration)
 	for i := 0; i <= 10; i++ {
 		r.Add(1)
 		time.Sleep(time.Millisecond * 500)

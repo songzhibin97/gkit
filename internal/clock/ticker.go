@@ -13,7 +13,7 @@ func StartTicker() {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-
+				// no possible
 			}
 		}()
 		for {
