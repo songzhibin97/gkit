@@ -2,6 +2,7 @@ package bbr
 
 import (
 	"Songzhibin/GKit/middleware"
+	"Songzhibin/GKit/options"
 	"Songzhibin/GKit/overload"
 	"context"
 )
@@ -11,8 +12,8 @@ const (
 	LimitOp  = "LimitLoad"
 )
 
-func NewLimiter(conf *Config) middleware.MiddleWare {
-	g := NewGroup(conf)
+func NewLimiter(options ...options.Option) middleware.MiddleWare {
+	g := NewGroup(options...)
 	return func(next middleware.Endpoint) middleware.Endpoint {
 		return func(ctx context.Context, i interface{}) (interface{}, error) {
 			// 通过ctx 获取 g中的限制器

@@ -19,12 +19,6 @@ type rollingCounter struct {
 	policy *RollingPolicy
 }
 
-// RollingCounterOpts: 创建 rollingCounter 所需要的参数
-type RollingCounterOpts struct {
-	Size           int
-	BucketDuration time.Duration
-}
-
 // Add:
 func (r *rollingCounter) Add(val int64) {
 	if val < 0 {
@@ -69,9 +63,9 @@ func (r *rollingCounter) Timespan() int {
 }
 
 // NewRollingCounter: 实例化 RollingCounter 方法
-func NewRollingCounter(opts RollingCounterOpts) RollingCounter {
-	window := NewWindow(WindowOpts{Size: opts.Size})
-	policy := NewRollingPolicy(window, RollingPolicyOpts{BucketDuration: opts.BucketDuration})
+func NewRollingCounter(size int, bucketDuration time.Duration) RollingCounter {
+	window := NewWindow(size)
+	policy := NewRollingPolicy(window, bucketDuration)
 	return &rollingCounter{
 		policy: policy,
 	}

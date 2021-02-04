@@ -2,14 +2,12 @@ package goroutine
 
 import (
 	"Songzhibin/GKit/log"
+	"Songzhibin/GKit/options"
 	"time"
 )
 
-// Option: 选项模式
-type Option func(o *options)
-
-// options
-type options struct {
+// config
+type config struct {
 
 	// stopTimeout: 关闭超时时间
 	// 控制shutdown关闭超时时间
@@ -24,16 +22,16 @@ type options struct {
 }
 
 // StopTimeout: 设置停止超时时间
-func StopTimeout(d time.Duration) Option {
-	return func(o *options) { o.stopTimeout = d }
+func StopTimeout(d time.Duration) options.Option {
+	return func(c interface{}) { c.(*config).stopTimeout = d }
 }
 
 // Max: 设置pool最大容量
-func Max(max int64) Option {
-	return func(o *options) { o.max = max }
+func Max(max int64) options.Option {
+	return func(c interface{}) { c.(*config).max = max }
 }
 
 // Logger: 设置pool最大容量
-func Logger(logger log.Logger) Option {
-	return func(o *options) { o.logger = logger }
+func Logger(logger log.Logger) options.Option {
+	return func(c interface{}) { c.(*config).logger = logger }
 }

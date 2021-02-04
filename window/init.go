@@ -1,47 +1,47 @@
 package window
 
 import (
+	"Songzhibin/GKit/options"
 	"context"
 	"sync/atomic"
 	"time"
 )
 
-// 选项模式
-type Option func(conf *Conf)
+
 
 // SetSize: 设置大小
-func SetSize(size uint) Option {
-	return func(conf *Conf) {
-		conf.size = size
+func SetSize(size uint) options.Option {
+	return func(c interface{}) {
+		c.(*conf).size = size
 	}
 }
 
 // SetInterval: 设置间隔时间
-func SetInterval(interval time.Duration) Option {
-	return func(conf *Conf) {
-		conf.interval = interval
+func SetInterval(interval time.Duration) options.Option {
+	return func(c interface{}) {
+		c.(*conf).interval = interval
 	}
 }
 
 // SetContext: 设置context
-func SetContext(c context.Context) Option {
-	return func(conf *Conf) {
-		conf.ctx = c
+func SetContext(context context.Context) options.Option {
+	return func(c interface{}) {
+		c.(*conf).ctx = context
 	}
 }
 
 // InitWindow: 实例化
-func InitWindow(options ...Option) SlidingWindow {
+func InitWindow(options ...options.Option) SlidingWindow {
 	w := Window{
 		// 默认值:
-		Conf: Conf{
+		conf: conf{
 			size:     5,
 			interval: time.Second,
 			ctx:      context.Background(),
 		},
 	}
 	for _, option := range options {
-		option(&w.Conf)
+		option(&w.conf)
 	}
 	w.buffer = make([]atomic.Value, w.size)
 	for i := uint(0); i < w.size; i++ {

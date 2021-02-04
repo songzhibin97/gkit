@@ -1,7 +1,8 @@
 package cpu
 
 import (
-	"reflect"
+	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
@@ -9,7 +10,7 @@ import (
 func Test_CPUUsage(t *testing.T) {
 	var stat Stat
 	ReadStat(&stat)
-	t.Log(stat)
+	fmt.Println(stat)
 	time.Sleep(time.Millisecond * 1000)
 	for i := 0; i < 6; i++ {
 		time.Sleep(time.Millisecond * 500)
@@ -17,7 +18,7 @@ func Test_CPUUsage(t *testing.T) {
 		if stat.Usage == 0 {
 			t.Fatalf("get cpu failed!cpu usage is zero!")
 		}
-		t.Log(stat)
+		fmt.Println(stat)
 	}
 }
 
@@ -28,7 +29,7 @@ func TestStat(t *testing.T) {
 	ReadStat(&s)
 	i = GetInfo()
 
-	t.Log(reflect.DeepEqual(s.Usage, 0))
-	t.Log(reflect.DeepEqual(i.Frequency,0))
-	t.Log(reflect.DeepEqual(i.Quota,0))
+	assert.NotZero(t, s.Usage)
+	assert.NotZero(t, i.Frequency)
+	assert.NotZero(t, i.Quota)
 }

@@ -2,6 +2,7 @@ package egroup
 
 import (
 	"Songzhibin/GKit/goroutine"
+	"Songzhibin/GKit/options"
 	"context"
 	"os"
 	"os/signal"
@@ -22,7 +23,7 @@ type Member struct {
 
 // LifeAdmin: 生命周期管理
 type LifeAdmin struct {
-	opts     options
+	opts     *config
 	members  []Member
 	shutdown func()
 }
@@ -90,9 +91,9 @@ func (l *LifeAdmin) Shutdown() {
 }
 
 // NewLifeAdmin: 实例化方法
-func NewLifeAdmin(opts ...Option) *LifeAdmin {
+func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 	// 默认参数
-	o := options{
+	o := &config{
 		startTimeout: startTimeout,
 		stopTimeout:  stopTimeout,
 		signals:      []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT},
@@ -106,7 +107,7 @@ func NewLifeAdmin(opts ...Option) *LifeAdmin {
 	}
 	// 选项模式填充参数
 	for _, opt := range opts {
-		opt(&o)
+		opt(o)
 	}
 	return &LifeAdmin{opts: o}
 }

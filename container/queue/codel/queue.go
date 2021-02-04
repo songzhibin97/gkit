@@ -1,6 +1,7 @@
 package codel
 
 import (
+	"Songzhibin/GKit/options"
 	"Songzhibin/GKit/overload/bbr"
 	"context"
 	"math"
@@ -12,14 +13,15 @@ import (
 // package queue: 对列实现可控制延时算法
 // CoDel 可控制延时算法
 
-// Config: CoDel config
-type Config struct {
-	// Delay: 对列延时(默认是20ms)
-	Delay int64
+// config: CoDel config
+type config struct {
+	// target: 对列延时(默认是20ms)
+	target int64
 
-	// Width: 滑动最小时间窗口宽度(默认是500ms)
-	Width int64
+	// internal: 滑动最小时间窗口宽度(默认是500ms)
+	internal int64
 }
+
 
 // Stat: CoDel 状态信息
 type Stat struct {
@@ -44,46 +46,21 @@ type Queue struct {
 	packets chan packet
 
 	mux      sync.RWMutex
-	conf     *Config
+	conf     *config
 	count    int64 // 计数请求数量
 	faTime   int64
 	dropNext int64 // 丢弃请求的数量
 }
 
-var defaultConf = &Config{
-	Delay: 20,
-	Width: 500,
-}
-
-// Default: 默认配置CoDel Queue
-func Default() *Queue {
-	return New(defaultConf)
-}
-
-// New: 实例化 CoDel Queue
-func New(conf *Config) *Queue {
-	if conf == nil {
-		conf = defaultConf
-	}
-	// new pool
-	q := &Queue{
-		packets: make(chan packet, 2048),
-		conf:    conf,
-	}
-	q.pool.New = func() interface{} {
-		return make(chan bool)
-	}
-	return q
-}
 
 // Reload: 重新加载配置
-func (q *Queue) Reload(c *Config) {
-	if c == nil || c.Width == 0 || c.Delay == 0 {
+func (q *Queue) Reload(c *config) {
+	if c == nil || c.internal <= 0 || c.target <= 0 {
 		return
 	}
 	q.mux.Lock()
+	defer q.mux.Unlock()
 	q.conf = c
-	q.mux.Unlock()
 }
 
 // Stat: 返回CoDel状态信息
@@ -150,7 +127,7 @@ func (q *Queue) Pop() {
 
 // controlLaw: CoDel 控制率
 func (q *Queue) controlLaw(now int64) int64 {
-	atomic.StoreInt64(&q.dropNext, now+int64(float64(q.conf.Width)/math.Sqrt(float64(q.count))))
+	atomic.StoreInt64(&q.dropNext, now+int64(float64(q.conf.internal)/math.Sqrt(float64(q.count))))
 	return atomic.LoadInt64(&q.dropNext)
 }
 
@@ -161,10 +138,10 @@ func (q *Queue) judge(p packet) (drop bool) {
 	sojurn := now - p.ts
 	q.mux.Lock()
 	defer q.mux.Unlock()
-	if sojurn < q.conf.Delay {
+	if sojurn < q.conf.target {
 		atomic.StoreInt64(&q.faTime, 0)
 	} else if atomic.LoadInt64(&q.faTime) == 0 {
-		atomic.StoreInt64(&q.faTime, now+q.conf.Width)
+		atomic.StoreInt64(&q.faTime, now+q.conf.internal)
 	} else if now >= atomic.LoadInt64(&q.faTime) {
 		drop = true
 	}
@@ -178,11 +155,11 @@ func (q *Queue) judge(p packet) (drop bool) {
 			drop = true
 			return
 		}
-	} else if drop && (now-atomic.LoadInt64(&q.dropNext) < q.conf.Width || now-atomic.LoadInt64(&q.faTime) >= q.conf.Width) {
+	} else if drop && (now-atomic.LoadInt64(&q.dropNext) < q.conf.internal || now-atomic.LoadInt64(&q.faTime) >= q.conf.internal) {
 		q.dropping = true
 		// If we're in a drop cycle, the drop rate that controlled the queue
 		// on the last cycle is a good starting point to control it now.
-		if now-atomic.LoadInt64(&q.dropNext) < q.conf.Width {
+		if now-atomic.LoadInt64(&q.dropNext) < q.conf.internal {
 			if atomic.LoadInt64(&q.count) > 2 {
 				atomic.AddInt64(&q.count, - 2)
 			} else {
@@ -197,3 +174,52 @@ func (q *Queue) judge(p packet) (drop bool) {
 	}
 	return
 }
+
+
+// Default: 默认配置CoDel Queue
+func Default() *Queue {
+	return New()
+}
+
+
+// defaultConfig: 默认配置
+func defaultConfig() *config {
+	return &config{
+		target:   20,
+		internal: 500,
+	}
+}
+
+// Option
+
+// SetTarget: 设置对列延时
+func SetTarget(target int64) options.Option {
+	return func(c interface{}) {
+		c.(*config).target = target
+	}
+}
+
+// SetInternal: 设置滑动窗口最小时间宽度
+func SetInternal(internal int64) options.Option {
+	return func(c interface{}) {
+		c.(*config).internal = internal
+	}
+}
+
+// New: 实例化 CoDel Queue
+func New(options ...options.Option) *Queue {
+
+	// new pool
+	q := &Queue{
+		packets: make(chan packet, 2048),
+		conf:    defaultConfig(),
+	}
+	for _, option := range options {
+		option(q.conf)
+	}
+	q.pool.New = func() interface{} {
+		return make(chan bool)
+	}
+	return q
+}
+
