@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"Songzhibin/GKit/options"
 	"context"
 	"errors"
 	"time"
@@ -34,22 +35,22 @@ type Pool interface {
 	Shutdown() error
 }
 
-// Config: Pool 选项
-type Config struct {
-	// Active: 池中的连接数, 如果为 == 0 则无限制
-	Active uint64
+// config: Pool 选项
+type config struct {
+	// active: 池中的连接数, 如果为 == 0 则无限制
+	active uint64
 
-	// Idle: 最大空闲数
-	Idle uint64
+	// idle: 最大空闲数
+	idle uint64
 
-	// IdleTimeout: 空闲等待的时间
-	IdleTimeout time.Duration
+	// idleTimeout: 空闲等待的时间
+	idleTimeout time.Duration
 
-	// WaitTimeout: 如果设置 WaitTimeout 如果池内资源已经耗尽,将会等待 time.Duration 时间, 直到某个连接退回
-	WaitTimeout time.Duration
+	// waitTimeout: 如果设置 waitTimeout 如果池内资源已经耗尽,将会等待 time.Duration 时间, 直到某个连接退回
+	waitTimeout time.Duration
 
-	// Wait: 如果是 true 则等待 WaitTimeout 时间, 否则无线傻等
-	Wait bool
+	// wait: 如果是 true 则等待 waitTimeout 时间, 否则无线傻等
+	wait bool
 }
 
 // item:
@@ -69,4 +70,47 @@ func (i *item) expire(timeout time.Duration) bool {
 // close: 关闭
 func (i *item) shutdown() error {
 	return i.s.Shutdown()
+}
+
+// defaultConfig: 默认配置
+func defaultConfig() *config {
+	return &config{
+		active:      20,
+		idle:        10,
+		idleTimeout: 90 * time.Second,
+		waitTimeout: 0,
+		wait:        false,
+	}
+}
+
+// Option选项
+
+// SetActive: 设置 Pool 连接数, 如果 == 0 则无限制
+func SetActive(active uint64) options.Option {
+	return func(c interface{}) {
+		c.(*config).active = active
+	}
+}
+
+// SetIdle: 设置最大空闲连接数
+func SetIdle(idle uint64) options.Option {
+	return func(c interface{}) {
+		c.(*config).idle = idle
+	}
+}
+
+// SetIdleTimeout: 设置空闲等待时间
+func SetIdleTimeout(idleTimeout time.Duration) options.Option {
+	return func(c interface{}) {
+		c.(*config).idleTimeout = idleTimeout
+	}
+}
+
+// SetWait: 设置期望等待
+func SetWait(wait bool, waitTimeout time.Duration) options.Option {
+	return func(c interface{}) {
+		conf := c.(*config)
+		conf.wait = wait
+		conf.waitTimeout = waitTimeout
+	}
 }

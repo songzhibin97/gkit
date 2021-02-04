@@ -8,8 +8,8 @@ import (
 )
 
 func GetRollingPolicy() *RollingPolicy {
-	w := NewWindow(WindowOpts{Size: 10})
-	return NewRollingPolicy(w, RollingPolicyOpts{BucketDuration: 300 * time.Millisecond})
+	w := NewWindow(10)
+	return NewRollingPolicy(w, 300 * time.Millisecond)
 }
 
 func Handler(t *testing.T, table []map[string][]int) {

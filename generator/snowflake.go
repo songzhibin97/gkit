@@ -22,15 +22,6 @@ const (
 	SequenceBit = 8
 )
 
-// Settings: 配置
-type Settings struct {
-	// StartTime: 起始时间
-	StartTime time.Time
-
-	// NodeID: 服务器ID
-	NodeID uint16
-}
-
 // Snowflake is a distributed unique ID generator.
 type Snowflake struct {
 	// 互斥锁
@@ -159,17 +150,19 @@ func LocalIpToUint16() (uint16, error) {
 }
 
 // NewSnowflake: 初始化
-func NewSnowflake(st Settings) *Snowflake {
+// StartTime: 起始时间
+// NodeID: 服务器ID
+func NewSnowflake(startTime time.Time, nodeID uint16) *Snowflake {
 	sf := new(Snowflake)
 	sf.sequence = uint16(1<<SequenceBit - 1)
-
-	if st.StartTime.After(time.Now()) {
+	sf.node = nodeID
+	if startTime.After(time.Now()) {
 		return nil
 	}
-	if st.StartTime.IsZero() {
+	if startTime.IsZero() {
 		sf.startTime = toSnowflakeTime(time.Date(2014, 9, 1, 0, 0, 0, 0, time.UTC))
 	} else {
-		sf.startTime = toSnowflakeTime(st.StartTime)
+		sf.startTime = toSnowflakeTime(startTime)
 	}
 	return sf
 }

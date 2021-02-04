@@ -16,11 +16,6 @@ type RollingPolicy struct {
 	lastAppendTime time.Time
 }
 
-// RollingPolicyOpts: 实例化 RollingPolicy 需要包含的参数
-type RollingPolicyOpts struct {
-	BucketDuration time.Duration
-}
-
 // timespan: 时间跨度
 func (r *RollingPolicy) timespan() int {
 	v := int(time.Since(r.lastAppendTime) / r.bucketDuration)
@@ -89,13 +84,13 @@ func (r *RollingPolicy) Reduce(f func(Iterator) float64) (val float64) {
 }
 
 // NewRollingPolicy: 实例化 RollingPolicy 对象
-func NewRollingPolicy(window *Window, opts RollingPolicyOpts) *RollingPolicy {
+func NewRollingPolicy(window *Window, bucketDuration time.Duration) *RollingPolicy {
 	return &RollingPolicy{
 		window: window,
 		size:   window.Size(),
 		offset: 0,
 
-		bucketDuration: opts.BucketDuration,
+		bucketDuration: bucketDuration,
 		lastAppendTime: time.Now(),
 	}
 }

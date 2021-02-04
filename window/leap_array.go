@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrBucketBuilderIsNil    = errors.New("invalid parameters, Builder is nil")
-	ErrWindowNotSegmentation = errors.New("invalid parameters,Window is not segmentation")
+	ErrWindowNotSegmentation = errors.New("invalid parameters,window is not segmentation")
 	ErrTimeBehindStart       = errors.New("time already behind bucketStart")
 )
 

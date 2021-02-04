@@ -3,6 +3,7 @@ package goroutine
 // package goroutine: 管理goroutine并发量托管任务以及兜底
 
 import (
+	"Songzhibin/GKit/options"
 	"Songzhibin/GKit/timeout"
 	"context"
 	"errors"
@@ -23,7 +24,7 @@ type Goroutine struct {
 	// n: 当前goroutine的数量
 	n int64
 	// 参数选项
-	options
+	config
 	// wait
 	wait sync.WaitGroup
 	// ctx context
@@ -35,9 +36,9 @@ type Goroutine struct {
 }
 
 // NewGoroutine: 实例化方法
-func NewGoroutine(ctx context.Context, opts ...Option) GGroup {
+func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 	ctx, cancel := context.WithCancel(ctx)
-	o := options{
+	o := config{
 		stopTimeout: 10 * time.Second,
 		max:         10,
 	}
@@ -45,10 +46,10 @@ func NewGoroutine(ctx context.Context, opts ...Option) GGroup {
 		opt(&o)
 	}
 	return &Goroutine{
-		ctx:     ctx,
-		cancel:  cancel,
-		task:    make(chan func(), o.max),
-		options: o,
+		ctx:    ctx,
+		cancel: cancel,
+		task:   make(chan func(), o.max),
+		config: o,
 	}
 }
 
