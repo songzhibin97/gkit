@@ -14,6 +14,7 @@ const (
 )
 
 var (
+	ErrPoolNewFuncIsNull = errors.New("container/pool: 初始化函数为空")
 	// ErrPoolExhausted: 连接以耗尽
 	ErrPoolExhausted = errors.New("container/pool: 连接已耗尽")
 	// ErrPoolClosed: 连接池已关闭.
