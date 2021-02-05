@@ -166,6 +166,9 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 		}
 		// 判断是否需要新增
 		if l.conf.active == 0 || l.active < l.conf.active {
+			if l.f == nil {
+				return nil, ErrPoolNewFuncIsNull
+			}
 			newItem := l.f
 			l.mu.Unlock()
 			atomic.AddUint64(&l.active, 1)
@@ -247,7 +250,7 @@ func (l *List) Shutdown() error {
 	return nil
 }
 
-// New: 初始化锁
+// New: 设置创建资源函数
 func (l *List) New(f func(ctx context.Context) (IShutdown, error)) {
 	l.mu.Lock()
 	defer l.mu.Unlock()

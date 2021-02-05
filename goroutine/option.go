@@ -21,17 +21,17 @@ type config struct {
 	logger log.Logger
 }
 
-// StopTimeout: 设置停止超时时间
-func StopTimeout(d time.Duration) options.Option {
+// SetStopTimeout: 设置停止超时时间
+func SetStopTimeout(d time.Duration) options.Option {
 	return func(c interface{}) { c.(*config).stopTimeout = d }
 }
 
-// Max: 设置pool最大容量
-func Max(max int64) options.Option {
+// SetMax: 设置pool最大容量
+func SetMax(max int64) options.Option {
 	return func(c interface{}) { c.(*config).max = max }
 }
 
-// Logger: 设置pool最大容量
-func Logger(logger log.Logger) options.Option {
+// SetLogger: 设置日志对象
+func SetLogger(logger log.Logger) options.Option {
 	return func(c interface{}) { c.(*config).logger = logger }
 }

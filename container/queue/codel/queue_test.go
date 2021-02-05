@@ -60,6 +60,7 @@ func testPush(q *Queue, sleep time.Duration, delay time.Duration, drop *int64, t
 			defer group.Done()
 			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*1000))
 			defer cancel()
+			fmt.Println(q.Stat())
 			if err := q.Push(ctx); err != nil {
 				if err == bbr.LimitExceed {
 					atomic.AddInt64(drop, 1)

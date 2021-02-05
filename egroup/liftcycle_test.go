@@ -8,13 +8,13 @@ import (
 	"testing"
 )
 
-var admin = NewLifeAdmin()
+var _admin = NewLifeAdmin()
 
 func TestLifeAdmin_Start(t *testing.T) {
 	srv := &http.Server{
 		Addr: ":8080",
 	}
-	admin.Add(Member{
+	_admin.Add(Member{
 		Start: func(ctx context.Context) error {
 			t.Log("http start")
 			return goroutine.Delegate(ctx, -1, func(ctx context.Context) error {
@@ -26,6 +26,6 @@ func TestLifeAdmin_Start(t *testing.T) {
 			return srv.Shutdown(context.Background())
 		},
 	})
-	fmt.Println("error", admin.Start())
-	defer admin.shutdown()
+	fmt.Println("error", _admin.Start())
+	defer _admin.shutdown()
 }

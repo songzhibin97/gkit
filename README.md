@@ -40,30 +40,49 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 
 归并回源
 ```go
-// 与 golang.org/x/sync/singleflight 使用方法一致,只是做了抽象封装,避免因为升级对服务造成影响
-
-g := singleflight.NewSingleFlight()
-
-// 如果在key相同的情况下, 同一时间只有一个 func 可以去执行,其他的等待
-// 多用于缓存失效后,构造缓存,缓解服务器压力
-// shade 表示是否将 v 分配给多个请求者
-v, err, shade := g.Do(key, func()(interface{}, error))
-if err != nil {
-	// ...
+// getResources: 一般用于去数据库去获取数据
+func getResources() (interface{}, error) {
+	return "test", nil
 }
-// 判断数据有效后,将v 放到cache
-cache(v)
 
-// 异步调用
-ch := g.DoChan(key, func()(interface{}, error))
-v <- ch
-// v.Val
-// v.Err
-// v.Shared
+// cache: 填充到 缓存中的数据
+func cache(v interface{}) {
+	return
+}
 
+// ExampleNewSingleFlight:
+func ExampleNewSingleFlight() {
+	singleFlight := NewSingleFlight()
 
-// 尽力取消
-g.Forget(key)
+	// 如果在key相同的情况下, 同一时间只有一个 func 可以去执行,其他的等待
+	// 多用于缓存失效后,构造缓存,缓解服务器压力
+
+	// 同步:
+	v, err, _ := singleFlight.Do("test1", func() (interface{}, error) {
+		// todo 这里去获取资源
+		return getResources()
+	})
+	if err != nil {
+		// todo 处理错误
+	}
+	// v 就是获取到的资源
+	cache(v)
+
+	// 异步:
+	ch := singleFlight.DoChan("test2", func() (interface{}, error) {
+		// todo 这里去获取资源
+		return getResources()
+	})
+
+	result := <-ch
+	if result.Err != nil {
+		// todo 处理错误
+	}
+	cache(result.Val)
+
+	// 尽力取消
+	singleFlight.Forget("test2")
+}
 
 ```
 
@@ -75,46 +94,116 @@ g.Forget(key)
 
 懒加载容器
 ```go
-// 声明一个group
-// 传入一个函数
- g := group.NewGroup(func() interface{})
- // 如果key 存在 则将 对应的 func执行结果返回
- // 如果不存在 在内部维护的 mapping 建立映射,下次使用时候可以快速返回
- v := g.Get(key)
- 
- // 重置
- // 会将之前构造的mapping 清空置换为新的函数
- g.ReSet(func() interface{})
+func createResources() interface{} {
+	return map[int]int{}
+}
+
+func createResources2() interface{} {
+	return []int{}
+}
+
+var group LazyLoadGroup
+
+func ExampleNewGroup() {
+	// 类似 sync.Pool 一样
+	// 初始化一个group
+	group = NewGroup(createResources)
+}
+
+func ExampleGroup_Get() {
+	// 如果key 不存在 调用 NewGroup 传入的 function 创建资源
+	// 如果存在则返回创建的资源信息
+	v := group.Get("test")
+	_ = v
+}
+
+func ExampleGroup_ReSet() {
+	// ReSet 重置初始化函数,同时会对缓存的 key进行清空
+	group.ReSet(createResources2)
+}
+
+func ExampleGroup_Clear() {
+	// 清空缓存的 buffer
+	group.Clear()
+}
 ```
 
 ### pool
 
 类似资源池
 ```go
-conf := &pool.Config{
-    // Active: 池中最大数量,如果 == 0 则不进行显示
-    Active:      1,
-    // Idle: 最大空闲数
-    Idle:        1,
-    // IdleTimeout: 空闲等待的时间
-    IdleTimeout: 90 * time.Second,
-    // WaitTimeout: 如果已经用尽,等待连接归还的时间
-    WaitTimeout: 10 * time.Millisecond,
-    // Wait: 是否等待, 如果为 false WaitTimeout 不再有效
-    Wait:        false,
+var pool Pool
+
+type mock map[string]string
+
+func (m *mock) Shutdown() error {
+	return nil
 }
-// 初始化pool 
-p := pool.NewList(conf)
-// 设置如果需要新增资源的初始化函数
-p.New(func(ctx context.Context) (IShutdown, error))
 
-v := p.Get(ctx)
+// getResources: 获取资源,返回的资源对象需要实现 IShutdown 接口,用于资源回收
+func getResources(c context.Context) (IShutdown, error) {
+	return &mock{}, nil
+}
 
-// forceClose: 是否强制关闭
-_ = p.Put(ctx,v,forceClose)
+func ExampleNewList() {
+	// NewList(options ...)
+	// 默认配置
+	//pool = NewList()
 
-// 资源回收退出
-_ = p.Shutdown()
+	// 可供选择配置选项
+
+	// 设置 Pool 连接数, 如果 == 0 则无限制
+	//SetActive(100)
+
+	// 设置最大空闲连接数
+	//SetIdle(20)
+
+	// 设置空闲等待时间
+	//SetIdleTimeout(time.Second)
+
+	// 设置期望等待
+	//SetWait(false,time.Second)
+
+	// 自定义配置
+	pool = NewList(
+		SetActive(100),
+		SetIdle(20),
+		SetIdleTimeout(time.Second),
+		SetWait(false, time.Second))
+
+	// New需要实例化,否则在 pool.Get() 会无法获取到资源
+	pool.New(getResources)
+}
+
+func ExampleList_Get() {
+	v, err := pool.Get(context.TODO())
+	if err != nil {
+		// 处理错误
+	}
+	// v 获取到的资源
+	_ = v
+}
+
+func ExampleList_Put() {
+	v, err := pool.Get(context.TODO())
+	if err != nil {
+		// 处理错误
+	}
+
+	// Put: 资源回收
+	// forceClose: true 内部帮你调用 Shutdown回收, 否则判断是否是可回收,挂载到list上
+	err = pool.Put(context.TODO(), v, false)
+	if err != nil {
+	  // 处理错误
+	}
+}
+
+
+func ExampleList_Shutdown() {
+
+	// Shutdown 回收资源,关闭所有资源
+	_ = pool.Shutdown()
+}
 ```
 
 ### queue/CoDel
@@ -122,29 +211,45 @@ _ = p.Shutdown()
 对列管理算法,根据实际的消费情况,算出该请求是否需要等待还是快速失败.
 
 ```go
-// 默认配置
-q := codel.Default()
+var queue *Queue
 
-// 自定义配置
-q := codel.New(*Config)
+func ExampleNew() {
+	// 默认配置
+	//queue = New()
 
-// Reload: 重新设置配置信息
-q.Reload(*Config)
+	// 可供选择配置选项
 
+	// 设置对列延时
+	//SetTarget(40)
 
-// Stat: 返回当前对列的状态
-q.Stat()
+	// 设置滑动窗口最小时间宽度
+	//SetInternal(1000)
 
-// Push: 入队
-err := q.Push(ctx)
-if err != nil {
-	// ... 对列满,被排除/被裁决
+	queue = New(SetTarget(40), SetInternal(1000))
 }
 
+func ExampleQueue_Stat() {
+	// start 体现 CoDel 状态信息
+	start := queue.Stat()
 
-// Pop: 出队
-q.Pop()
+	_ = start
+}
 
+func ExampleQueue_Push() {
+	// 入队
+	if err := queue.Push(context.TODO()); err != nil {
+		if err == bbr.LimitExceed {
+			// todo 处理过载保护错误
+		} else {
+			// todo 处理其他错误
+		}
+	}
+}
+
+func ExampleQueue_Pop() {
+	// 出队,没有请求则会阻塞
+	queue.Pop()
+}
 ```
 
 ## downgrade
@@ -154,28 +259,70 @@ q.Pop()
 ```go
 // 与 github.com/afex/hystrix-go/hystrix 使用方法一致,只是做了抽象封装,避免因为升级对服务造成影响
 
-// 拿到一个熔断器
-h := downgrade.NewFuse()
-
-// ConfigureCommand 根据name对应的熔断器配置
-// 没有配置则走默认配置
-h.ConfigureCommand(name, config)
+var fuse Fuse
 
 // type runFunc = func() error
 // type fallbackFunc = func(error) error
 // type runFuncC = func(context.Context) error
 // type fallbackFuncC = func(context.Context, error) error
 
-// Do: 同步执行 func() error, 没有超时控制 直到等到返回,
-// 如果返回 error != nil 则触发 fallbackFunc 进行降级
-h.Do(name, runFunc, fallbackFunc) error
+func mockRunFunc() runFunc {
+	return func() error {
+		return nil
+	}
+}
 
-// Go: 异步执行 返回 channel
-h.Go(name, runFunc, fallbackFunc) chan error 
+func mockFallbackFunc() fallbackFunc {
+	return func(err error) error {
+		return nil
+	}
+}
 
-// GoC: Do/Go 实际上最终调用的就是GoC, Do主处理了异步过程
-// GoC可以传入 context 保证链路超时控制
-h.GoC(ctx, name, runFuncC, fallbackFuncC) chan error
+func mockRunFuncC() runFuncC {
+	return func(ctx context.Context) error {
+		return nil
+	}
+}
+
+func mockFallbackFuncC() fallbackFuncC {
+	return func(ctx context.Context, err error) error {
+		return nil
+	}
+}
+
+func ExampleNewFuse() {
+	// 拿到一个熔断器
+	fuse = NewFuse()
+}
+
+func ExampleHystrix_ConfigureCommand() {
+	// 不设置 ConfigureCommand 走默认配置
+	// hystrix.CommandConfig{} 设置参数
+	fuse.ConfigureCommand("test", hystrix.CommandConfig{})
+}
+
+func ExampleHystrix_Do() {
+	// Do: 同步执行 func() error, 没有超时控制 直到等到返回,
+	// 如果返回 error != nil 则触发 fallbackFunc 进行降级
+	err := fuse.Do("do", mockRunFunc(), mockFallbackFunc())
+	if err != nil {
+		// 处理 error
+	}
+}
+
+func ExampleHystrix_Go() {
+	// Go: 异步执行 返回 channel
+	ch := fuse.Go("go", mockRunFunc(), mockFallbackFunc())
+	if err := <-ch; err != nil {
+		// 处理 error
+	}
+}
+
+func ExampleHystrix_GoC() {
+	// GoC: Do/Go 实际上最终调用的就是GoC, Do主处理了异步过程
+	// GoC可以传入 context 保证链路超时控制
+	fuse.GoC(context.TODO(), "goc", mockRunFuncC(), mockFallbackFuncC())
+}
 ```
 ## egroup
 
@@ -184,13 +331,83 @@ h.GoC(ctx, name, runFuncC, fallbackFuncC) chan error
 // errorGroup 
 // 级联控制,如果有组件发生错误,会通知group所有组件退出
 // 声明声明周期管理
-var admin = egroup.NewLifeAdmin()
+var admin *LifeAdmin
+
+func mockStart() func(ctx context.Context) error {
+	return nil
+}
+
+func mockShutdown() func(ctx context.Context) error {
+	return nil
+}
+
+type mockLifeAdminer struct{}
+
+func (m *mockLifeAdminer) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockLifeAdminer) Shutdown(ctx context.Context) error {
+	return nil
+}
+
+func ExampleNewLifeAdmin() {
+	// 默认配置
+	//admin = NewLifeAdmin()
+
+	// 可供选择配置选项
+
+	// 设置启动超时时间
+	// <=0 不启动超时时间,注意要在shutdown处理关闭通知
+	//SetStartTimeout(time.Second)
+
+	//  设置关闭超时时间
+	//	<=0 不启动超时时间
+	//SetStopTimeout(time.Second)
+
+	// 设置信号集合,和处理信号的函数
+	//SetSignal(func(lifeAdmin *LifeAdmin, signal os.Signal) {
+	//	return
+	//}, signal...)
+
+	admin = NewLifeAdmin(SetStartTimeout(time.Second), SetStopTimeout(time.Second), SetSignal(func(a *LifeAdmin, signal os.Signal) {
+		switch signal {
+		case syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT:
+			a.shutdown()
+		default:
+		}
+	}))
+}
+
+func ExampleLifeAdmin_Add() {
+	// 通过struct添加
+	admin.Add(Member{
+		Start:    mockStart(),
+		Shutdown: mockShutdown(),
+	})
+}
+
+func ExampleLifeAdmin_AddMember() {
+	// 根据接口适配添加
+	admin.AddMember(&mockLifeAdminer{})
+}
+
+func ExampleLifeAdmin_Start() {
+	defer admin.Shutdown()
+	if err := admin.Start(); err != nil {
+		// 处理错误
+		// 正常启动会hold主
+	}
+}
+
+// 完整demo
+var _admin = egroup.NewLifeAdmin()
 
 srv := &http.Server{
 		Addr: ":8080",
 }
 // 增加任务
-admin.Add(egroup.Member{
+_admin.Add(egroup.Member{
     Start: func(ctx context.Context) error {
         t.Log("http start")
         return goroutine.Delegate(ctx, -1, func(ctx context.Context) error {
@@ -202,9 +419,9 @@ admin.Add(egroup.Member{
         return srv.Shutdown(context.Background())
     },
 })
-// admin.Start() 启动
-fmt.Println("error", admin.Start())
-defer admin.shutdown()
+// _admin.Start() 启动
+fmt.Println("error", _admin.Start())
+defer _admin.shutdown()
 ```
 
 
@@ -221,13 +438,15 @@ defer admin.shutdown()
 雪花算法
 
 ```go
-f := generator.NewSnowflake(generator.Settings{
-	StartTime: time.Now(),
-	NodeID: 1,
-})
-
-// 获取id
-id,_ := f.NextID()
+func ExampleNewSnowflake() {
+	// 生成对象
+	ids := NewSnowflake(time.Now(), 1)
+	nid, err := ids.NextID()
+	if err != nil {
+		// 处理错误   	    
+	}
+	_ = nid
+}
 ```
 
 ## goroutine
@@ -235,22 +454,83 @@ id,_ := f.NextID()
 池化,控制野生goroutine
 
 ```go
-g := goroutine.NewGoroutine(context.Background())
-// 改变 pool 上限
-g.ChangeMax(n)
+var gGroup GGroup
 
-// 添加异步任务,内部会调用协程
-// 如果 返回 false 可能代表任务已经满了 直接丢弃
-// 这部分逻辑需要参考 
-g.AddTast(func ()) bool
+func mockFunc() func() {
+	return func() {
 
-// 关闭池,回收资源
-g.Shutdown() 
+	}
+}
+
+func ExampleNewGoroutine() {
+	// 默认配置
+	//gGroup = NewGoroutine(context.TODO())
+
+	// 可供选择配置选项
+
+	// 设置停止超时时间
+	//SetStopTimeout(time.Second)
+
+	// 设置日志对象
+	//SetLogger(&testLogger{})
+
+	// 设置pool最大容量
+	//SetMax(100)
+
+	gGroup = NewGoroutine(context.TODO(),
+		SetStopTimeout(time.Second),
+		SetLogger(&testLogger{}),
+		SetMax(100),
+	)
+}
+
+func ExampleGoroutine_AddTask() {
+	if !gGroup.AddTask(mockFunc()) {
+		// 添加任务失败
+	}
+}
+
+func ExampleGoroutine_AddTaskN() {
+	// 带有超时控制添加任务
+	if !gGroup.AddTaskN(context.TODO(), mockFunc()) {
+		// 添加任务失败
+	}
+}
+
+func ExampleGoroutine_ChangeMax() {
+	// 修改 pool最大容量
+	gGroup.ChangeMax(1000)
+}
+
+func ExampleGoroutine_Shutdown() {
+	// 回收资源
+	_ = gGroup.Shutdown()
+}
 ```
 
 ## log
 
 日志相关
+
+```go
+type testLogger struct {
+	*testing.T
+}
+
+func (t *testLogger) Print(kv ...interface{}) {
+	t.Log(kv...)
+}
+
+log := NewHelper(&testLogger{t}, LevelDebug)
+log.Debug("debug", "v")
+log.Debugf("%s,%s", "debugf", "v")
+log.Info("Info", "v")
+log.Infof("%s,%s", "infof", "v")
+log.Warn("Warn", "v")
+log.Warnf("%s,%s", "warnf", "v")
+log.Error("Error", "v")
+log.Errorf("%s,%s", "errorf", "v")
+```
 
 ## middleware
 
@@ -279,19 +559,36 @@ f(overload.DoneInfo{Op: overload.Success})
 **中间件套用**
 
 ```go
-// 建立Group 中间件
-middle := bbr.NewLimiter()
+func ExampleNewGroup() {
+	group := NewGroup()
+	// 如果没有就会创建
+	limiter := group.Get("key")
+	f, err := limiter.Allow(context.TODO())
+	if err != nil {
+		// 代表已经过载了,服务不允许接入
+		return
+	}
+	// Op:流量实际的操作类型回写记录指标
+	f(overload.DoneInfo{Op: overload.Success})
+}
 
-// 在middleware中 
-// ctx中携带这两个可配置的有效数据
-// 可以通过 ctx.Set
+func ExampleNewLimiter() {
+	// 建立Group 中间件
+	middle := NewLimiter()
 
-// 配置获取限制器类型,可以根据不同api获取不同的限制器
-ctx := context.WithValue(ctx,bbr.LimitKey,"key")
+	// 在middleware中 
+	// ctx中携带这两个可配置的有效数据
+	// 可以通过 ctx.Set
 
-// 可配置成功是否上报
-// 必须是 overload.Op 类型
-ctx := context.WithValue(ctx,bbr.LimitOp,overload.Success)
+	// 配置获取限制器类型,可以根据不同api获取不同的限制器
+	ctx := context.WithValue(context.TODO(), LimitKey, "key")
+
+	// 可配置成功是否上报
+	// 必须是 overload.Op 类型
+	ctx = context.WithValue(ctx, LimitOp, overload.Success)
+
+	_ = middle
+}
 ```
 
 ## restrictor
@@ -303,64 +600,80 @@ ctx := context.WithValue(ctx,bbr.LimitOp,overload.Success)
 漏桶
 
 ```go
-// 第一个参数是 r Limit。代表每秒可以向 Token 桶中产生多少 token。Limit 实际上是 float64 的别名
-// 第二个参数是 b int。b 代表 Token 桶的容量大小。
-// limit := Every(100 * time.Millisecond);
-// limiter := rate.NewLimiter(limit, 4)
-// 以上就表示每 100ms 往桶中放一个 Token。本质上也就是一秒钟产生 10 个。
+func ExampleNewRate() {
+	// 第一个参数是 r Limit。代表每秒可以向 Token 桶中产生多少 token。Limit 实际上是 float64 的别名
+	// 第二个参数是 b int。b 代表 Token 桶的容量大小。
+	// limit := Every(100 * time.Millisecond);
+	// limiter := rate.NewLimiter(limit, 4)
+	// 以上就表示每 100ms 往桶中放一个 Token。本质上也就是一秒钟产生 10 个。
 
-// rate: golang.org/x/time/rate
-limiter := rate.NewLimiter(2, 4)
-// rate1: Gkit/rate
-af, wf := rate1.NewRate(limiter)
+	// rate: golang.org/x/time/rate
+	limiter := rate.NewLimiter(2, 4)
 
-// af.Allow()bool: 默认取1个token
-// af.Allow() == af.AllowN(time.Now(), 1)
-af.Allow()
+	af, wf := NewRate(limiter)
 
-// af.AllowN(ctx,n)bool: 可以取N个token
-af.AllowN(time.Now(), 5)
+	// af.Allow()bool: 默认取1个token
+	// af.Allow() == af.AllowN(time.Now(), 1)
+	af.Allow()
 
-// wf.Wait(ctx) err: 等待ctx超时,默认取1个token
-// wf.Wait(ctx) == wf.WaitN(ctx, 1) 
-wf.Wait(ctx)
+	// af.AllowN(ctx,n)bool: 可以取N个token
+	af.AllowN(time.Now(), 5)
 
-// wf.WaitN(ctx, n) err: 等待ctx超时,可以取N个token
-wf.WaitN(ctx, N)
+	// wf.Wait(ctx) err: 等待ctx超时,默认取1个token
+	// wf.Wait(ctx) == wf.WaitN(ctx, 1) 
+	_ = wf.Wait(context.TODO())
 
+	// wf.WaitN(ctx, n) err: 等待ctx超时,可以取N个token
+	_ = wf.WaitN(context.TODO(), 5)
+}
 ```
 ### ratelimite
 
 令牌桶
 
 ```go
-// ratelimit:github.com/juju/ratelimit
-bucket := ratelimit.NewBucket(time.Second/2, 4)
+func ExampleNewRateLimit() {
+	// ratelimit:github.com/juju/ratelimit
+	bucket := ratelimit.NewBucket(time.Second/2, 4)
 
-// ratelimite2: Gkit.ratelimite
-af, wf := ratelimite2.NewRateLimit(bucket)
+	af, wf := NewRateLimit(bucket)
+	// af.Allow()bool: 默认取1个token
+	// af.Allow() == af.AllowN(time.Now(), 1)
+	af.Allow()
 
-//... 其他与漏桶使用一致
+	// af.AllowN(ctx,n)bool: 可以取N个token
+	af.AllowN(time.Now(), 5)
+
+	// wf.Wait(ctx) err: 等待ctx超时,默认取1个token
+	// wf.Wait(ctx) == wf.WaitN(ctx, 1) 
+	_ = wf.Wait(context.TODO())
+
+	// wf.WaitN(ctx, n) err: 等待ctx超时,可以取N个token
+	_ = wf.WaitN(context.TODO(), 5)
+}
 ```
 ## timeout
 
 各个服务间的超时控制
 
 ```go
-// timeout.Shrink 方法提供全链路的超时控制
-// 只需要传入一个父节点的ctx 和需要设置的超时时间,他会帮你确认这个ctx是否之前设置过超时时间,
-// 如果设置过超时时间的话会和你当前设置的超时时间进行比较,选择一个最小的进行设置,保证链路超时时间不会被下游影响
-// d: 代表剩余的超时时间
-// nCtx: 新的context对象
-// cancel: 如果是成功真正设置了超时时间会返回一个cancel()方法,未设置成功会返回一个无效的cancel,不过别担心,还是可以正常调用的
-d, nCtx, cancel := Shrink(context.Background(), 5*time.Second)
-// d 根据需要判断 
-// 一般判断该服务的下游超时时间,如果d过于小,可以直接放弃
-select {
-case <-nCtx.Done():
-    cancel()
-default:
-    // ...
+func ExampleShrink() {
+	// timeout.Shrink 方法提供全链路的超时控制
+	// 只需要传入一个父节点的ctx 和需要设置的超时时间,他会帮你确认这个ctx是否之前设置过超时时间,
+	// 如果设置过超时时间的话会和你当前设置的超时时间进行比较,选择一个最小的进行设置,保证链路超时时间不会被下游影响
+	// d: 代表剩余的超时时间
+	// nCtx: 新的context对象
+	// cancel: 如果是成功真正设置了超时时间会返回一个cancel()方法,未设置成功会返回一个无效的cancel,不过别担心,还是可以正常调用的
+	d, nCtx, cancel := Shrink(context.Background(), 5*time.Second)
+	// d 根据需要判断 
+	// 一般判断该服务的下游超时时间,如果d过于小,可以直接放弃
+	select {
+	case <-nCtx.Done():
+		cancel()
+	default:
+		// ...
+	}
+	_ = d
 }
 ```
 
@@ -368,13 +681,16 @@ default:
 
 提供指标窗口
 ```go
-// 初始化窗口
-w := window.InitWindow()
+func ExampleInitWindow() {
+	// 初始化窗口
+	w := InitWindow()
 
-// 增加指标
-// key:权重
-w.AddIndex(key, Score)
+	// 增加指标
+	// key:权重
+	w.AddIndex("key", 1)
 
-// Show: 返回当前指标
-slice := w.Show()
+	// Show: 返回当前指标
+	slice := w.Show()
+	_ = slice
+}
 ```
