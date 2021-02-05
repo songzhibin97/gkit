@@ -35,23 +35,7 @@ type Goroutine struct {
 	task chan func()
 }
 
-// NewGoroutine: 实例化方法
-func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
-	ctx, cancel := context.WithCancel(ctx)
-	o := config{
-		stopTimeout: 10 * time.Second,
-		max:         10,
-	}
-	for _, opt := range opts {
-		opt(&o)
-	}
-	return &Goroutine{
-		ctx:    ctx,
-		cancel: cancel,
-		task:   make(chan func(), o.max),
-		config: o,
-	}
-}
+
 
 // _go: 封装goroutine 使其安全执行
 func (g *Goroutine) _go() {
@@ -187,5 +171,24 @@ func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) er
 		return c.Err()
 	case err := <-ch:
 		return err
+	}
+}
+
+
+// NewGoroutine: 实例化方法
+func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
+	ctx, cancel := context.WithCancel(ctx)
+	o := config{
+		stopTimeout: 10 * time.Second,
+		max:         10,
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return &Goroutine{
+		ctx:    ctx,
+		cancel: cancel,
+		task:   make(chan func(), o.max),
+		config: o,
 	}
 }
