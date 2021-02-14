@@ -49,7 +49,8 @@ type Window struct {
 
 // sentinel: 初始化window对象后 后台开始滚动计数并同步更新到total
 func (w *Window) sentinel() {
-	tick := time.Tick(w.interval)
+	tick := time.NewTicker(w.interval)
+	defer tick.Stop()
 	m := make(map[string]uint)
 	for {
 		select {
@@ -58,7 +59,7 @@ func (w *Window) sentinel() {
 				return
 			}
 			m[info.Name] += info.Score
-		case _, ok := <-tick:
+		case _, ok := <-tick.C:
 			if !ok {
 				// 退出
 				return
