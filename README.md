@@ -285,7 +285,7 @@ func ExampleHystrix_GoC() {
 ```go
 // errorGroup 
 // 级联控制,如果有组件发生错误,会通知group所有组件退出
-// 声明声明周期管理
+// 声明生命周期管理
 var admin *LifeAdmin
 
 func mockStart() func(ctx context.Context) error {
