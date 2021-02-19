@@ -128,7 +128,7 @@ func (B *BytePoolContainer) Get(size int) *[]byte {
 	return buf
 }
 
-// NewBytePoolContainer: 实例化方法
+// NewBytePoolContainer: 实例化外部容器
 func NewBytePoolContainer() *BytePoolContainer {
 	return &BytePoolContainer{
 		bytePool: localPool,
