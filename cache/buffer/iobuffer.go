@@ -1,9 +1,11 @@
 package buffer
 
 import (
+	"encoding/binary"
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,6 +36,7 @@ var (
 	ErrNegativeCount     = errors.New("io buffer: negative count")
 	ErrInvalidWriteCount = errors.New("io buffer: invalid write count")
 	ErrClosedPipeWrite   = errors.New("write on closed buffer")
+	ErrDuplicate         = errors.New("PutIoPool duplicate")
 )
 
 // ConnReadTimeout: 连接超时时间
@@ -130,8 +133,9 @@ func NewPipe(cap int) IoBuffer {
 type ioBuffer struct {
 	// contents: buffer[off : len(buffer)]
 	buffer []byte
-	// 从 &buf[off] 读取,
+	// 从 &buffer[off] 读取,
 	// 从 &buffer[len(buffer)] 写入
+	// off 偏移量
 	off     int
 	offMark int
 	count   int32
@@ -140,108 +144,407 @@ type ioBuffer struct {
 	b *[]byte
 }
 
-func (i ioBuffer) Read(p []byte) (n int, err error) {
-	panic("implement me")
+// Read: 从缓冲区读取拷贝到 p
+func (i *ioBuffer) Read(p []byte) (n int, err error) {
+	if i.off > 0 && i.off >= len(i.buffer) {
+		// off已经漂移到buffer末尾或越界
+		i.Reset()
+		if len(p) == 0 {
+			return
+		}
+		return 0, io.EOF
+	}
+	// 将buffer后续的拷贝到 p上 返回 n
+	// off 继续偏移
+	n = copy(p, i.buffer[i.off:])
+	i.off += n
+	return
 }
 
-func (i ioBuffer) ReadOnce(r io.Reader) (n int64, err error) {
-	panic("implement me")
+// ReadOnce:  从传入参数 r io.Reader 读取一次
+func (i *ioBuffer) ReadOnce(r io.Reader) (n int64, err error) {
+	if i.off > 0 && i.off >= len(i.buffer) {
+		// off已经漂移到buffer末尾或越界
+		i.Reset()
+	}
+	if i.off >= (cap(i.buffer) - len(i.buffer)) {
+		// cap - len 等于可用空间
+		// off > 可用空间
+		i.copy(0)
+	}
+
+	// 可用的最大缓冲区避免内存泄漏
+	if i.off == len(i.buffer) && cap(i.buffer) > MaxBufferLength {
+		i.Free()
+		i.Alloc(MaxRead)
+	}
+	l := cap(i.buffer) - len(i.buffer)
+
+	var m int
+	m, err = r.Read(i.buffer[len(i.buffer):cap(i.buffer)])
+
+	i.buffer = i.buffer[0 : len(i.buffer)+m]
+	n = int64(m)
+
+	// 任何地方没有足够的空间,需要分配
+	if l == m {
+		i.copy(AutoExpand)
+	}
+	return n, err
 }
 
-func (i ioBuffer) ReadFrom(r io.Reader) (n int64, err error) {
-	panic("implement me")
+// ReadFrom: 从传入参数 r io.Reader 循环读取
+func (i *ioBuffer) ReadFrom(r io.Reader) (n int64, err error) {
+	if i.off > 0 && i.off >= len(i.buffer) {
+		// off已经漂移到buffer末尾或越界
+		i.Reset()
+	}
+
+	for {
+		if free := cap(i.buffer) - len(i.buffer); free < MinRead {
+			if i.off+free < MinRead {
+				// 没有足够的空间,需要扩容
+				i.copy(MinRead)
+			} else {
+				i.copy(0)
+			}
+		}
+
+		m, e := r.Read(i.buffer[len(i.buffer):cap(i.buffer)])
+
+		i.buffer = i.buffer[0 : len(i.buffer)+m]
+		n += int64(m)
+
+		if err == io.EOF || m == 0 {
+			break
+		}
+
+		if e != nil {
+			return n, e
+		}
+	}
+
+	return
 }
 
-func (i ioBuffer) Grow(n int) error {
-	panic("implement me")
+// Grow: 扩张
+func (i *ioBuffer) Grow(n int) error {
+	if _, ok := i.tryGrowByRelies(n); !ok {
+		i.grow(n)
+	}
+	return nil
 }
 
-func (i ioBuffer) Write(p []byte) (n int, err error) {
-	panic("implement me")
+// Cup: 将 offset 的内容切分出来变成一个新的 IoBuffer
+func (i *ioBuffer) Cup(offset int) IoBuffer {
+	if i.off+offset > len(i.buffer) {
+		// 如果读取的位置+偏移量大于现在写的位置,无效操作
+		return nil
+	}
+	buf := make([]byte, offset)
+	copy(buf, i.buffer[i.off:i.off+offset])
+	i.off += offset
+	i.offMark = ResetOffMark
+	return &ioBuffer{buffer: buf, off: 0}
 }
 
-func (i ioBuffer) WriteString(s string) (n int, err error) {
-	panic("implement me")
+// Write: 将 p 写入到缓冲区
+func (i *ioBuffer) Write(p []byte) (n int, err error) {
+	m, ok := i.tryGrowByRelies(len(p))
+	if !ok {
+		m = i.grow(len(p))
+	}
+	return copy(i.buffer[m:], p), nil
 }
 
-func (i ioBuffer) WriteByte(p byte) error {
-	panic("implement me")
+// WriteString: 将 s 写入到缓冲区
+func (i *ioBuffer) WriteString(s string) (n int, err error) {
+	m, ok := i.tryGrowByRelies(len(s))
+	if !ok {
+		m = i.grow(len(s))
+	}
+	return copy(i.buffer[m:], s), nil
 }
 
-func (i ioBuffer) WriteUint16(p uint16) error {
-	panic("implement me")
+// WriteByte: 将 byte 写入到缓冲区
+func (i *ioBuffer) WriteByte(p byte) error {
+	m, ok := i.tryGrowByRelies(1)
+	if !ok {
+		m = i.grow(1)
+	}
+	i.buffer[m] = p
+	return nil
 }
 
-func (i ioBuffer) WriteUint32(p uint32) error {
-	panic("implement me")
+// WriteUint16: 将 uint16 写入缓冲区
+func (i *ioBuffer) WriteUint16(p uint16) error {
+	m, ok := i.tryGrowByRelies(2)
+	if !ok {
+		m = i.grow(2)
+	}
+	// 大端写入
+	binary.BigEndian.PutUint16(i.buffer[m:], p)
+	return nil
 }
 
-func (i ioBuffer) WriteUint64(p uint64) error {
-	panic("implement me")
+// WriteUint32: 将 uint32 写入缓冲区
+func (i *ioBuffer) WriteUint32(p uint32) error {
+	m, ok := i.tryGrowByRelies(4)
+	if !ok {
+		m = i.grow(4)
+	}
+	// 大端写入
+	binary.BigEndian.PutUint32(i.buffer[m:], p)
+	return nil
 }
 
-func (i ioBuffer) WriteTo(w io.Writer) (n int64, err error) {
-	panic("implement me")
+// WriteUint64: 将 uint64 写入缓冲区
+func (i *ioBuffer) WriteUint64(p uint64) error {
+	m, ok := i.tryGrowByRelies(8)
+	if !ok {
+		m = i.grow(8)
+	}
+	// 大端写入
+	binary.BigEndian.PutUint64(i.buffer[m:], p)
+	return nil
 }
 
-func (i ioBuffer) Peek(n int) []byte {
-	panic("implement me")
+// WriteTo: 写入传入参数  w io.Writer
+func (i *ioBuffer) WriteTo(w io.Writer) (n int64, err error) {
+	for i.off < len(i.buffer) {
+		nBytes := i.Len()
+		m, e := w.Write(i.buffer[i.off:])
+		if m > nBytes {
+			panic(ErrInvalidWriteCount)
+		}
+
+		i.off += m
+		n += int64(m)
+
+		if e != nil {
+			return n, e
+		}
+
+		if m == 0 || m == nBytes {
+			return n, nil
+		}
+	}
+	return
 }
 
-func (i ioBuffer) Bytes() []byte {
-	panic("implement me")
+// Peek: 从缓冲区读取n个字节,不会消耗缓冲区,如果超过或不合法返回nil
+func (i *ioBuffer) Peek(n int) []byte {
+	if len(i.buffer)-i.off < n {
+		return nil
+	}
+	return i.buffer[i.off : i.off+n]
 }
 
-func (i ioBuffer) Drain(offset int) {
-	panic("implement me")
+// Mark: 设置标记
+func (i *ioBuffer) Mark() {
+	i.offMark = i.off
 }
 
-func (i ioBuffer) Len() int {
-	panic("implement me")
+// Bytes: 返回缓冲区所有字节,不会消耗缓冲区
+func (i *ioBuffer) Bytes() []byte {
+	return i.buffer[i.off:]
 }
 
-func (i ioBuffer) Cap() int {
-	panic("implement me")
+// Drain: 排出缓冲区 offset 长度
+func (i *ioBuffer) Drain(offset int) {
+	if i.off+offset > len(i.buffer) {
+		return
+	}
+	i.off += offset
+	i.offMark = ResetOffMark
 }
 
-func (i ioBuffer) Reset() {
-	panic("implement me")
+// Len: 返回缓冲区未读的字节
+func (i *ioBuffer) Len() int {
+	return len(i.buffer) - i.off
 }
 
-func (i ioBuffer) Clone() IoBuffer {
-	panic("implement me")
+// Cap: 返回底层切片容量
+func (i *ioBuffer) Cap() int {
+	return cap(i.buffer)
 }
 
-func (i ioBuffer) String() string {
-	panic("implement me")
+// Reset: 将缓冲区置空
+func (i *ioBuffer) Reset() {
+	i.buffer = i.buffer[:0]
+	i.off = 0
+	i.offMark = ResetOffMark
+	i.eof = false
 }
 
-func (i ioBuffer) Alloc(i2 int) {
-	panic("implement me")
+// Restore: 从标记处恢复偏移量
+func (i *ioBuffer) Restore() {
+	if i.offMark != ResetOffMark {
+		i.off = i.offMark
+		i.offMark = ResetOffMark
+	}
 }
 
-func (i ioBuffer) Free() {
-	panic("implement me")
+// Clone: 克隆复制 IoBuffer 结构
+func (i *ioBuffer) Clone() IoBuffer {
+	buf := GetIoPool(i.Len())
+	_, _ = buf.Write(i.Bytes())
+	buf.SetEOF(i.EOF())
+	return buf
+
 }
 
-func (i ioBuffer) Count(i2 int32) int32 {
-	panic("implement me")
+// String: 返回缓冲区未读的部分内容,作为字符串,如果底层buffer 为nil 返回 "<nil>"
+func (i *ioBuffer) String() string {
+	return string(i.buffer[i.off:])
 }
 
-func (i ioBuffer) EOF() bool {
-	panic("implement me")
+// Alloc: 从 bytePool 获取到 buffer
+func (i *ioBuffer) Alloc(size int) {
+	if i.buffer != nil {
+		i.Free()
+	}
+	if size <= 0 {
+		size = DefaultSize
+	}
+	i.b = i.makeSlice(size)
+	i.buffer = *i.b
+	i.buffer = i.buffer[:0]
 }
 
-func (i ioBuffer) SetEOF(eof bool) {
-	panic("implement me")
+// Free: 释放到 bytePool 中
+func (i *ioBuffer) Free() {
+	i.Reset()
+	i.putSlice()
 }
 
-func (i ioBuffer) Append(data []byte) error {
-	panic("implement me")
+// Count: 计数集并返回参考计数
+func (i *ioBuffer) Count(count int32) int32 {
+	return atomic.AddInt32(&i.count, count)
 }
 
-func (i ioBuffer) CloseWithError(err error) {
-	panic("implement me")
+// EOF: 是否EOF终止
+func (i *ioBuffer) EOF() bool {
+	return i.eof
+}
+
+// SetEOF: 设置eof状态
+func (i *ioBuffer) SetEOF(eof bool) {
+	i.eof = eof
+}
+
+// Append: 将 []byte 写入缓冲区
+func (i *ioBuffer) Append(data []byte) error {
+	if i.off > 0 && i.off >= len(i.buffer) {
+		i.Reset()
+	}
+
+	dataLen := len(data)
+
+	if free := cap(i.buffer) - len(i.buffer); free < dataLen {
+		// 没有足够空间
+		if i.off+free > dataLen {
+			i.copy(0)
+		} else {
+			i.copy(dataLen)
+		}
+	}
+	m := copy(i.buffer[len(i.buffer):len(i.buffer)+dataLen], data)
+	i.buffer = i.buffer[0 : len(i.buffer)+m]
+	return nil
+}
+
+// AppendByte: 将 byte 写入缓冲区
+func (i *ioBuffer) AppendByte(data byte) error {
+	return i.Append([]byte{data})
+}
+
+func (i *ioBuffer) CloseWithError(error) {}
+
+// putSlice: 将slice释放
+func (i *ioBuffer) putSlice() {
+	if i.b != nil {
+		PutBytes(i.b)
+		i.b = nil
+		i.buffer = nullByte
+	}
+}
+
+// grow: 增长
+func (i *ioBuffer) grow(n int) int {
+	m := i.Len()
+
+	// 如果缓冲区为空,重置空间
+	if m == 0 && i.off != 0 {
+		i.Reset()
+	}
+
+	// 尝试通过重新切分
+	if ret, ok := i.tryGrowByRelies(n); ok {
+		return ret
+	}
+
+	if m+n <= cap(i.buffer)/2 {
+		// 数据顺推,不许要重新分配slice
+		// 只需要  m+n <= cap(i.buffer)
+		i.copy(0)
+	} else {
+		// 让容量扩展一倍
+		// 不需要将所有的时间用在 copy上
+		i.copy(n)
+	}
+	i.off = 0
+	i.buffer = i.buffer[:m+n]
+	return m
+}
+
+// tryGrowByRelies: 尝试通过切分达到增长
+// 判断 len(buffer) + n <= cap(buffer) 满足的话, 将buffer扩展到 len(buffer) + n
+func (i *ioBuffer) tryGrowByRelies(n int) (int, bool) {
+	if l := len(i.buffer); l+n <= cap(i.buffer) {
+		i.buffer = i.buffer[:l+n]
+		return l, true
+	}
+	return 0, false
+}
+
+// expand: 扩缩容
+// 如果 expand > 0 cap newBuffer 根据 oldBuffer 计算 并展开
+// 如果 expand == 0 仅拷贝,不会扩展
+// 如果 expand == AutoExpand cap newBuffer 仅根据 oldBuffer 计算
+func (i *ioBuffer) copy(expand int) {
+	var (
+		newBuf  []byte
+		bufferP *[]byte
+	)
+	if expand > 0 || expand == AutoExpand {
+		cap_ := cap(i.buffer)
+		// 当buf上限大于 MaxThreshold 时，启动Slow Grow
+		if cap_ < 2*MinRead {
+			cap_ = 2 * MinRead
+		} else if cap_ < MaxThreshold {
+			cap_ = 2 * cap_
+		} else {
+			cap_ = cap_ + cap_/4
+		}
+		if expand == AutoExpand {
+			expand = 0
+		}
+		bufferP = i.makeSlice(cap_ + expand)
+		newBuf = *bufferP
+		copy(newBuf, i.buffer[i.off:])
+		// todo 将原来的 b.buffer 放回缓存
+		i.b = bufferP
+	} else {
+		newBuf = i.buffer
+		copy(newBuf, i.buffer[i.off:])
+	}
+	i.buffer = newBuf[:len(i.buffer)-i.off]
+	i.off = 0
+}
+
+func (i *ioBuffer) makeSlice(n int) *[]byte {
+	return GetBytes(n)
 }
 
 // newIoBuffer: ioBuffer 初始化 IoBuffer
