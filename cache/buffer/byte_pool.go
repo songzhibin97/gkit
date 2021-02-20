@@ -10,7 +10,7 @@ const (
 	errSlot = -1
 )
 
-var localPool = newBytePool()
+var localBytePool = newBytePool()
 
 // byteSlot: 槽区
 type byteSlot struct {
@@ -131,16 +131,16 @@ func (B *BytePoolContainer) Get(size int) *[]byte {
 // NewBytePoolContainer: 实例化外部容器
 func NewBytePoolContainer() *BytePoolContainer {
 	return &BytePoolContainer{
-		bytePool: localPool,
+		bytePool: localBytePool,
 	}
 }
 
 // GetBytes: 提供外部接口 获取 size 大小的 buffer
 func GetBytes(size int) *[]byte {
-	return localPool.get(size)
+	return localBytePool.get(size)
 }
 
 // PutBytes: 提供外部接口 将buffer 放回 pool中
 func PutBytes(buf *[]byte) {
-	localPool.put(buf)
+	localBytePool.put(buf)
 }
