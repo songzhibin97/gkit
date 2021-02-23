@@ -39,7 +39,7 @@ func (g *Group) Go(f func() error) {
 	g.goroutine.AddTask(func() {
 		defer g.wg.Done()
 		if err := f(); err != nil {
-			g.Once.Do(func() {
+			g.Do(func() {
 				// 级联取消
 				g.err = err
 				if g.cancel != nil {

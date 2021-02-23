@@ -52,13 +52,13 @@ func (l *LifeAdmin) Start() error {
 			if m.Shutdown != nil {
 				g.Go(func() error {
 					// 等待异常或信号关闭触发
-					<-ctx.Done()
-					return goroutine.Delegate(ctx, l.opts.stopTimeout, m.Shutdown)
+					<-g.ctx.Done()
+					return goroutine.Delegate(g.ctx, l.opts.stopTimeout, m.Shutdown)
 				})
 			}
 			if m.Start != nil {
 				g.Go(func() error {
-					return goroutine.Delegate(ctx, l.opts.startTimeout, m.Start)
+					return goroutine.Delegate(g.ctx, l.opts.startTimeout, m.Start)
 				})
 			}
 		}(m)
@@ -73,8 +73,8 @@ func (l *LifeAdmin) Start() error {
 	g.Go(func() error {
 		for {
 			select {
-			case <-ctx.Done():
-				return ctx.Err()
+			case <-g.ctx.Done():
+				return g.ctx.Err()
 			case sig := <-c:
 				l.opts.handler(l, sig)
 			}

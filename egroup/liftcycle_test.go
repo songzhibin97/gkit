@@ -26,6 +26,13 @@ func TestLifeAdmin_Start(t *testing.T) {
 			return srv.Shutdown(context.Background())
 		},
 	})
+	//_admin.Add(Member{
+	//	Start: func(ctx context.Context) error {
+	//		time.Sleep(5 * time.Second)
+	//		t.Log("error")
+	//		return errors.New("error")
+	//	},
+	//})
 	fmt.Println("error", _admin.Start())
 	defer _admin.shutdown()
 }
