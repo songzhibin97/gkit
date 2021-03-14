@@ -47,21 +47,27 @@ func (c *Conn) Send(data []byte, retry *Retry) error {
 		retry = &defaultRetry
 	}
 	for {
-		if _, err := c.Write(data); err != nil && errors.Is(err, io.EOF) {
+		_, err := c.Write(data)
+		switch {
+		case err != nil && errors.Is(err, io.EOF):
 			// EOF 处理
 			return nil
-		} else if retry.Count == 0 {
+		case err != nil && retry.Count > 0:
+			// 触发重试
+			retry.Count--
+			if retry.Interval == 0 {
+				retry.Interval = DefaultRetryInterval
+			}
+			time.Sleep(retry.Interval)
+		default:
 			return err
 		}
-		if retry.Interval == 0 {
-			retry.Interval = DefaultRetryInterval
-		}
-		time.Sleep(retry.Interval)
 	}
 }
 
 // Recv: 接受数据
-// length <= 0 从 Conn 接收所有数据，并将其返回，直到没有数据
+// length == 0 从 Conn一次读取立即返回
+// length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
 // length > 0 从 Conn 接收到对应的数据返回
 func (c *Conn) Recv(length int, retry *Retry) ([]byte, error) {
 	if retry == nil {
@@ -79,6 +85,9 @@ func (c *Conn) Recv(length int, retry *Retry) ([]byte, error) {
 
 		// bf: 读取后的缓冲区
 		bf []byte
+
+		// flag: 判断是否循环读
+		flag bool
 	)
 	if length > 0 {
 		// 读取指定的长度
@@ -87,40 +96,53 @@ func (c *Conn) Recv(length int, retry *Retry) ([]byte, error) {
 		// 需要 eof 返回
 		bf = *buffer.GetBytes(DefaultReadBuffer)
 	}
-
-	// 设置超时时间
+cycle:
 	for {
-	recv:
-		if err = c.SetReadDeadline(time.Now().Add(c.recvBufferInterval)); err != nil {
-			return nil, err
+		if length < 0 && index > 0 {
+			// length < 0 要接受所有的数据,直至EOF
+			flag = true
+			if err = c.SetReadDeadline(time.Now().Add(c.recvBufferInterval)); err != nil {
+				return nil, err
+			}
 		}
 		size, err = c.reader.Read(bf[index:])
-		if err != nil && errors.Is(err, io.EOF) {
+		if size > 0 {
 			index += size
-			// eof 返回
-			break
-		} else if err != nil {
-			// 触发重试
-			if retry.Count > 0 {
+			if length > 0 {
+				if index == length {
+					break cycle
+				}
+			} else {
+				if index >= DefaultReadBuffer {
+					bf = append(bf, make([]byte, DefaultReadBuffer)...)
+				} else if !flag {
+					break cycle
+				}
+			}
+		}
+		if err != nil {
+			switch {
+			case errors.Is(err, io.EOF):
+				break cycle
+			case flag && isTimeout(err):
+				if err = c.SetReadDeadline(time.Now().Add(c.recvBufferInterval)); err != nil {
+					return nil, err
+				}
+				break cycle
+			case retry.Count > 0:
+				// 触发重试
 				retry.Count--
 				if retry.Interval == 0 {
 					retry.Interval = DefaultRetryInterval
 				}
 				time.Sleep(retry.Interval)
-				goto recv
-			} else {
+				goto cycle
+			default:
 				return nil, err
 			}
 		}
-		if size > 0 {
-			index += size
-			if length > 0 && index >= length {
-				// buffer 已经读满了
-				break
-			} else if index > DefaultReadBuffer {
-				// 需要扩容了
-				bf = append(bf, make([]byte, DefaultReadBuffer)...)
-			}
+		if length == 0 {
+			break cycle
 		}
 	}
 	return bf[:index], nil
@@ -136,7 +158,7 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 
 		index int
 
-		bf = *buffer.GetBytes(1024)
+		bf = (*buffer.GetBytes(1024))[:0]
 	)
 	for {
 		data, err = c.Recv(1, retry)
@@ -146,7 +168,7 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 		index++
 		bf = append(bf, data...)
 	}
-	return data[:index], err
+	return bf[:index], err
 }
 
 // RecvWithTimeout: 读取已经超时的链接
