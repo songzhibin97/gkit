@@ -522,6 +522,10 @@ log.Error("Error", "v")
 log.Errorf("%s,%s", "errorf", "v")
 ```
 
+## metrics
+
+提供指标接口,用于实现监控配置
+
 ## middleware
 
 中间件接口模型定义
@@ -580,6 +584,10 @@ func ExampleNewLimiter() {
 	_ = middle
 }
 ```
+
+## registry
+
+提供注册发现通用接口,使用通用接口外挂依赖
 
 ## restrictor
 
