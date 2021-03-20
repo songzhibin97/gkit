@@ -1,6 +1,7 @@
 package fileparse
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -55,6 +56,12 @@ func parseTag(file *File) {
 }
 
 func parseDoc(server *Server) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println("panic:", err)
+			return
+		}
+	}()
 	for _, doc := range server.Doc {
 		if strings.Contains(doc, "@method") {
 			server.Method = strings.Split(doc, ":")[1]
