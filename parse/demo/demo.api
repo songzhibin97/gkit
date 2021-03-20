@@ -1,0 +1,38 @@
+package api
+
+
+type Request struct {
+    MapField        map[string]int
+    SliceField      []int `gkit:"pType=fixed32;"`
+	StringField     string
+	Uint32Field     uint32
+	InterfaceField  interface{}
+	InterField      Inter
+	EmptyField
+}
+
+type Inter interface {
+    Inter()
+}
+
+type EmptyField interface {
+    Empty()
+}
+
+type Response struct {
+	Message  string
+	Username string
+	Password string
+}
+
+
+// @service:User
+// @method:post
+// @router:/register
+func Register(req Request)(Response)
+
+
+
+// @method:get
+// @router:/register2
+func Register2(req Request)(Response)
