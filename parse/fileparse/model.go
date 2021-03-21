@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"io/ioutil"
+	"strings"
 	"text/template"
 )
 
 // goParsePB: .go 文件转成 pb文件
 type goParsePB struct {
 	pkgName  string            // pkgName: 包名
+	filePath string            // filePath: 文件的路径
 	servers  []*Server         // servers: 解析出来function的信息
 	messages []*Message        // messages: 解析出struct的信息
 	notes    []*Note           // notes: 其他注释
@@ -23,11 +26,12 @@ type Note struct {
 }
 
 // CreateGoParsePB: 创建 goParsePB meta
-func CreateGoParsePB(pkgName string, notes []*Note) *goParsePB {
+func CreateGoParsePB(pkgName string, filepath string, notes []*Note) *goParsePB {
 	return &goParsePB{
-		pkgName: pkgName,
-		meta:    make(map[string]string),
-		notes:   notes,
+		pkgName:  pkgName,
+		filePath: filepath,
+		meta:     make(map[string]string),
+		notes:    notes,
 	}
 }
 
@@ -322,4 +326,114 @@ service {{.meta.ServerName}}{
 		return ""
 	}
 	return b.String()
+}
+
+// PileDriving: 源文件打桩
+// functionName: 指定函数内打桩,选传
+// startNotes,endNotes: 可以传两个打桩点,startNotes,endNotes中必填一个
+// insertCode: 插入代码段
+// isLoad: 是否重新解析对象
+func (g *goParsePB) PileDriving(functionName string, startNotes, endNotes string, insertCode string, ) error {
+	// srcData: 源文件内容
+	srcData, err := ioutil.ReadFile(g.filePath)
+	if err != nil {
+		return err
+	}
+	var (
+		startNotesPos = -1
+		endNotesPos   = len(srcData) + 1
+	)
+	// 判断是否指定functionName
+	if len(functionName) > 0 {
+		// 从函数中找桩
+		for _, server := range g.servers {
+			if server.Name != functionName {
+				continue
+			}
+			// 遍历notes看是否匹配
+			for _, note := range server.Notes {
+				if startNotesPos != -1 && endNotesPos != len(srcData)+1 {
+					break
+				}
+				if startNotesPos == -1 && strings.Contains(note.Text, startNotes) {
+					startNotesPos = int(note.Pos())
+				}
+				if endNotesPos == len(srcData)+1 && strings.Contains(note.Text, endNotes) {
+					endNotesPos = int(note.Pos())
+				}
+			}
+		}
+	} else {
+		// 从全局注释里面找
+		for _, note := range g.notes {
+			if startNotesPos != -1 && endNotesPos != len(srcData)+1 {
+				break
+			}
+			if startNotesPos == -1 && strings.Contains(note.Text, startNotes) {
+				startNotesPos = int(note.Pos())
+			}
+			if endNotesPos == len(srcData)+1 && strings.Contains(note.Text, endNotes) {
+				endNotesPos = int(note.Pos())
+			}
+		}
+	}
+	// 判断是否找到桩点
+	if startNotesPos == -1 && endNotesPos == len(srcData)+1 {
+		return errors.New("startNotes and endNotes is not find")
+	}
+	// 判断是否两个都找到
+	if startNotesPos != -1 && endNotesPos != len(srcData)+1 {
+		// 如果是同一行,需要处理
+		if startNotesPos == endNotesPos {
+			endNotesPos = startNotesPos + strings.Index(string(srcData[startNotesPos:]), startNotes)
+			for srcData[endNotesPos] != '/' {
+				endNotesPos--
+			}
+		}
+	}
+	var (
+		sym []byte
+		oldTail []byte
+	)
+	if endNotesPos == len(srcData)+1 {
+		endNotesPos = startNotesPos
+		// 收集标记符
+		endNotesPos--
+		symStart := endNotesPos
+		for symStart > 0 && srcData[symStart] != '\n' {
+			symStart--
+		}
+		sym = make([]byte, endNotesPos-symStart)
+		copy(sym, srcData[symStart:])
+
+		for endNotesPos < len(srcData)-1 && srcData[endNotesPos] != '\n' {
+			endNotesPos++
+		}
+
+		oldTail = make([]byte, len(srcData)-endNotesPos)
+		copy(oldTail, srcData[endNotesPos:])
+
+		srcData = srcData[:endNotesPos]
+		srcData = append(srcData, sym...)
+		srcData = append(srcData, []byte(insertCode)...)
+		srcData = append(srcData, oldTail...)
+	} else {
+		endNotesPos--
+		symStart := endNotesPos
+		for symStart > 0 && srcData[symStart] != '\n' {
+			symStart--
+		}
+		sym = make([]byte, endNotesPos-symStart)
+		copy(sym, srcData[symStart:])
+
+		oldTail = make([]byte, len(srcData)-symStart)
+		copy(oldTail, srcData[symStart:])
+
+		srcData = srcData[:symStart]
+	}
+	srcData = append(srcData, sym...)
+	srcData = append(srcData, []byte(insertCode)...)
+	srcData = append(srcData, oldTail...)
+
+	return ioutil.WriteFile(g.filePath, srcData, 0600)
 }
