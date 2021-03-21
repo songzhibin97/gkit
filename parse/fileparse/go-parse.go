@@ -28,7 +28,7 @@ func ParseGo(filepath string) (*goParsePB, error) {
 		}
 	}
 	// 根据内容找到 struct 以及 func
-	ret := CreateGoParsePB(fParse.Name.Name, comment)
+	ret := CreateGoParsePB(fParse.Name.Name, filepath, comment)
 	for _, decl := range fParse.Decls {
 		switch v := decl.(type) {
 		case *ast.GenDecl:

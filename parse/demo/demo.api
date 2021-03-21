@@ -32,13 +32,23 @@ type Response struct {
 }
 
 // 注释2
+// 注释3
+
+/*
+注释5
+注释6
+*/
 
 // @service:User
 // @method:post
 // @router:/register
 func Register(req Request)(Response)
 
-
+           
+            // start
+          
+            testPileDriving
+            // end
 
 // @method:get
 // @router:/register2
