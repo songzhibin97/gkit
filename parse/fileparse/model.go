@@ -294,10 +294,6 @@ func (g *goParsePB) PackageName() string {
 
 // GeneratePB: 生成pb文件
 func (g *goParsePB) GeneratePB() string {
-	if err := g.checkFormat(); err != nil {
-		fmt.Println(err)
-		return ""
-	}
 	var temp = `syntax = "proto3";
 package {{.PackageName}};
 
