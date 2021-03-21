@@ -8,46 +8,49 @@ import (
 	"text/template"
 )
 
-// GoParsePB: .go 文件转成 pb文件
-type GoParsePB struct {
-	PackageName string
-	Serves      []*Server
-	Messages    []*Message
-	Meta        map[string]string
+// goParsePB: .go 文件转成 pb文件
+type goParsePB struct {
+	pkgName  string            // pkgName: 包名
+	servers  []*Server         // servers: 解析出来function的信息
+	messages []*Message        // messages: 解析出struct的信息
+	notes    []*Note           // notes: 其他注释
+	meta     map[string]string // meta: 其他元信息
 }
 
-// CreateGoParsePB: 创建 GoParsePB meta
-func CreateGoParsePB(pkgName string) *GoParsePB {
-	return &GoParsePB{
-		PackageName: pkgName,
-		Meta:        make(map[string]string),
+type Note struct {
+	IsUse bool // 判断作用域, 如果是 struct中 或者 func中代表已经使用
+	*ast.Comment
+}
+
+// CreateGoParsePB: 创建 goParsePB meta
+func CreateGoParsePB(pkgName string, notes []*Note) *goParsePB {
+	return &goParsePB{
+		pkgName: pkgName,
+		meta:    make(map[string]string),
+		notes:   notes,
 	}
-}
-
-// AddServers: 添加server信息
-func (g *GoParsePB) AddServers(servers ...*Server) {
-	g.Serves = append(g.Serves, servers...)
-}
-
-// AddMessage: 添加message信息
-func (g *GoParsePB) AddMessage(messages ...*Message) {
-	g.Messages = append(g.Messages, messages...)
 }
 
 // Server: Server对应Go func
 type Server struct {
-	Name            string
-	ServerName      string
-	Method          string
-	Router          string
-	Doc             []string
-	InputParameter  string
-	OutputParameter string
+	Pos             int            // Pos: 函数的起始字节位置
+	End             int            // End: 函数的结束字节为止
+	Name            string         // Name: 函数名
+	ServerName      string         // ServerName: server name 通过 parseFunc 绑定
+	Method          string         // Method: method 通过 parseFunc 绑定
+	Router          string         // Router: router 通过 parseFunc 绑定
+	InputParameter  string         // InputParameter: 入参
+	OutputParameter string         // OutputParameter: 出参
+	Doc             []string       // Doc: 函数注释信息,可以通过自定义的 parseFunc 去进行解析
+	Notes           []*ast.Comment // Notes: 函数中的注释信息,用于埋点打桩
+
 }
 
 // CreateServer: 创建Server
-func CreateServer(name string, doc []string, inputParameter string, outputParameter string) *Server {
+func CreateServer(name string, pos, end int, doc []string, inputParameter string, outputParameter string) *Server {
 	return &Server{
+		Pos:             pos,
+		End:             end,
 		Name:            name,
 		Doc:             doc,
 		InputParameter:  inputParameter,
@@ -57,8 +60,11 @@ func CreateServer(name string, doc []string, inputParameter string, outputParame
 
 // Message: Message对应struct
 type Message struct {
-	Name  string
-	Files []*File
+	Pos   int            // Pos: struct的起始字节位置
+	End   int            // End: struct的结束字节为止
+	Name  string         // Name: struct name
+	Files []*File        // Files: 字段信息
+	Notes []*ast.Comment // Notes: struct的注释信息,用于埋点打桩
 }
 
 // AddFiles: 添加字段信息
@@ -67,20 +73,23 @@ func (m *Message) AddFiles(files ...*File) {
 }
 
 // CreateMessage: 创建Message
-func CreateMessage(name string) *Message {
+func CreateMessage(name string, pos, end int) *Message {
 	return &Message{
 		Name: name,
+		Pos:  pos,
+		End:  end,
 	}
 }
 
+// File: 字段信息
 type File struct {
-	Tag          string
-	Name         string
-	TypeGo       string
-	TypePB       string
-	CustomizeTag []func(f *File)
+	Tag    string // Tag: 字段的tag标记
+	Name   string // Name: 字段名
+	TypeGo string // TypeGo: 字段的原始类型
+	TypePB string // TypePB: 字段在proto中的类型
 }
 
+// CreateFile: 创建字段信息
 func CreateFile(tag string, name string, tGo string, tPb string) *File {
 	return &File{
 		Tag:    tag,
@@ -91,10 +100,10 @@ func CreateFile(tag string, name string, tGo string, tPb string) *File {
 }
 
 // parseStruct: 解析struct信息
-func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
+func (g *goParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 	for _, spec := range st.Specs {
 		if v, ok := spec.(*ast.TypeSpec); ok {
-			ret := CreateMessage(v.Name.Name)
+			ret := CreateMessage(v.Name.Name, int(v.Pos()), int(v.End()))
 			if sType, ok := v.Type.(*ast.StructType); ok {
 
 				for _, field := range sType.Fields.List {
@@ -166,14 +175,14 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 					}
 				}
 
-				g.AddMessage(ret)
+				g.AddMessages(ret)
 			}
 		}
 	}
 }
 
 // parseFunc: 解析函数信息
-func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
+func (g *goParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
 	var (
 		tags            []string
 		name            string
@@ -203,29 +212,37 @@ func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
 			}
 		}
 	}
-	ret := CreateServer(name, tags, inputParameter, outputParameter)
+	ret := CreateServer(name, int(fn.Pos()), int(fn.End()), tags, inputParameter, outputParameter)
 	for _, f := range parseDocs {
 		f(ret)
 	}
 	g.AddServers(ret)
 }
 
-func (g *GoParsePB) checkFormat() error {
-	if _, ok := g.Meta["ServerName"]; ok {
+// checkFormat: 查重,以及确认服务中的出参入参是否在上文中出现
+func (g *goParsePB) checkFormat() error {
+	if _, ok := g.meta["ServerName"]; ok {
 		return nil
 	}
 	msgHashSet := make(map[string]struct{})
-	// 去重
-	for _, message := range g.Messages {
+
+	for _, message := range g.messages {
 		if _, ok := msgHashSet[message.Name]; ok {
 			return errors.New("message repeat")
+		}
+		for _, note := range g.notes {
+			if !note.IsUse && int(note.Pos()) > message.Pos && int(note.End()) <= message.End {
+				message.Notes = append(message.Notes, note.Comment)
+				note.IsUse = true
+			}
+
 		}
 		msgHashSet[message.Name] = struct{}{}
 	}
 	serverHashSet := make(map[string]struct{})
-	for _, serve := range g.Serves {
+	for _, serve := range g.servers {
 		if serve.ServerName != "" {
-			g.Meta["ServerName"] = serve.ServerName
+			g.meta["ServerName"] = serve.ServerName
 		}
 		if serve.Router == "" || serve.Method == "" {
 			return errors.New("server router or method is empty")
@@ -239,12 +256,44 @@ func (g *GoParsePB) checkFormat() error {
 		if _, ok := msgHashSet[serve.OutputParameter]; !ok {
 			return errors.New("server output Parameters is empty")
 		}
+		for _, note := range g.notes {
+			if !note.IsUse && int(note.Pos()) > serve.Pos && int(note.End()) <= serve.End {
+				serve.Notes = append(serve.Notes, note.Comment)
+				note.IsUse = true
+			}
+		}
 		serverHashSet[serve.Router+serve.Method] = struct{}{}
 	}
 	return nil
 }
 
-func (g *GoParsePB) GeneratePB() string {
+// Servers: 返回解析后的所有Server对象
+func (g *goParsePB) Servers() []*Server {
+	return g.servers
+}
+
+// Messages: 返回解析后的所有Message对象
+func (g *goParsePB) Messages() []*Message {
+	return g.messages
+}
+
+// AddServers: 添加server信息
+func (g *goParsePB) AddServers(servers ...*Server) {
+	g.servers = append(g.servers, servers...)
+}
+
+// AddMessage: 添加message信息
+func (g *goParsePB) AddMessages(messages ...*Message) {
+	g.messages = append(g.messages, messages...)
+}
+
+// PackageName: 返回包名
+func (g *goParsePB) PackageName() string {
+	return g.pkgName
+}
+
+// GeneratePB: 生成pb文件
+func (g *goParsePB) GeneratePB() string {
 	if err := g.checkFormat(); err != nil {
 		fmt.Println(err)
 		return ""
@@ -252,15 +301,15 @@ func (g *GoParsePB) GeneratePB() string {
 	var temp = `syntax = "proto3";
 package {{.PackageName}};
 
-// message{{range .Messages}}
+// message{{range .messages}}
 message {{.Name}}{
 {{range  $index, $messages :=.Files}}   {{$messages.TypePB}} {{$messages.Name}} = {{addOne $index}};
 {{end}}}
 {{end}}
 
 // server
-service {{.Meta.ServerName}}{
-{{range .Serves}}  rpc {{.Name }} ({{.InputParameter}}) returns ({{.OutputParameter}}) {
+service {{.meta.ServerName}}{
+{{range .servers}}  rpc {{.Name }} ({{.InputParameter}}) returns ({{.OutputParameter}}) {
     option (google.api.http) = {
       {{.Method}} : "{{.Router}}"
     };

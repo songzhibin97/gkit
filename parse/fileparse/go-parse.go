@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func ParseGo(filepath string) (*GoParsePB, error) {
+func ParseGo(filepath string) (*goParsePB, error) {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, err
@@ -20,8 +20,15 @@ func ParseGo(filepath string) (*GoParsePB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 将注释存档
+	comment := []*Note{}
+	for _, group := range fParse.Comments {
+		for _, c := range group.List {
+			comment = append(comment, &Note{Comment: c})
+		}
+	}
 	// 根据内容找到 struct 以及 func
-	ret := CreateGoParsePB(fParse.Name.Name)
+	ret := CreateGoParsePB(fParse.Name.Name, comment)
 	for _, decl := range fParse.Decls {
 		switch v := decl.(type) {
 		case *ast.GenDecl:
@@ -30,6 +37,7 @@ func ParseGo(filepath string) (*GoParsePB, error) {
 			ret.parseFunc(v, parseDoc)
 		}
 	}
+	fmt.Println(ret)
 	return ret, nil
 }
 

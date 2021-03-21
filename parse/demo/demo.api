@@ -6,10 +6,16 @@ type Request struct {
     SliceField      []int `gkit:"pType=fixed32;"`
 	StringField     string
 	Uint32Field     uint32
+	// 注释1
+    // 注释1.1
+
+    // 注释1.2
 	InterfaceField  interface{}
 	InterField      Inter
 	EmptyField
 }
+
+
 
 type Inter interface {
     Inter()
@@ -25,6 +31,7 @@ type Response struct {
 	Password string
 }
 
+// 注释2
 
 // @service:User
 // @method:post
@@ -35,4 +42,6 @@ func Register(req Request)(Response)
 
 // @method:get
 // @router:/register2
-func Register2(req Request)(Response)
+func Register2(req Request)(Response) {
+    // 注释func
+}
