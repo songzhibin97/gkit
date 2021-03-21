@@ -37,8 +37,7 @@ func ParseGo(filepath string) (*goParsePB, error) {
 			ret.parseFunc(v, parseDoc)
 		}
 	}
-	fmt.Println(ret)
-	return ret, nil
+	return ret, ret.checkFormat()
 }
 
 func parseTag(file *File) {
