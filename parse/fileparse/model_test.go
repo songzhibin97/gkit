@@ -7,5 +7,7 @@ func TestGoParsePB_GeneratePB(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	t.Log(r.GeneratePB())
+	t.Log(r.checkFormat())
+	t.Log(r)
+	//t.Log(r.GeneratePB())
 }
