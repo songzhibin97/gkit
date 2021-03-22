@@ -392,7 +392,7 @@ func (g *goParsePB) PileDriving(functionName string, startNotes, endNotes string
 		}
 	}
 	var (
-		sym []byte
+		sym     []byte
 		oldTail []byte
 	)
 	if endNotesPos == len(srcData)+1 {
@@ -414,9 +414,6 @@ func (g *goParsePB) PileDriving(functionName string, startNotes, endNotes string
 		copy(oldTail, srcData[endNotesPos:])
 
 		srcData = srcData[:endNotesPos]
-		srcData = append(srcData, sym...)
-		srcData = append(srcData, []byte(insertCode)...)
-		srcData = append(srcData, oldTail...)
 	} else {
 		endNotesPos--
 		symStart := endNotesPos
