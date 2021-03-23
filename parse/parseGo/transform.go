@@ -1,4 +1,4 @@
-package fileparse
+package parseGo
 
 var GoToPBMapping = map[string]string{
 	"int":     "int64",

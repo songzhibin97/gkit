@@ -1,6 +1,7 @@
-package fileparse
+package parseGo
 
 import (
+	"Songzhibin/GKit/parse"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -9,7 +10,7 @@ import (
 	"strings"
 )
 
-func ParseGo(filepath string) (*goParsePB, error) {
+func ParseGo(filepath string) (parse.Parse, error) {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, err
@@ -21,14 +22,15 @@ func ParseGo(filepath string) (*goParsePB, error) {
 		return nil, err
 	}
 	// 将注释存档
-	comment := []*Note{}
+	comment := []*parse.Note{}
 	for _, group := range fParse.Comments {
 		for _, c := range group.List {
-			comment = append(comment, &Note{Comment: c})
+			comment = append(comment, &parse.Note{Comment: c})
 		}
 	}
 	// 根据内容找到 struct 以及 func
-	ret := CreateGoParsePB(fParse.Name.Name, filepath, comment)
+	rets := CreateGoParsePB(fParse.Name.Name, filepath, comment)
+	ret := rets.(*GoParsePB)
 	for _, decl := range fParse.Decls {
 		switch v := decl.(type) {
 		case *ast.GenDecl:
@@ -40,7 +42,7 @@ func ParseGo(filepath string) (*goParsePB, error) {
 	return ret, ret.checkFormat()
 }
 
-func parseTag(file *File) {
+func parseTag(file *parse.File) {
 	tags := strings.Split(file.Tag, " ")
 	for _, tag := range tags {
 		if strings.Contains(tag, "gkit:") {
@@ -62,7 +64,7 @@ func parseTag(file *File) {
 	}
 }
 
-func parseDoc(server *Server) {
+func parseDoc(server *parse.Server) {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println("panic:", err)
