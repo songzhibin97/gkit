@@ -4,11 +4,5 @@ package parse
 
 type Parse interface {
 	PackageName() string
-	AddServers(...*Server)
-	Servers() []*Server
-	AddMessages(...*Message)
-	Messages() []*Message
-	Notes() []*Note
-	AddNotes(...*Note)
 	Generate() string
 }

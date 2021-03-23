@@ -5,11 +5,12 @@ import (
 )
 
 func TestGoParsePB_GeneratePB(t *testing.T) {
-	r, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/GKit/parse/demo/demo.api")
+	rr, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/GKit/parse/demo/demo.api")
 	if err != nil {
 		panic(err)
 	}
-	for _, note := range r.Notes() {
+	r := rr.(*GoParsePB)
+	for _, note := range r.Note {
 		t.Log(note.Text, note.Pos(), note.End())
 	}
 	t.Log(r.Generate())
