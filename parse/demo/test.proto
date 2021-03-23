@@ -1,0 +1,36 @@
+syntax = "proto3";
+package api;
+
+// message
+message Request{
+  map<string, string> MapField = 1;
+  fixed32 SliceField = 2;
+  repeated string StringField = 3;
+  uint32 Uint32Field = 4;
+}
+
+// notes
+
+// notessss
+
+message Response{
+  string Message = 1;
+  string Username = 2;
+  string Password = 3;
+}
+
+
+// server
+service User{
+  rpc Register ( Request) returns (Response) {
+    option (google.api.http) = {
+      post: "/register"
+    };
+  }
+  rpc Register2 (Request) returns (Response) {
+    option (google.api.http) = {
+      get: "/register2"
+    };
+  }
+}
+

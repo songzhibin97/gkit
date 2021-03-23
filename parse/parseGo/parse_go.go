@@ -22,15 +22,14 @@ func ParseGo(filepath string) (parse.Parse, error) {
 		return nil, err
 	}
 	// 将注释存档
-	comment := []*parse.Note{}
+	comment := []*Note{}
 	for _, group := range fParse.Comments {
 		for _, c := range group.List {
-			comment = append(comment, &parse.Note{Comment: c})
+			comment = append(comment, &Note{Comment: c})
 		}
 	}
 	// 根据内容找到 struct 以及 func
-	rets := CreateGoParsePB(fParse.Name.Name, filepath, comment)
-	ret := rets.(*GoParsePB)
+	ret := CreateGoParsePB(fParse.Name.Name, filepath, comment)
 	for _, decl := range fParse.Decls {
 		switch v := decl.(type) {
 		case *ast.GenDecl:
@@ -42,7 +41,7 @@ func ParseGo(filepath string) (parse.Parse, error) {
 	return ret, ret.checkFormat()
 }
 
-func parseTag(file *parse.File) {
+func parseTag(file *File) {
 	tags := strings.Split(file.Tag, " ")
 	for _, tag := range tags {
 		if strings.Contains(tag, "gkit:") {
@@ -64,7 +63,7 @@ func parseTag(file *parse.File) {
 	}
 }
 
-func parseDoc(server *parse.Server) {
+func parseDoc(server *Server) {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println("panic:", err)

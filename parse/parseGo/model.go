@@ -2,8 +2,6 @@ package parseGo
 
 import (
 	"Songzhibin/GKit/cache/buffer"
-	"Songzhibin/GKit/internal/sys/mutex"
-	"Songzhibin/GKit/parse"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -14,17 +12,89 @@ import (
 
 // GoParsePB: .go 文件转成 pb文件
 type GoParsePB struct {
-	mutex.Mutex
 	PkgName  string            // PkgName: 包名
 	FilePath string            // FilePath: 文件的路径
-	Server   []*parse.Server   // Server: 解析出来function的信息
-	Message  []*parse.Message  // Message: 解析出struct的信息
-	Note     []*parse.Note     // Note: 其他注释
+	Server   []*Server         // Server: 解析出来function的信息
+	Message  []*Message        // Message: 解析出struct的信息
+	Note     []*Note           // Note: 其他注释
 	Metas    map[string]string // Metas: 其他元信息
 }
 
-// CreateGoParsePB: 创建 goParsePB Metas
-func CreateGoParsePB(pkgName string, filepath string, notes []*parse.Note) parse.Parse {
+type Note struct {
+	IsUse bool // 判断作用域, 如果是 struct中 或者 func中代表已经使用
+	*ast.Comment
+}
+
+// Server: Server对应Go func
+type Server struct {
+	Pos             int            // Pos: 函数的起始字节位置
+	End             int            // End: 函数的结束字节为止
+	Name            string         // Name: 函数名
+	ServerName      string         // ServerName: server name 通过 parseFunc 绑定
+	Method          string         // Method: method 通过 parseFunc 绑定
+	Router          string         // Router: router 通过 parseFunc 绑定
+	InputParameter  string         // InputParameter: 入参
+	OutputParameter string         // OutputParameter: 出参
+	Doc             []string       // Doc: 函数注释信息,可以通过自定义的 parseFunc 去进行解析
+	Notes           []*ast.Comment // Notes: 函数中的注释信息,用于埋点打桩
+
+}
+
+// CreateServer: 创建Server
+func CreateServer(name string, pos, end int, doc []string, inputParameter string, outputParameter string) *Server {
+	return &Server{
+		Pos:             pos,
+		End:             end,
+		Name:            name,
+		Doc:             doc,
+		InputParameter:  inputParameter,
+		OutputParameter: outputParameter,
+	}
+}
+
+// Message: Message对应struct
+type Message struct {
+	Pos   int            // Pos: struct的起始字节位置
+	End   int            // End: struct的结束字节为止
+	Name  string         // Name: struct name
+	Files []*File        // Files: 字段信息
+	Notes []*ast.Comment // Notes: struct的注释信息,用于埋点打桩
+}
+
+// AddFiles: 添加字段信息
+func (m *Message) AddFiles(files ...*File) {
+	m.Files = append(m.Files, files...)
+}
+
+// CreateMessage: 创建Message
+func CreateMessage(name string, pos, end int) *Message {
+	return &Message{
+		Name: name,
+		Pos:  pos,
+		End:  end,
+	}
+}
+
+// File: 字段信息
+type File struct {
+	Tag    string // Tag: 字段的tag标记
+	Name   string // Name: 字段名
+	TypeGo string // TypeGo: 字段的原始类型
+	TypePB string // TypePB: 字段在proto中的类型
+}
+
+// CreateFile: 创建字段信息
+func CreateFile(tag string, name string, tGo string, tPb string) *File {
+	return &File{
+		Tag:    tag,
+		Name:   name,
+		TypeGo: tGo,
+		TypePB: tPb,
+	}
+}
+
+// CreateGoParsePB: 创建 GoParsePB Metas
+func CreateGoParsePB(pkgName string, filepath string, notes []*Note) *GoParsePB {
 	return &GoParsePB{
 		PkgName:  pkgName,
 		FilePath: filepath,
@@ -34,10 +104,10 @@ func CreateGoParsePB(pkgName string, filepath string, notes []*parse.Note) parse
 }
 
 // parseStruct: 解析struct信息
-func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *parse.File)) {
+func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 	for _, spec := range st.Specs {
 		if v, ok := spec.(*ast.TypeSpec); ok {
-			ret := parse.CreateMessage(v.Name.Name, int(v.Pos()), int(v.End()))
+			ret := CreateMessage(v.Name.Name, int(v.Pos()), int(v.End()))
 			if sType, ok := v.Type.(*ast.StructType); ok {
 
 				for _, field := range sType.Fields.List {
@@ -65,9 +135,9 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *parse.Fi
 							tGo := fmt.Sprintf(`%s`, tType.Name)
 							tPb := fmt.Sprintf("%s", GoTypeToPB(tType.Name))
 							if name == "" {
-								ret.AddFiles(parse.CreateFile(tag, tPb, tGo, tPb))
+								ret.AddFiles(CreateFile(tag, tPb, tGo, tPb))
 							} else {
-								ret.AddFiles(parse.CreateFile(tag, name, tGo, tPb))
+								ret.AddFiles(CreateFile(tag, name, tGo, tPb))
 							}
 
 						case *ast.ArrayType:
@@ -75,10 +145,10 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *parse.Fi
 								tGo := fmt.Sprintf(`[]%s`, aType.Name)
 								if aType.Name == "byte" {
 									tPb := `bytes`
-									ret.AddFiles(parse.CreateFile(tag, name, tGo, tPb))
+									ret.AddFiles(CreateFile(tag, name, tGo, tPb))
 								} else {
 									tPb := fmt.Sprintf(`repeated %s`, GoTypeToPB(aType.Name))
-									ret.AddFiles(parse.CreateFile(tag, name, tGo, tPb))
+									ret.AddFiles(CreateFile(tag, name, tGo, tPb))
 								}
 
 							}
@@ -96,7 +166,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *parse.Fi
 								mk, mv := GoTypeToPB(mKey.Name), GoTypeToPB(mValue.Name)
 								tGo := fmt.Sprintf(`map[%s]%s`, mk, mv)
 								tPb := fmt.Sprintf(`map<%s,%s>`, mk, mv)
-								ret.AddFiles(parse.CreateFile(tag, name, tGo, tPb))
+								ret.AddFiles(CreateFile(tag, name, tGo, tPb))
 							}
 						}
 					}
@@ -116,7 +186,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *parse.Fi
 }
 
 // parseFunc: 解析函数信息
-func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*parse.Server)) {
+func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
 	var (
 		tags            []string
 		name            string
@@ -146,7 +216,7 @@ func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*parse.Server)
 			}
 		}
 	}
-	ret := parse.CreateServer(name, int(fn.Pos()), int(fn.End()), tags, inputParameter, outputParameter)
+	ret := CreateServer(name, int(fn.Pos()), int(fn.End()), tags, inputParameter, outputParameter)
 	for _, f := range parseDocs {
 		f(ret)
 	}
@@ -202,31 +272,31 @@ func (g *GoParsePB) checkFormat() error {
 }
 
 // Servers: 返回解析后的所有Server对象
-func (g *GoParsePB) Servers() []*parse.Server {
+func (g *GoParsePB) Servers() []*Server {
 	return g.Server
 }
 
 // Messages: 返回解析后的所有Message对象
-func (g *GoParsePB) Messages() []*parse.Message {
+func (g *GoParsePB) Messages() []*Message {
 	return g.Message
 }
 
 // AddServers: 添加server信息
-func (g *GoParsePB) AddServers(servers ...*parse.Server) {
+func (g *GoParsePB) AddServers(servers ...*Server) {
 	g.Server = append(g.Server, servers...)
 }
 
 // AddMessage: 添加message信息
-func (g *GoParsePB) AddMessages(messages ...*parse.Message) {
+func (g *GoParsePB) AddMessages(messages ...*Message) {
 	g.Message = append(g.Message, messages...)
 }
 
 // Notes: 获取注释消息
-func (g *GoParsePB) Notes() []*parse.Note {
+func (g *GoParsePB) Notes() []*Note {
 	return g.Note
 }
 
-func (g *GoParsePB) AddNotes(notes ...*parse.Note) {
+func (g *GoParsePB) AddNotes(notes ...*Note) {
 	g.Note = append(g.Note, notes...)
 }
 
