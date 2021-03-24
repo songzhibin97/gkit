@@ -1,8 +1,10 @@
 package parsePb
 
 import (
+	"Songzhibin/GKit/cache/buffer"
 	"fmt"
 	"github.com/emicklei/proto"
+	"text/template"
 )
 
 type PbParseGo struct {
@@ -91,8 +93,12 @@ func (p *PbParseGo) AddMessages(messages ...*Message) {
 	p.Message = append(p.Message, messages...)
 }
 
-func (p *PbParseGo) parseMessage(ms *proto.Message) {
+func (p *PbParseGo) parseMessage(ms *proto.Message, parseNote ...func(message *Message)) {
 	ret := CreateMessage(ms.Name, ms.Position.Offset)
+	// note
+	if ms.Comment != nil {
+		ret.Notes = append(ret.Notes, ms.Comment)
+	}
 	for _, element := range ms.Elements {
 		switch v := element.(type) {
 		case *proto.NormalField:
@@ -110,19 +116,61 @@ func (p *PbParseGo) parseMessage(ms *proto.Message) {
 				PbTypeToGo(keyType), PbTypeToGo(valueType)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
 		}
 	}
+	for _, f := range parseNote {
+		f(ret)
+	}
 	p.AddMessages(ret)
 }
 
-func (p *PbParseGo) parseService(sv *proto.Service) {
-
-	// todo doc
+func (p *PbParseGo) parseService(sv *proto.Service, parseDoc ...func(server *Server)) {
 	for _, element := range sv.Elements {
 		switch v := element.(type) {
 		case *proto.RPC:
 			funcName := v.Name
 			reqType := v.RequestType
 			retType := v.ReturnsType
-			p.AddServers(CreateServer(funcName, v.Position.Offset, PbTypeToGo(reqType), PbTypeToGo(retType)))
+			server := CreateServer(funcName, v.Position.Offset, PbTypeToGo(reqType), PbTypeToGo(retType))
+			if sv.Comment != nil {
+				server.Notes = append(server.Notes, sv.Comment)
+				for _, doc := range sv.Comment.Lines {
+					server.Doc = append(server.Doc, doc)
+				}
+				for _, f := range parseDoc {
+					f(server)
+				}
+			}
+			p.AddServers(server)
 		}
 	}
+}
+
+func (p *PbParseGo) PackageName() string {
+	return p.PkgName
+}
+
+func (p *PbParseGo) Generate() string {
+	var temp = `package {{.PkgName}}
+
+// struct{{range .Message}}
+type {{.Name}} struct {
+{{range  $index, $Message :=.Files}}   {{$Message.Name}} {{$Message.TypeGo}}
+{{end}}}
+{{end}}
+
+// function{{range .Server}}  
+func {{.Name }} ({{.InputParameter}}) {{.OutputParameter}} {
+   panic("Realize Me")
+}
+{{end}}
+`
+	tmpl, err := template.New("GeneratePB").Funcs(template.FuncMap{"addOne": addOne}).Parse(temp)
+	if err != nil {
+		return ""
+	}
+	b := buffer.NewIoBuffer(1024)
+	err = tmpl.Execute(b, p)
+	if err != nil {
+		return ""
+	}
+	return b.String()
 }
