@@ -7,5 +7,5 @@ func TestParsePb(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	t.Log(r)
+	t.Log(r.Generate())
 }
