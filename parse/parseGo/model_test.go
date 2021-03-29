@@ -22,5 +22,22 @@ func TestGoParsePB_PileDriving(t *testing.T) {
 		panic(err)
 	}
 	r := rr.(*GoParsePB)
-	t.Log(r.PileDriving("", "start", "end", "testPileDriving"))
+	t.Log(r.PileDriving("", "start", "end", "var _ = 1"))
+}
+
+func Test_checkRepeat(t *testing.T) {
+	test := `type Demo struct {
+    MapField        map[string]int
+    SliceField      []int
+	StringField     string
+	Uint32Field     uint32 
+	// 注释1
+    // 注释1.1
+
+    // 注释1.2
+	InterfaceField  interface{}
+	InterField      Inter
+	EmptyField
+}`
+	t.Log(checkRepeat("注释1", test))
 }

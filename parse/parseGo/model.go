@@ -405,6 +405,10 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	)
 	if endNotesPos == len(srcData)+1 {
 		endNotesPos = startNotesPos
+		if checkRepeat(insertCode, string(srcData[endNotesPos:])) {
+			return errors.New("重复添加")
+		}
+
 		// 收集标记符
 		endNotesPos--
 		symStart := endNotesPos
@@ -423,6 +427,9 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 
 		srcData = srcData[:endNotesPos]
 	} else {
+		if checkRepeat(insertCode, string(srcData[:endNotesPos])) {
+			return errors.New("重复添加")
+		}
 		endNotesPos--
 		symStart := endNotesPos
 		for symStart > 0 && srcData[symStart] != '\n' {
@@ -441,4 +448,19 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	srcData = append(srcData, oldTail...)
 
 	return ioutil.WriteFile(g.FilePath, srcData, 0600)
+}
+
+
+func checkRepeat(code string, context string) bool {
+	bf := make([]rune, 0, 1024)
+	for _, v := range context {
+		if v == '\n' {
+			if strings.Contains(string(bf), code) {
+				return true
+			}
+			bf = (bf)[:0]
+		}
+		bf = append(bf, v)
+	}
+	return false
 }

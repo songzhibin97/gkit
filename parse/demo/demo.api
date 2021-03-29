@@ -45,11 +45,12 @@ type Response struct {
 func Register(req Request)(Response)
 
            
+
             // start
-
             // end
+           
 
-         
+
 
 // @method:get
 // @router:/register2
