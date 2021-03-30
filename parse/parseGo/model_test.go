@@ -39,5 +39,5 @@ func Test_checkRepeat(t *testing.T) {
 	InterField      Inter
 	EmptyField
 }`
-	t.Log(checkRepeat("注释1", test))
+	t.Log(checkRepeat("// 注释1", test))
 }

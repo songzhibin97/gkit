@@ -450,15 +450,15 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	return ioutil.WriteFile(g.FilePath, srcData, 0600)
 }
 
-
 func checkRepeat(code string, context string) bool {
 	bf := make([]rune, 0, 1024)
 	for _, v := range context {
 		if v == '\n' {
-			if strings.Contains(string(bf), code) {
+			if strings.TrimSpace(string(bf)) == code {
 				return true
 			}
 			bf = (bf)[:0]
+			continue
 		}
 		bf = append(bf, v)
 	}
