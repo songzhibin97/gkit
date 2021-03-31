@@ -692,3 +692,34 @@ func ExampleInitWindow() {
 	_ = slice
 }
 ```
+
+## parse
+
+提供 `.go`文件转`.pb` 以及 `.pb`转`.go`
+`.go`文件转`.pb` 功能更为丰富,例如提供顶点打桩代码注入以及去重识别
+```go
+func ExampleGoToPB() {
+	rr, err := ParseGo("GKit/parse/demo/demo.api")
+	if err != nil {
+		panic(err)
+	}
+	r := rr.(*GoParsePB)
+	for _, note := range r.Note {
+		t.Log(note.Text, note.Pos(), note.End())
+	}
+	// 输出 字符串,如果需要自行导入文件
+	fmt.Println(r.Generate())
+	
+	// 打桩注入
+	r.PileDriving("", "start", "end", "var _ = 1")
+}
+
+func ExamplePbToGo()  {
+    r, err := ParsePb("GKit/parse/demo/test.proto")
+	if err != nil {
+		panic(err)
+	}
+	// 输出 字符串,如果需要自行导入文件
+	fmt.Println(r.Generate())
+}
+```
