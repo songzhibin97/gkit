@@ -696,7 +696,7 @@ func ExampleInitWindow() {
 ## parse
 
 提供 `.go`文件转`.pb` 以及 `.pb`转`.go`
-`.go`文件转`.pb` 功能更为丰富,例如提供顶点打桩代码注入以及去重识别
+`.go`文件转`.pb` 功能更为丰富,例如提供定点打桩代码注入以及去重识别
 ```go
 func ExampleGoToPB() {
 	rr, err := ParseGo("GKit/parse/demo/demo.api")
