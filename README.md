@@ -728,3 +728,35 @@ func ExamplePbToGo()  {
 	fmt.Println(r.Generate())
 }
 ```
+
+
+## net
+
+网络相关封装
+
+### tcp
+```go
+    // 发送数据至对端,有重试机制
+    Send(data []byte, retry *Retry) error
+
+    // 接受数据
+    // length == 0 从 Conn一次读取立即返回
+    // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
+    // length > 0 从 Conn 接收到对应的数据返回
+    Recv(length int, retry *Retry) ([]byte, error) 
+
+    // 读取一行 '\n'
+    RecvLine(retry *Retry) ([]byte, error) 
+
+    // 读取已经超时的链接
+    RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) 
+
+    // 写入数据给已经超时的链接
+    SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error
+
+    // 写入数据并读取返回
+    SendRecv(data []byte, length int, retry *Retry) ([]byte, error)
+
+    // 将数据写入并读出已经超时的链接
+    SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error)
+```
