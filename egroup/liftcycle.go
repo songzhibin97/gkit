@@ -1,8 +1,8 @@
 package egroup
 
 import (
-	"Songzhibin/GKit/goroutine"
-	"Songzhibin/GKit/options"
+	"github.com/songzhibin97/gkit/goroutine"
+	"github.com/songzhibin97/gkit/options"
 	"context"
 	"os"
 	"os/signal"

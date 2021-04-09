@@ -1,7 +1,7 @@
 package parsePb
 
 import (
-	"Songzhibin/GKit/cache/buffer"
+	"github.com/songzhibin97/gkit/cache/buffer"
 	"fmt"
 	"github.com/emicklei/proto"
 	"text/template"

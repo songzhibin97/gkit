@@ -1,12 +1,12 @@
 package bbr
 
 import (
-	"Songzhibin/GKit/container/group"
-	"Songzhibin/GKit/internal/stat"
-	cupstat "Songzhibin/GKit/internal/sys/cpu"
-	"Songzhibin/GKit/log"
-	"Songzhibin/GKit/options"
-	"Songzhibin/GKit/overload"
+	"github.com/songzhibin97/gkit/container/group"
+	"github.com/songzhibin97/gkit/internal/stat"
+	cupstat "github.com/songzhibin97/gkit/internal/sys/cpu"
+	"github.com/songzhibin97/gkit/log"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/overload"
 	"context"
 	"math"
 	"sync/atomic"

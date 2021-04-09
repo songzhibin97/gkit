@@ -1,7 +1,7 @@
 package egroup
 
 import (
-	"Songzhibin/GKit/goroutine"
+	"github.com/songzhibin97/gkit/goroutine"
 	"context"
 	"sync"
 )

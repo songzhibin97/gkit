@@ -1,4 +1,4 @@
-module Songzhibin/GKit
+module github.com/songzhibin97/gkit
 
 go 1.15
 

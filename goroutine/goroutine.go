@@ -3,8 +3,8 @@ package goroutine
 // package goroutine: 管理goroutine并发量托管任务以及兜底
 
 import (
-	"Songzhibin/GKit/options"
-	"Songzhibin/GKit/timeout"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/timeout"
 	"context"
 	"errors"
 	"fmt"
