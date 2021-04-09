@@ -3,7 +3,7 @@ package rate
 // package rate: https://pkg.go.dev/golang.org/x/time/rate 实现 limiter 接口
 
 import (
-	"Songzhibin/GKit/restrictor"
+	"github.com/songzhibin97/gkit/restrictor"
 	"context"
 	"golang.org/x/time/rate"
 	"time"

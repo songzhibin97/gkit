@@ -1,7 +1,7 @@
 package window
 
 import (
-	"Songzhibin/GKit/options"
+	"github.com/songzhibin97/gkit/options"
 	"context"
 	"sync/atomic"
 	"time"
