@@ -40,6 +40,12 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 
 ```
 
+# 下载使用
+```shell
+# go get github.com/songzhibin97/gkit@v1.0.0
+go get github.com/songzhibin97/gkit
+```
+
 # 组件使用介绍
 ## cache
 
