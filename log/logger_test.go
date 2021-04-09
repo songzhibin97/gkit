@@ -12,10 +12,10 @@ func (t *testLogger) Print(kv ...interface{}) {
 }
 
 func Test_log_Print(t *testing.T) {
-	log := &testLogger{t}
-	log.Print("key","value")
-	Debug(log).Print("key","value")
-	Info(log).Print("key","value")
-	Warn(log).Print("key","value")
-	Error(log).Print("key","value")
+	logs := &testLogger{t}
+	logs.Print("key","value")
+	Debug(logs).Print("key","value")
+	Info(logs).Print("key","value")
+	Warn(logs).Print("key","value")
+	Error(logs).Print("key","value")
 }

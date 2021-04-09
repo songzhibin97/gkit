@@ -1,9 +1,9 @@
 package egroup
 
 import (
+	"context"
 	"github.com/songzhibin97/gkit/goroutine"
 	"github.com/songzhibin97/gkit/options"
-	"context"
 	"os"
 	"os/signal"
 	"syscall"
@@ -100,7 +100,7 @@ func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 		handler: func(a *LifeAdmin, signal os.Signal) {
 			switch signal {
 			case syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT:
-				a.shutdown()
+				a.Shutdown()
 			default:
 			}
 		},

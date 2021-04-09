@@ -5,15 +5,15 @@ import (
 )
 
 func TestDebugHelper(t *testing.T) {
-	log := NewHelper(&testLogger{t}, LevelDebug)
-	log.Debug("debug", "v")
-	log.Debugf("%s,%s", "debugf", "v")
-	log.Info("Info", "v")
-	log.Infof("%s,%s", "infof", "v")
-	log.Warn("Warn", "v")
-	log.Warnf("%s,%s", "warnf", "v")
-	log.Error("Error", "v")
-	log.Errorf("%s,%s", "errorf", "v")
+	logs := NewHelper(&testLogger{t}, LevelDebug)
+	logs.Debug("debug", "v")
+	logs.Debugf("%s,%s", "debugf", "v")
+	logs.Info("Info", "v")
+	logs.Infof("%s,%s", "infof", "v")
+	logs.Warn("Warn", "v")
+	logs.Warnf("%s,%s", "warnf", "v")
+	logs.Error("Error", "v")
+	logs.Errorf("%s,%s", "errorf", "v")
 }
 
 func TestInfoHelper(t *testing.T) {
