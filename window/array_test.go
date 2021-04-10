@@ -61,7 +61,7 @@ func TestCompareAndSwap(t *testing.T) {
 	n := (uint64)(5)
 	array := NewAtomicArray(n, BucketSize, &Mock{})
 	for i := (uint64)(0); i < n; i++ {
-		if !array.compareAndSwap(i,array.getBucket(i),array.getBucket(i)) {
+		if !array.compareAndSwap(i, array.getBucket(i), array.getBucket(i)) {
 			t.Error("compareAndSwap not equal")
 		}
 	}

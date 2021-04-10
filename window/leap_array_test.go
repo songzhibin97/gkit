@@ -53,7 +53,6 @@ func TestGetTimeIndex(t *testing.T) {
 	}
 }
 
-
 func TestCalculateStartTime(t *testing.T) {
 	type fields struct {
 	}
@@ -86,7 +85,6 @@ func TestCalculateStartTime(t *testing.T) {
 	}
 }
 
-
 func TestGetBucketOfTime(t *testing.T) {
 	now := uint64(1596199310000)
 	s := &LeapArray{
@@ -108,7 +106,6 @@ func TestGetBucketOfTime(t *testing.T) {
 		t.Errorf("getBucketOfTime() = %v, want %v", got, s.array.getBucket(1))
 	}
 }
-
 
 func TestGetValueOfTime(t *testing.T) {
 	type fields struct {
@@ -176,7 +173,6 @@ func TestGetValueOfTime(t *testing.T) {
 		})
 	}
 }
-
 
 func TestIsDisable(t *testing.T) {
 	type fields struct {

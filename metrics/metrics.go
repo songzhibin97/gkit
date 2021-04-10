@@ -2,7 +2,6 @@ package metrics
 
 // package metrics: 指标信息
 
-
 // Counter is metrics counter.
 type Counter interface {
 	With(lvs ...string) Counter

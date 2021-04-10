@@ -1,8 +1,8 @@
 package egroup
 
 import (
-	"github.com/songzhibin97/gkit/goroutine"
 	"context"
+	"github.com/songzhibin97/gkit/goroutine"
 	"sync"
 )
 

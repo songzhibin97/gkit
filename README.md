@@ -591,10 +591,79 @@ func main() {
 ## metrics
 
 提供指标接口,用于实现监控配置
+```go
+type Counter interface {
+	With(lvs ...string) Counter
+	Inc()
+	Add(delta float64)
+}
 
+// Gauge is metrics gauge.
+type Gauge interface {
+	With(lvs ...string) Gauge
+	Set(value float64)
+	Add(delta float64)
+	Sub(delta float64)
+}
+
+// Observer is metrics observer.
+type Observer interface {
+	With(lvs ...string) Observer
+	Observe(float64)
+}
+```
 ## middleware
 
 中间件接口模型定义
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/songzhibin97/gkit/middleware"
+	)
+
+func annotate(s string) middleware.MiddleWare {
+	return func(next middleware.Endpoint) middleware.Endpoint {
+		return func(ctx context.Context, request interface{}) (interface{}, error) {
+			fmt.Println(s, "pre")
+			defer fmt.Println(s, "post")
+			return next(ctx, request)
+		}
+	}
+}
+
+func myEndpoint(context.Context, interface{}) (interface{}, error) {
+	fmt.Println("my endpoint!")
+	return struct{}{}, nil
+}
+
+var (
+	ctx = context.Background()
+	req = struct{}{}
+)
+
+func main()  {
+    e := middleware.Chain(
+		annotate("first"),
+		annotate("second"),
+		annotate("third"),
+	)(myEndpoint)
+
+	if _, err := e(ctx, req); err != nil {
+		panic(err)
+	}
+	// Output:
+	// first pre
+	// second pre
+	// third pre
+	// my endpoint!
+	// third post
+	// second post
+	// first post
+}
+```
 
 ## overload
 
@@ -675,6 +744,36 @@ func main() {
 ## registry
 
 提供注册发现通用接口,使用通用接口外挂依赖
+
+```go
+// Registrar: 注册抽象
+type Registrar interface {
+	// Register: 注册
+	Register(ctx context.Context, service *ServiceInstance) error
+	// Deregister: 注销
+	Deregister(ctx context.Context, service *ServiceInstance) error
+}
+
+// Discovery: 服务发现抽象
+type Discovery interface {
+	// GetService: 返回服务名相关的服务实例
+	GetService(ctx context.Context, serviceName string) ([]*ServiceInstance, error)
+	// Watch: 根据服务名创建监控
+	Watch(ctx context.Context, serviceName string) (Watcher, error)
+}
+
+// Watcher: 服务监控
+type Watcher interface {
+	// Watch需要满足以下条件
+	// 1. 第一次 GetService 的列表不为空
+	// 2. 发现任何服务实例更改
+	// 不满足以上两种条件,Next则会无限等待直到上下文截止
+	Next() ([]*ServiceInstance, error)
+	// Stop: 停止监控行为
+	Stop() error
+}
+```
+
 
 ## restrictor
 

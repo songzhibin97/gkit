@@ -1,9 +1,9 @@
 package egroup
 
 import (
-	"github.com/songzhibin97/gkit/goroutine"
 	"context"
 	"fmt"
+	"github.com/songzhibin97/gkit/goroutine"
 	"net/http"
 	"testing"
 )

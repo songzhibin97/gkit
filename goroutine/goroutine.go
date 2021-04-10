@@ -3,11 +3,11 @@ package goroutine
 // package goroutine: 管理goroutine并发量托管任务以及兜底
 
 import (
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/timeout"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/timeout"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,8 +34,6 @@ type Goroutine struct {
 	// task
 	task chan func()
 }
-
-
 
 // _go: 封装goroutine 使其安全执行
 func (g *Goroutine) _go() {
@@ -173,7 +171,6 @@ func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) er
 		return err
 	}
 }
-
 
 // NewGoroutine: 实例化方法
 func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {

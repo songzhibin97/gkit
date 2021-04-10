@@ -18,7 +18,6 @@ type BucketBuilder interface {
 	Reset(b *Bucket, startTime uint64) *Bucket
 }
 
-
 // Bucket: 滑动窗口的承载的最小元素
 type Bucket struct {
 	// Start: 存储了这个桶的起始时间
