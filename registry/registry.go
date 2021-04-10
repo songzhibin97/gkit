@@ -12,7 +12,6 @@ type Registrar interface {
 	Deregister(ctx context.Context, service *ServiceInstance) error
 }
 
-
 // Discovery: 服务发现抽象
 type Discovery interface {
 	// GetService: 返回服务名相关的服务实例
