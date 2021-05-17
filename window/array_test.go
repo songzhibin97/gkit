@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	// BucketSize: 桶大小
+	// BucketSize 桶大小
 	BucketSize uint64 = 500
 	// N: 长度
 	N uint64 = 20
-	//IntervalSize: 时间间隔 10s
+	//IntervalSize 时间间隔 10s
 	IntervalSize uint64 = 10 * 1000
 )
 

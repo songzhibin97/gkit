@@ -17,7 +17,6 @@ var (
 	ErrRepeatClose = errors.New("goroutine/goroutine :重复关闭")
 )
 
-// Goroutine:
 type Goroutine struct {
 	close int32
 
@@ -35,7 +34,7 @@ type Goroutine struct {
 	task chan func()
 }
 
-// _go: 封装goroutine 使其安全执行
+// _go 封装goroutine 使其安全执行
 func (g *Goroutine) _go() {
 	atomic.AddInt64(&g.n, 1)
 	g.wait.Add(1)
@@ -73,7 +72,7 @@ func (g *Goroutine) _go() {
 	}()
 }
 
-// AddTask: 添加任务
+// AddTask 添加任务
 // 直到添加成功为止
 func (g *Goroutine) AddTask(f func()) bool {
 	// 判断channel是否关闭
@@ -87,7 +86,7 @@ func (g *Goroutine) AddTask(f func()) bool {
 	return true
 }
 
-// AddTask: 添加任务
+// AddTask 添加任务
 func (g *Goroutine) AddTaskN(ctx context.Context, f func()) bool {
 	// 判断channel是否关闭
 	if atomic.LoadInt32(&g.close) != 0 {
@@ -104,12 +103,12 @@ func (g *Goroutine) AddTaskN(ctx context.Context, f func()) bool {
 	}
 }
 
-// ChangeMax: 修改pool上限值
+// ChangeMax 修改pool上限值
 func (g *Goroutine) ChangeMax(m int64) {
 	atomic.StoreInt64(&g.max, m)
 }
 
-// Shutdown: 优雅关闭
+// Shutdown 优雅关闭
 // 符合幂等性
 func (g *Goroutine) Shutdown() error {
 	if atomic.SwapInt32(&g.close, 1) == 1 {
@@ -127,14 +126,14 @@ func (g *Goroutine) Shutdown() error {
 	return err
 }
 
-// trick: Debug使用
+// trick Debug使用
 func (g *Goroutine) trick() {
 	if g.logger != nil {
 		g.logger.Print(atomic.LoadInt64(&g.max), atomic.LoadInt64(&g.n), len(g.task))
 	}
 }
 
-// Delegate: 委托执行 一般用于回收函数超时控制
+// Delegate 委托执行 一般用于回收函数超时控制
 func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) error) error {
 	ch := make(chan error, 1)
 	go func() {
@@ -172,7 +171,7 @@ func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) er
 	}
 }
 
-// NewGoroutine: 实例化方法
+// NewGoroutine 实例化方法
 func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 	ctx, cancel := context.WithCancel(ctx)
 	o := config{

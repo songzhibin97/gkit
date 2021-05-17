@@ -14,10 +14,10 @@ var (
 	ErrTimeBehindStart       = errors.New("time already behind bucketStart")
 )
 
-// TimeChick: 自定义校验 时间戳 函数
+// TimeChick 自定义校验 时间戳 函数
 type TimeChick func(uint64) bool
 
-// LeapArray: 基于 Bucket 实现的 leap array
+// LeapArray 基于 Bucket 实现的 leap array
 // 例如: bucketSize == 200ms,intervalSize == 1000ms,所以n = 5
 // 假设当前是 时间是888ms 构建下图
 //   B0       B1      B2     B3      B4
@@ -42,13 +42,13 @@ type LeapArray struct {
 	array *AtomicArray
 }
 
-// getTimeIndex: 获取当前时间 命中的index索引
+// getTimeIndex 获取当前时间 命中的index索引
 func (s *LeapArray) getTimeIndex(now uint64) uint64 {
 	id := now / s.bucketSize
 	return id % s.array.length
 }
 
-// getBucketOfTime: 根据时间戳获取到对应的桶
+// getBucketOfTime 根据时间戳获取到对应的桶
 func (s *LeapArray) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket, error) {
 	index := s.getTimeIndex(now)
 	start := calculateStartTime(now, s.bucketSize)
@@ -91,18 +91,18 @@ func (s *LeapArray) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket,
 	}
 }
 
-// GetBucket: 获取桶,封装 getBucketOfTime
+// GetBucket 获取桶,封装 getBucketOfTime
 func (s *LeapArray) GetBucket(builder BucketBuilder) (*Bucket, error) {
 	return s.getBucketOfTime(clock.GetTimeMillis(), builder)
 }
 
-// isDisable: 判断当前桶是否被弃用
+// isDisable 判断当前桶是否被弃用
 func (s *LeapArray) isDisable(now uint64, b *Bucket) bool {
 	ws := atomic.LoadUint64(&b.Start)
 	return (now - ws) > s.intervalSize
 }
 
-// getValueOfTime: 通过 now 为基点 获取array所有桶
+// getValueOfTime 通过 now 为基点 获取array所有桶
 func (s *LeapArray) getValueOfTime(now uint64) []*Bucket {
 	ret := make([]*Bucket, 0, s.array.length)
 	for i := (uint64)(0); i < s.array.length; i++ {
@@ -115,12 +115,12 @@ func (s *LeapArray) getValueOfTime(now uint64) []*Bucket {
 	return ret
 }
 
-// Values: getValueOfTime 封装
+// Values getValueOfTime 封装
 func (s *LeapArray) Values() []*Bucket {
 	return s.getValueOfTime(clock.GetTimeMillis())
 }
 
-// ValuesChick: 加入自定义 TimeChick 过滤value
+// ValuesChick 加入自定义 TimeChick 过滤value
 func (s *LeapArray) ValuesChick(now uint64, chick TimeChick) []*Bucket {
 	ret := make([]*Bucket, 0, s.array.length)
 	for i := (uint64)(0); i < s.array.length; i++ {
@@ -133,7 +133,7 @@ func (s *LeapArray) ValuesChick(now uint64, chick TimeChick) []*Bucket {
 	return ret
 }
 
-// NewLeapArray: 初始化 leap array
+// NewLeapArray 初始化 leap array
 func NewLeapArray(n uint64, intervalSize uint64, builder BucketBuilder) (*LeapArray, error) {
 	if builder == nil {
 		return nil, ErrBucketBuilderIsNil

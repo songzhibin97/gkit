@@ -1,16 +1,16 @@
 package singleflight
 
-// getResources: 一般用于去数据库去获取数据
+// getResources 一般用于去数据库去获取数据
 func getResources() (interface{}, error) {
 	return "test", nil
 }
 
-// cache: 填充到 缓存中的数据
+// cache 填充到 缓存中的数据
 func cache(v interface{}) {
 	return
 }
 
-// ExampleNewSingleFlight:
+// ExampleNewSingleFlight
 func ExampleNewSingleFlight() {
 	singleFlight := NewSingleFlight()
 

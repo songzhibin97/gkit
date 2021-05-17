@@ -2,7 +2,7 @@ package buffer
 
 import "io"
 
-// IoBuffer: 接口定义
+// IoBuffer 接口定义
 type IoBuffer interface {
 	// Read reads the next len(p) bytes from the buffer or until the buffer
 	// is drained. The return value n is the number of bytes read. If the

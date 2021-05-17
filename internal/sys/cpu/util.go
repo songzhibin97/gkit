@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// readFile: 读取文件返回对应string
+// readFile 读取文件返回对应string
 func readFile(path string) (string, error) {
 	contents, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -19,7 +19,7 @@ func readFile(path string) (string, error) {
 	return strings.TrimSpace(string(contents)), nil
 }
 
-// parseUint: 解析 Uint
+// parseUint 解析 Uint
 func parseUint(s string) (uint64, error) {
 	v, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
@@ -88,12 +88,12 @@ func ParseUintList(val string) (map[int]bool, error) {
 	return availableInts, nil
 }
 
-// readLines: 读取首行
+// readLines 读取首行
 func readLines(filename string) ([]string, error) {
 	return readLinesOffsetN(filename, 0, -1)
 }
 
-// readLinesOffsetN: 读取行数据
+// readLinesOffsetN 读取行数据
 //   n >= 0: at most n lines
 //   n < 0: whole file
 func readLinesOffsetN(filename string, offset uint, n int) ([]string, error) {

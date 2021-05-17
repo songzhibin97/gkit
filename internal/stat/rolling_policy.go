@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// RollingPolicy: 基于持续时间的环形窗口的策略,随时间段移动存储桶偏移量。
+// RollingPolicy 基于持续时间的环形窗口的策略,随时间段移动存储桶偏移量。
 type RollingPolicy struct {
 	mu     sync.RWMutex
 	size   int
@@ -16,7 +16,7 @@ type RollingPolicy struct {
 	lastAppendTime time.Time
 }
 
-// timespan: 时间跨度
+// timespan 时间跨度
 func (r *RollingPolicy) timespan() int {
 	v := int(time.Since(r.lastAppendTime) / r.bucketDuration)
 	if v > -1 {
@@ -26,7 +26,7 @@ func (r *RollingPolicy) timespan() int {
 	return r.size
 }
 
-// add:
+// add
 func (r *RollingPolicy) add(f func(offset int, val float64), val float64) {
 	r.mu.Lock()
 	timespan := r.timespan()
@@ -58,17 +58,17 @@ func (r *RollingPolicy) add(f func(offset int, val float64), val float64) {
 	r.mu.Unlock()
 }
 
-// Append: 将给定的点附加到窗口
+// Append 将给定的点附加到窗口
 func (r *RollingPolicy) Append(val float64) {
 	r.add(r.window.Append, val)
 }
 
-// Add: 将给定值添加到存储桶中的最新点
+// Add 将给定值添加到存储桶中的最新点
 func (r *RollingPolicy) Add(val float64) {
 	r.add(r.window.Add, val)
 }
 
-// Reduce: 缩减应用窗口
+// Reduce 缩减应用窗口
 func (r *RollingPolicy) Reduce(f func(Iterator) float64) (val float64) {
 	r.mu.RLock()
 	timespan := r.timespan()
@@ -83,7 +83,7 @@ func (r *RollingPolicy) Reduce(f func(Iterator) float64) (val float64) {
 	return val
 }
 
-// NewRollingPolicy: 实例化 RollingPolicy 对象
+// NewRollingPolicy 实例化 RollingPolicy 对象
 func NewRollingPolicy(window *Window, bucketDuration time.Duration) *RollingPolicy {
 	return &RollingPolicy{
 		window: window,

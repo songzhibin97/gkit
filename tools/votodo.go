@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-// VoToDo: 试图对象与domino对象转换,只能转相同字段且类型相同的
+// VoToDo 试图对象与domino对象转换,只能转相同字段且类型相同的
 // dst: 目标
 // src: 源位置
 func VoToDo(dst interface{}, src interface{}) error {

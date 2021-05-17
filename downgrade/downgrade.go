@@ -13,19 +13,19 @@ type fallbackFunc = func(error) error
 type runFuncC = func(context.Context) error
 type fallbackFuncC = func(context.Context, error) error
 
-// Fuse: 熔断降级接口
+// Fuse 熔断降级接口
 type Fuse interface {
-	// Do: 以同步的方式运行 runFunc,直到成功为止
+	// Do 以同步的方式运行 runFunc,直到成功为止
 	// 如果返回错误,执行 fallbackFunc 函数
 	Do(name string, run runFunc, fallback fallbackFunc) error
 
-	// Go: 异步调用返回 channel
+	// Go 异步调用返回 channel
 	Go(name string, run runFunc, fallback fallbackFunc) chan error
 
-	// GoC:
+	// GoC
 	// Do/Go 都调用GoC, Do中处理了异步过程
 	GoC(ctx context.Context, name string, run runFuncC, fallback fallbackFuncC) chan error
 
-	// ConfigureCommand: 配置参数
+	// ConfigureCommand 配置参数
 	ConfigureCommand(name string, config hystrix.CommandConfig)
 }

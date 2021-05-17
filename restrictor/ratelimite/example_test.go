@@ -7,7 +7,7 @@ import (
 )
 
 func ExampleNewRateLimit() {
-	// ratelimit:github.com/juju/ratelimit
+	// ratelimit github.com/juju/ratelimit
 	bucket := ratelimit.NewBucket(time.Second/2, 4)
 
 	af, wf := NewRateLimit(bucket)

@@ -3,13 +3,13 @@ package rate
 // package rate: https://pkg.go.dev/golang.org/x/time/rate 实现 limiter 接口
 
 import (
-	"github.com/songzhibin97/gkit/restrictor"
 	"context"
+	"github.com/songzhibin97/gkit/restrictor"
 	"golang.org/x/time/rate"
 	"time"
 )
 
-// NewRate: 返回limiter对应的 restrictor.AllowFunc, restrictor.WaitFunc
+// NewRate 返回limiter对应的 restrictor.AllowFunc, restrictor.WaitFunc
 func NewRate(limiter *rate.Limiter) (restrictor.AllowFunc, restrictor.WaitFunc) {
 	return func(now time.Time, n int) bool {
 			return limiter.AllowN(now, n)

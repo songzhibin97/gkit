@@ -2,8 +2,8 @@ package log
 
 type Lever int8
 
+// 预定义Level等级
 const (
-	// 预定义Level等级
 	LevelDebug Lever = iota
 	LevelInfo
 	LevelWarn
@@ -17,12 +17,12 @@ var m = map[Lever]string{
 	LevelError: "[Error]",
 }
 
-// Allow: 允许是否可以打印
+// Allow 允许是否可以打印
 func (l Lever) Allow(lv Lever) bool {
 	return lv >= l
 }
 
-// String: 语义转义
+// String 语义转义
 func (l Lever) String() string {
 	if v, ok := m[l]; ok {
 		return v

@@ -1,10 +1,10 @@
 package tcp
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"bufio"
 	"crypto/tls"
 	"errors"
+	"github.com/songzhibin97/gkit/cache/buffer"
 	"io"
 	"net"
 	"time"
@@ -14,7 +14,7 @@ var (
 	defaultRetry Retry
 )
 
-// Conn: 封装原始 net.conn 对象
+// Conn 封装原始 net.conn 对象
 type Conn struct {
 	// net.conn: 原始的conn对象
 	net.Conn
@@ -32,7 +32,7 @@ type Conn struct {
 	recvBufferInterval time.Duration
 }
 
-// Retry: 重试配置
+// Retry 重试配置
 type Retry struct {
 	// Count: 重试次数,每重试一次就会 -1, 如果==0默认不重试
 	Count uint
@@ -41,7 +41,7 @@ type Retry struct {
 	Interval time.Duration
 }
 
-// Send: 发送数据至对端,有重试机制
+// Send 发送数据至对端,有重试机制
 func (c *Conn) Send(data []byte, retry *Retry) error {
 	if retry == nil {
 		retry = &defaultRetry
@@ -65,7 +65,7 @@ func (c *Conn) Send(data []byte, retry *Retry) error {
 	}
 }
 
-// Recv: 接受数据
+// Recv 接受数据
 // length == 0 从 Conn一次读取立即返回
 // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
 // length > 0 从 Conn 接收到对应的数据返回
@@ -148,7 +148,7 @@ cycle:
 	return bf[:index], nil
 }
 
-// RecvLine: 读取一行 '\n'
+// RecvLine 读取一行 '\n'
 func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 	var (
 		// err
@@ -171,7 +171,7 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 	return bf[:index], err
 }
 
-// RecvWithTimeout: 读取已经超时的链接
+// RecvWithTimeout 读取已经超时的链接
 func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) {
 	if err := c.SetRecvDeadline(time.Now().Add(timeout)); err != nil {
 		return nil, err
@@ -180,7 +180,7 @@ func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) 
 	return c.Recv(length, retry)
 }
 
-// SendWithTimeout: 写入数据给已经超时的链接
+// SendWithTimeout 写入数据给已经超时的链接
 func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error {
 	if err := c.SetSendDeadline(time.Now().Add(timeout)); err != nil {
 		return err
@@ -189,7 +189,7 @@ func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry)
 	return c.Send(data, retry)
 }
 
-// SendRecv: 写入数据并读取返回
+// SendRecv 写入数据并读取返回
 func (c *Conn) SendRecv(data []byte, length int, retry *Retry) ([]byte, error) {
 	if err := c.Send(data, retry); err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ func (c *Conn) SendRecv(data []byte, length int, retry *Retry) ([]byte, error) {
 	return c.Recv(length, retry)
 }
 
-// SendRecvWithTimeout: 将数据写入并读出已经超时的链接
+// SendRecvWithTimeout 将数据写入并读出已经超时的链接
 func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error) {
 	if err := c.Send(data, retry); err != nil {
 		return nil, err
@@ -241,18 +241,18 @@ func isTimeout(err error) bool {
 	return false
 }
 
-// RecoveryBuffer: 用于回收已经不使用的 *[]byte
+// RecoveryBuffer 用于回收已经不使用的 *[]byte
 // 如果使用已经回收的资源,可能会造成panic,请注意
 func RecoveryBuffer(data *[]byte) {
 	buffer.PutBytes(data)
 }
 
-// SetRecvBufferInterval: 读取缓存间隔时间
+// SetRecvBufferInterval 读取缓存间隔时间
 func (c *Conn) SetRecvBufferInterval(t time.Duration) {
 	c.recvBufferInterval = t
 }
 
-// NewConnByNetConn: 通过原始的 net.Conn 链接建立 Conn 封装对象
+// NewConnByNetConn 通过原始的 net.Conn 链接建立 Conn 封装对象
 func NewConnByNetConn(conn net.Conn) *Conn {
 	return &Conn{
 		Conn:               conn,
@@ -263,7 +263,7 @@ func NewConnByNetConn(conn net.Conn) *Conn {
 	}
 }
 
-// newNetConn: 新建conn
+// newNetConn 新建conn
 func newNetConn(addr string, timeout *time.Duration) (net.Conn, error) {
 	if timeout == nil {
 		timeout = &DefaultConnTimeout
@@ -271,7 +271,7 @@ func newNetConn(addr string, timeout *time.Duration) (net.Conn, error) {
 	return net.DialTimeout("tcp", addr, *timeout)
 }
 
-// newNetConnTLS:
+// newNetConnTLS
 func newNetConnTLS(addr string, tlsConfig *tls.Config, timeout *time.Duration) (net.Conn, error) {
 	if timeout == nil {
 		timeout = &DefaultConnTimeout
@@ -280,7 +280,7 @@ func newNetConnTLS(addr string, tlsConfig *tls.Config, timeout *time.Duration) (
 	return tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
 }
 
-// NewConn: 通过原始拨号建立
+// NewConn 通过原始拨号建立
 func NewConn(addr string, timeout *time.Duration) (*Conn, error) {
 	if conn, err := newNetConn(addr, timeout); err != nil {
 		return nil, err
@@ -289,7 +289,7 @@ func NewConn(addr string, timeout *time.Duration) (*Conn, error) {
 	}
 }
 
-// NewConnTLS: 通过tls建立
+// NewConnTLS 通过tls建立
 func NewConnTLS(addr string, tlsConfig *tls.Config, timeout *time.Duration) (*Conn, error) {
 	if conn, err := newNetConnTLS(addr, tlsConfig, timeout); err != nil {
 		return nil, err

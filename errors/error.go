@@ -13,15 +13,15 @@ var _ error = (*ErrorCode)(nil)
 
 var ErrDetails = errors.New("no error details for status with code OK")
 
-// ErrorCode: 错误码
+// ErrorCode 错误码
 type ErrorCode Status
 
-// Error: 实现Error接口
+// Error 实现Error接口
 func (e *ErrorCode) Error() string {
 	return fmt.Sprintf("error: code = %d reason = %s message = %s details = %+v", e.Code, e.Reason, e.Message, e.Details)
 }
 
-// Is: 跟 target Error 比较 判断是否相等
+// Is 跟 target Error 比较 判断是否相等
 func (e *ErrorCode) Is(target error) bool {
 	if err, ok := target.(*ErrorCode); !ok {
 		return false
@@ -30,7 +30,7 @@ func (e *ErrorCode) Is(target error) bool {
 	}
 }
 
-// AddDetails: 添加detail
+// AddDetails 添加detail
 func (e *ErrorCode) AddDetails(details ...proto.Message) error {
 	for _, detail := range details {
 		any, err := ptypes.MarshalAny(detail)
@@ -42,7 +42,7 @@ func (e *ErrorCode) AddDetails(details ...proto.Message) error {
 	return nil
 }
 
-// BindDetails: 绑定 Details
+// BindDetails 绑定 Details
 func (e *ErrorCode) BindDetails() error {
 	if codes.Code(e.Code) == codes.OK {
 		return ErrDetails
@@ -56,7 +56,7 @@ func (e *ErrorCode) BindDetails() error {
 	return e.AddDetails(details...)
 }
 
-// ErrToCode: error 中获取 Code 编码
+// ErrToCode error 中获取 Code 编码
 func ErrToCode(err error) int32 {
 	if err == nil {
 		// code 0 == ok
@@ -69,7 +69,7 @@ func ErrToCode(err error) int32 {
 	return 2
 }
 
-// ErrToMessage: error 中 获取 reason 数据
+// ErrToReason error 中 获取 reason 数据
 func ErrToReason(err error) string {
 	if err == nil {
 		// code 0 == ok
@@ -82,7 +82,7 @@ func ErrToReason(err error) string {
 	return codes.Unknown.String()
 }
 
-// ErrToMessage: error 中 获取 message 数据
+// ErrToMessage error 中 获取 message 数据
 func ErrToMessage(err error) string {
 	if err == nil {
 		// code 0 == ok
@@ -95,7 +95,7 @@ func ErrToMessage(err error) string {
 	return codes.Unknown.String()
 }
 
-// IsError: 传入code 和 err 判断是否数据该 error 是否属于该 code
+// IsError 传入code 和 err 判断是否数据该 error 是否属于该 code
 func IsError(code int32, err error) bool {
 	if eCode := new(ErrorCode); errors.As(err, &eCode) {
 		return eCode.Code == code
@@ -103,7 +103,7 @@ func IsError(code int32, err error) bool {
 	return false
 }
 
-// Error: 实例化 ErrorCode 对象
+// Error 实例化 ErrorCode 对象
 func Error(code int32, reason, message string) error {
 	return &ErrorCode{
 		Code:    code,
@@ -112,7 +112,6 @@ func Error(code int32, reason, message string) error {
 	}
 }
 
-// Errorf:
 func Errorf(code int32, reason, format string, a ...interface{}) error {
 	return Error(code, reason, fmt.Sprintf(format, a...))
 }

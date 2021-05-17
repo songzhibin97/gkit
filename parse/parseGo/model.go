@@ -1,16 +1,16 @@
 package parseGo
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"errors"
 	"fmt"
+	"github.com/songzhibin97/gkit/cache/buffer"
 	"go/ast"
 	"io/ioutil"
 	"strings"
 	"text/template"
 )
 
-// GoParsePB: .go 文件转成 pb文件
+// GoParsePB .go 文件转成 pb文件
 type GoParsePB struct {
 	PkgName  string            // PkgName: 包名
 	FilePath string            // FilePath: 文件的路径
@@ -25,7 +25,7 @@ type Note struct {
 	*ast.Comment
 }
 
-// Server: Server对应Go func
+// Server Server对应Go func
 type Server struct {
 	Pos             int            // Pos: 函数的起始字节位置
 	End             int            // End: 函数的结束字节为止
@@ -40,7 +40,7 @@ type Server struct {
 
 }
 
-// CreateServer: 创建Server
+// CreateServer 创建Server
 func CreateServer(name string, pos, end int, doc []string, inputParameter string, outputParameter string) *Server {
 	return &Server{
 		Pos:             pos,
@@ -52,7 +52,7 @@ func CreateServer(name string, pos, end int, doc []string, inputParameter string
 	}
 }
 
-// Message: Message对应struct
+// Message Message对应struct
 type Message struct {
 	Pos   int            // Pos: struct的起始字节位置
 	End   int            // End: struct的结束字节为止
@@ -61,12 +61,12 @@ type Message struct {
 	Notes []*ast.Comment // Notes: struct的注释信息,用于埋点打桩
 }
 
-// AddFiles: 添加字段信息
+// AddFiles 添加字段信息
 func (m *Message) AddFiles(files ...*File) {
 	m.Files = append(m.Files, files...)
 }
 
-// CreateMessage: 创建Message
+// CreateMessage 创建Message
 func CreateMessage(name string, pos, end int) *Message {
 	return &Message{
 		Name: name,
@@ -75,7 +75,7 @@ func CreateMessage(name string, pos, end int) *Message {
 	}
 }
 
-// File: 字段信息
+// File 字段信息
 type File struct {
 	Tag    string // Tag: 字段的tag标记
 	Name   string // Name: 字段名
@@ -83,7 +83,7 @@ type File struct {
 	TypePB string // TypePB: 字段在proto中的类型
 }
 
-// CreateFile: 创建字段信息
+// CreateFile 创建字段信息
 func CreateFile(tag string, name string, tGo string, tPb string) *File {
 	return &File{
 		Tag:    tag,
@@ -93,7 +93,7 @@ func CreateFile(tag string, name string, tGo string, tPb string) *File {
 	}
 }
 
-// CreateGoParsePB: 创建 GoParsePB Metas
+// CreateGoParsePB 创建 GoParsePB Metas
 func CreateGoParsePB(pkgName string, filepath string, notes []*Note) *GoParsePB {
 	return &GoParsePB{
 		PkgName:  pkgName,
@@ -103,7 +103,7 @@ func CreateGoParsePB(pkgName string, filepath string, notes []*Note) *GoParsePB 
 	}
 }
 
-// parseStruct: 解析struct信息
+// parseStruct 解析struct信息
 func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 	for _, spec := range st.Specs {
 		if v, ok := spec.(*ast.TypeSpec); ok {
@@ -185,7 +185,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 	}
 }
 
-// parseFunc: 解析函数信息
+// parseFunc 解析函数信息
 func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
 	var (
 		tags            []string
@@ -223,7 +223,7 @@ func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
 	g.AddServers(ret)
 }
 
-// checkFormat: 查重,以及确认服务中的出参入参是否在上文中出现
+// checkFormat 查重,以及确认服务中的出参入参是否在上文中出现
 func (g *GoParsePB) checkFormat() error {
 	if _, ok := g.Metas["ServerName"]; ok {
 		return nil
@@ -271,27 +271,27 @@ func (g *GoParsePB) checkFormat() error {
 	return nil
 }
 
-// Servers: 返回解析后的所有Server对象
+// Servers 返回解析后的所有Server对象
 func (g *GoParsePB) Servers() []*Server {
 	return g.Server
 }
 
-// Messages: 返回解析后的所有Message对象
+// Messages 返回解析后的所有Message对象
 func (g *GoParsePB) Messages() []*Message {
 	return g.Message
 }
 
-// AddServers: 添加server信息
+// AddServers 添加server信息
 func (g *GoParsePB) AddServers(servers ...*Server) {
 	g.Server = append(g.Server, servers...)
 }
 
-// AddMessage: 添加message信息
+// AddMessage 添加message信息
 func (g *GoParsePB) AddMessages(messages ...*Message) {
 	g.Message = append(g.Message, messages...)
 }
 
-// Notes: 获取注释消息
+// Notes 获取注释消息
 func (g *GoParsePB) Notes() []*Note {
 	return g.Note
 }
@@ -300,12 +300,12 @@ func (g *GoParsePB) AddNotes(notes ...*Note) {
 	g.Note = append(g.Note, notes...)
 }
 
-// PackageName: 返回包名
+// PackageName 返回包名
 func (g *GoParsePB) PackageName() string {
 	return g.PkgName
 }
 
-// Generate: 生成pb文件
+// Generate 生成pb文件
 func (g *GoParsePB) Generate() string {
 	var temp = `syntax = "proto3";
 package {{.PackageName}};
@@ -337,7 +337,7 @@ service {{.Metas.ServerName}}{
 	return b.String()
 }
 
-// PileDriving: 源文件打桩
+// PileDriving 源文件打桩
 // functionName: 指定函数内打桩,选传
 // startNotes,endNotes: 可以传两个打桩点,startNotes,endNotes中必填一个
 // insertCode: 插入代码段

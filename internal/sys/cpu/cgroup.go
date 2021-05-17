@@ -10,15 +10,15 @@ import (
 	"strings"
 )
 
-// cGroupRootDir:目录位置
+// cGroupRootDir 目录位置
 const cGroupRootDir = "/sys/fs/cGroup"
 
-// cGroup: LinuxCGroup
+// cGroup LinuxCGroup
 type cGroup struct {
 	cGroupSet map[string]string
 }
 
-// CPUCFSQuotaUs: 获取 cpu.cfs_quota_us 调度周期控制组被允许运行的时间
+// CPUCFSQuotaUs 获取 cpu.cfs_quota_us 调度周期控制组被允许运行的时间
 func (c *cGroup) CPUCFSQuotaUs() (int64, error) {
 	data, err := readFile(path.Join(c.cGroupSet["cpu"], "cpu.cfs_quota_us"))
 	if err != nil {
@@ -27,7 +27,7 @@ func (c *cGroup) CPUCFSQuotaUs() (int64, error) {
 	return strconv.ParseInt(data, 10, 64)
 }
 
-// CPUCFSPeriodUs: 获取 cpu.cfs_period_us 调度周期
+// CPUCFSPeriodUs 获取 cpu.cfs_period_us 调度周期
 func (c *cGroup) CPUCFSPeriodUs() (uint64, error) {
 	data, err := readFile(path.Join(c.cGroupSet["cpu"], "cpu.cfs_period_us"))
 	if err != nil {

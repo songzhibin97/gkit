@@ -1,9 +1,9 @@
 package codel
 
 import (
+	"context"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/overload/bbr"
-	"context"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -13,7 +13,7 @@ import (
 // package queue: 对列实现可控制延时算法
 // CoDel 可控制延时算法
 
-// config: CoDel config
+// config CoDel config
 type config struct {
 	// target: 对列延时(默认是20ms)
 	target int64
@@ -23,7 +23,7 @@ type config struct {
 }
 
 
-// Stat: CoDel 状态信息
+// Stat CoDel 状态信息
 type Stat struct {
 	Dropping bool
 	Packets  int64
@@ -37,7 +37,7 @@ type packet struct {
 	ts int64
 }
 
-// Queue: CoDel buffer 缓冲队列
+// Queue CoDel buffer 缓冲队列
 type Queue struct {
 	// dropping: 是否处于降级状态
 	dropping bool
@@ -53,7 +53,7 @@ type Queue struct {
 }
 
 
-// Reload: 重新加载配置
+// Reload 重新加载配置
 func (q *Queue) Reload(c *config) {
 	if c == nil || c.internal <= 0 || c.target <= 0 {
 		return
@@ -63,7 +63,7 @@ func (q *Queue) Reload(c *config) {
 	q.conf = c
 }
 
-// Stat: 返回CoDel状态信息
+// Stat 返回CoDel状态信息
 func (q *Queue) Stat() Stat {
 	q.mux.Lock()
 	defer q.mux.Unlock()
@@ -75,7 +75,7 @@ func (q *Queue) Stat() Stat {
 	}
 }
 
-// Push: 请求进入CoDel Queue
+// Push 请求进入CoDel Queue
 // 如果返回错误为nil，则在完成请求处理后，调用方必须调用q.Done()
 func (q *Queue) Push(ctx context.Context) (err error) {
 	r := packet{
@@ -105,7 +105,7 @@ func (q *Queue) Push(ctx context.Context) (err error) {
 	return
 }
 
-// Pop: 弹出 CoDel Queue 的请求
+// Pop 弹出 CoDel Queue 的请求
 func (q *Queue) Pop() {
 	for {
 		select {
@@ -125,13 +125,13 @@ func (q *Queue) Pop() {
 	}
 }
 
-// controlLaw: CoDel 控制率
+// controlLaw CoDel 控制率
 func (q *Queue) controlLaw(now int64) int64 {
 	atomic.StoreInt64(&q.dropNext, now+int64(float64(q.conf.internal)/math.Sqrt(float64(q.count))))
 	return atomic.LoadInt64(&q.dropNext)
 }
 
-// judge: 决定数据包是否丢弃
+// judge 决定数据包是否丢弃
 // Core: CoDel
 func (q *Queue) judge(p packet) (drop bool) {
 	now := time.Now().UnixNano() / int64(time.Millisecond)
@@ -176,13 +176,13 @@ func (q *Queue) judge(p packet) (drop bool) {
 }
 
 
-// Default: 默认配置CoDel Queue
+// Default 默认配置CoDel Queue
 func Default() *Queue {
 	return New()
 }
 
 
-// defaultConfig: 默认配置
+// defaultConfig 默认配置
 func defaultConfig() *config {
 	return &config{
 		target:   20,
@@ -192,21 +192,21 @@ func defaultConfig() *config {
 
 // Option
 
-// SetTarget: 设置对列延时
+// SetTarget 设置对列延时
 func SetTarget(target int64) options.Option {
 	return func(c interface{}) {
 		c.(*config).target = target
 	}
 }
 
-// SetInternal: 设置滑动窗口最小时间宽度
+// SetInternal 设置滑动窗口最小时间宽度
 func SetInternal(internal int64) options.Option {
 	return func(c interface{}) {
 		c.(*config).internal = internal
 	}
 }
 
-// New: 实例化 CoDel Queue
+// New 实例化 CoDel Queue
 func New(options ...options.Option) *Queue {
 
 	// new pool

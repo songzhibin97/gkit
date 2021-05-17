@@ -17,7 +17,7 @@ var PbToGoMapping = map[string]string{
 	"bytes":    "[]byte",
 }
 
-// GoTypeToPB: go type 转化成 pb type
+// PbTypeToGo go type 转化成 pb type
 func PbTypeToGo(s string) string {
 	if v, ok := PbToGoMapping[s]; ok {
 		return v
