@@ -4,14 +4,14 @@ import "sync"
 
 // package group: 提供懒加载容器
 
-// Group: 懒加载容器
+// Group 懒加载容器
 type Group struct {
 	sync.RWMutex
 	f    func() interface{}
 	objs map[string]interface{}
 }
 
-// Get: 根据key 获取 value
+// Get 根据key 获取 value
 func (g *Group) Get(key string) interface{} {
 	g.RLock()
 	if obj, ok := g.objs[key]; ok {
@@ -32,7 +32,7 @@ func (g *Group) Get(key string) interface{} {
 	return obj
 }
 
-// ReSet: 更换实例化函数
+// ReSet 更换实例化函数
 func (g *Group) ReSet(nf func() interface{}) {
 	if nf == nil {
 		panic("container.group: 不能为新函数分配nil")
@@ -49,7 +49,7 @@ func (g *Group) Clear() {
 	g.objs = make(map[string]interface{})
 }
 
-// NewGroup: Group 实例化方法
+// NewGroup Group 实例化方法
 func NewGroup(f func() interface{}) LazyLoadGroup {
 	if f == nil {
 		panic("container.group: 不能为新函数分配nil")

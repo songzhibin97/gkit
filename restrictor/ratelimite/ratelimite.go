@@ -1,10 +1,10 @@
 package ratelimite
 
 import (
-	"github.com/songzhibin97/gkit/restrictor"
 	"context"
 	"errors"
 	"github.com/juju/ratelimit"
+	"github.com/songzhibin97/gkit/restrictor"
 	"time"
 )
 

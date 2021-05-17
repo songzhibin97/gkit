@@ -1,9 +1,9 @@
 package parsePb
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"fmt"
 	"github.com/emicklei/proto"
+	"github.com/songzhibin97/gkit/cache/buffer"
 	"text/template"
 )
 
@@ -16,7 +16,7 @@ type PbParseGo struct {
 	Metas    map[string]string // Metas: 其他元信息
 }
 
-// CreatePbParseGo: 创建 PbParseGo
+// CreatePbParseGo 创建 PbParseGo
 func CreatePbParseGo() *PbParseGo {
 	return &PbParseGo{}
 }
@@ -38,7 +38,7 @@ type Server struct {
 	Notes           []*proto.Comment // Notes: 函数中的注释信息,用于埋点打桩
 }
 
-// CreateServer: 创建Server
+// CreateServer 创建Server
 func CreateServer(name string, offset int, inputParameter string, outputParameter string) *Server {
 	return &Server{
 		Offset:          offset,
@@ -48,7 +48,7 @@ func CreateServer(name string, offset int, inputParameter string, outputParamete
 	}
 }
 
-// Message: Message对应struct
+// Message Message对应struct
 type Message struct {
 	Offset int              // Offset: message起始点
 	Name   string           // Name: struct name
@@ -67,14 +67,14 @@ func (m *Message) AddFiles(files ...*File) {
 	m.Files = append(m.Files, files...)
 }
 
-// File: 字段信息
+// File 字段信息
 type File struct {
 	Name   string // Name: 字段名
 	TypeGo string // TypeGo: 字段的原始类型
 	TypePB string // TypePB: 字段在proto中的类型
 }
 
-// CreateFile: 创建字段信息
+// CreateFile 创建字段信息
 func CreateFile(name string, tGo string, tPb string) *File {
 	return &File{
 		Name:   name,
@@ -83,12 +83,12 @@ func CreateFile(name string, tGo string, tPb string) *File {
 	}
 }
 
-// AddServers: 添加server信息
+// AddServers 添加server信息
 func (p *PbParseGo) AddServers(servers ...*Server) {
 	p.Server = append(p.Server, servers...)
 }
 
-// AddMessage: 添加message信息
+// AddMessage 添加message信息
 func (p *PbParseGo) AddMessages(messages ...*Message) {
 	p.Message = append(p.Message, messages...)
 }

@@ -23,7 +23,7 @@ func (h *Hystrix) ConfigureCommand(name string, config hystrix.CommandConfig) {
 	hystrix.ConfigureCommand(name, config)
 }
 
-// NewFuse: 实例化方法
+// NewFuse 实例化方法
 func NewFuse() Fuse {
 	return &Hystrix{}
 }

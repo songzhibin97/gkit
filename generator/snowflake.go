@@ -40,7 +40,7 @@ type Snowflake struct {
 	node uint16
 }
 
-// NextID: 获取下一个ID
+// NextID 获取下一个ID
 func (s *Snowflake) NextID() (uint64, error) {
 	const maskSequence = uint16(1<<SequenceBit - 1)
 
@@ -63,7 +63,7 @@ func (s *Snowflake) NextID() (uint64, error) {
 	return s.toID()
 }
 
-// timeUnit: 时间单位,纳秒
+// timeUnit 时间单位,纳秒
 const timeUnit = 1e7
 
 func toSnowflakeTime(t time.Time) int64 {
@@ -89,7 +89,7 @@ func (s *Snowflake) toID() (uint64, error) {
 		uint64(s.node), nil
 }
 
-// Decompose: 根据id分解为mapping包含这组数据的所有信息
+// Decompose 根据id分解为mapping包含这组数据的所有信息
 func Decompose(id uint64) map[string]uint64 {
 	const maskSequence = uint64((1<<SequenceBit - 1) << NodeBit)
 	const maskMachineID = uint64(1<<NodeBit - 1)
@@ -107,7 +107,7 @@ func Decompose(id uint64) map[string]uint64 {
 	}
 }
 
-// localIPv4: 获取本地IP
+// localIPv4 获取本地IP
 func localIPv4() (net.IP, error) {
 	as, err := net.InterfaceAddrs()
 	if err != nil {
@@ -128,18 +128,18 @@ func localIPv4() (net.IP, error) {
 	return nil, errors.New("no private ip address")
 }
 
-// isPrivateIPv4: 判断是否有效IP
+// isPrivateIPv4 判断是否有效IP
 func isPrivateIPv4(ip net.IP) bool {
 	return ip != nil &&
 		(ip[0] == 10 || ip[0] == 172 && (ip[1] >= 16 && ip[1] < 32) || ip[0] == 192 && ip[1] == 168)
 }
 
-// IpToUint16: 将IP地址转化为uint16
+// IpToUint16 将IP地址转化为uint16
 func IpToUint16(ip net.IP) (uint16, error) {
 	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
-// LocalIpToUint16: 本地IP转化为uint16
+// LocalIpToUint16 本地IP转化为uint16
 func LocalIpToUint16() (uint16, error) {
 	ip, err := localIPv4()
 	if err != nil {
@@ -149,9 +149,9 @@ func LocalIpToUint16() (uint16, error) {
 	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
-// NewSnowflake: 初始化
-// StartTime: 起始时间
-// NodeID: 服务器ID
+// NewSnowflake 初始化
+// StartTime 起始时间
+// NodeID 服务器ID
 func NewSnowflake(startTime time.Time, nodeID uint16) *Snowflake {
 	sf := new(Snowflake)
 	sf.sequence = uint16(1<<SequenceBit - 1)

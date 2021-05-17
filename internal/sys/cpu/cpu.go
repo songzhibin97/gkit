@@ -15,7 +15,7 @@ var (
 	usage uint64
 )
 
-// CPU: interface 定义CPU用法
+// CPU interface 定义CPU用法
 type CPU interface {
 	Usage() (u uint64, e error)
 	Info() Info
@@ -47,13 +47,13 @@ func init() {
 	}()
 }
 
-// Stat: 状态信息
+// Stat 状态信息
 type Stat struct {
 	// Usage: CPU使用率
 	Usage uint64
 }
 
-// Info: 详细信息
+// Info 详细信息
 type Info struct {
 	// Frequency: 频率
 	Frequency uint64
@@ -61,12 +61,12 @@ type Info struct {
 	Quota float64
 }
 
-// ReadStat: 读取状态
+// ReadStat 读取状态
 func ReadStat(stat *Stat) {
 	stat.Usage = atomic.LoadUint64(&usage)
 }
 
-// GetInfo: 获取信息
+// GetInfo 获取信息
 func GetInfo() Info {
 	return stats.Info()
 }

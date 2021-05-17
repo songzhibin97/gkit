@@ -1,10 +1,10 @@
 package pool
 
 import (
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/timeout"
 	"container/list"
 	"context"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/timeout"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,7 +12,7 @@ import (
 
 var _ Pool = &List{}
 
-// List:
+// List 双向链表
 type List struct {
 	// f: item
 	f func(ctx context.Context) (IShutdown, error)
@@ -39,7 +39,7 @@ type List struct {
 	idles list.List
 }
 
-// Reload: 重新设置配置文件
+// Reload 重新设置配置文件
 func (l *List) Reload(options ...options.Option) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -48,7 +48,7 @@ func (l *List) Reload(options ...options.Option) {
 	}
 }
 
-// Init: 初始化
+// Init 初始化
 func (l *List) Init(d time.Duration) {
 	// 如果 <= 0 放弃设置
 	if d <= 0 {
@@ -70,7 +70,7 @@ func (l *List) Init(d time.Duration) {
 	}
 }
 
-// Timer: 定时任务
+// Timer 定时任务
 func (l *List) Timer(d time.Duration) {
 	if d < minDuration {
 		d = minDuration
@@ -116,7 +116,7 @@ func (l *List) Timer(d time.Duration) {
 	}
 }
 
-// release: 当前活跃线程数-1 并发送信号通知
+// release 当前活跃线程数-1 并发送信号通知
 // hold p.mu during the call.
 func (l *List) release() {
 	// l.active -= 1
@@ -124,7 +124,7 @@ func (l *List) release() {
 	l.signal()
 }
 
-// signal: 发送信号通知
+// signal 发送信号通知
 func (l *List) signal() {
 	select {
 	case l.cond <- struct{}{}:
@@ -132,7 +132,7 @@ func (l *List) signal() {
 	}
 }
 
-// Get: 获取
+// Get 获取
 func (l *List) Get(ctx context.Context) (IShutdown, error) {
 	l.mu.Lock()
 	// 判断是否关闭
@@ -205,7 +205,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 	}
 }
 
-// Put: 回收
+// Put 回收
 func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 	l.mu.Lock()
 	if atomic.LoadUint32(&l.closed) == 0 && !forceClose {
@@ -230,7 +230,7 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 	return s.Shutdown()
 }
 
-// IShutdown: 关闭
+// IShutdown 关闭
 func (l *List) Shutdown() error {
 	l.mu.Lock()
 	if atomic.SwapUint32(&l.closed, 1) == 1 {
@@ -250,14 +250,14 @@ func (l *List) Shutdown() error {
 	return nil
 }
 
-// New: 设置创建资源函数
+// New 设置创建资源函数
 func (l *List) New(f func(ctx context.Context) (IShutdown, error)) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.f = f
 }
 
-// NewList: 实例化
+// NewList 实例化
 func NewList(options ...options.Option) Pool {
 	l := &List{conf: defaultConfig()}
 	l.cond = make(chan struct{})

@@ -7,28 +7,28 @@ import (
 	"time"
 )
 
-// SetSize: 设置大小
+// SetSize 设置大小
 func SetSize(size uint) options.Option {
 	return func(c interface{}) {
 		c.(*conf).size = size
 	}
 }
 
-// SetInterval: 设置间隔时间
+// SetInterval 设置间隔时间
 func SetInterval(interval time.Duration) options.Option {
 	return func(c interface{}) {
 		c.(*conf).interval = interval
 	}
 }
 
-// SetContext: 设置context
+// SetContext 设置context
 func SetContext(context context.Context) options.Option {
 	return func(c interface{}) {
 		c.(*conf).ctx = context
 	}
 }
 
-// InitWindow: 实例化
+// InitWindow 实例化
 func InitWindow(options ...options.Option) SlidingWindow {
 	w := Window{
 		// 默认值:

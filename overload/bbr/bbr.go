@@ -1,13 +1,13 @@
 package bbr
 
 import (
+	"context"
 	"github.com/songzhibin97/gkit/container/group"
 	"github.com/songzhibin97/gkit/internal/stat"
 	cupstat "github.com/songzhibin97/gkit/internal/sys/cpu"
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/overload"
-	"context"
 	"math"
 	"sync/atomic"
 	"time"
@@ -38,7 +38,7 @@ type config struct {
 	rule         string
 }
 
-// Stat: bbr 指标信息
+// Stat bbr 指标信息
 type Stat struct {
 	Cpu         int64
 	InFlight    int64
@@ -47,7 +47,7 @@ type Stat struct {
 	MaxPass     int64
 }
 
-// BBR: 实现类似bbr的限制器.
+// BBR 实现类似bbr的限制器.
 type BBR struct {
 	cpu             cpuGetter
 	passStat        stat.RollingCounter
@@ -61,17 +61,17 @@ type BBR struct {
 	rawMinRt        int64
 }
 
-// Group: 表示BBRLimiter的类，并形成其中的命名空间
+// Group 表示BBRLimiter的类，并形成其中的命名空间
 type Group struct {
 	group group.LazyLoadGroup
 }
 
-// init: 启动后台收集cpu信息
+// init 启动后台收集cpu信息
 func init() {
 	go cpuProc()
 }
 
-// cpuProc:  定时任务,收集当前服务器CPU信息
+// cpuProc  定时任务,收集当前服务器CPU信息
 // cpu = cpuᵗ⁻¹ * decay + cpuᵗ * (1 - decay)
 func cpuProc() {
 	ticker := time.NewTicker(time.Millisecond * 250)
@@ -92,7 +92,7 @@ func cpuProc() {
 	}
 }
 
-// maxPASS: 最大通过值
+// maxPASS 最大通过值
 func (l *BBR) maxPASS() int64 {
 	rawMaxPass := atomic.LoadInt64(&l.rawMaxPASS)
 	if rawMaxPass > 0 && l.passStat.Timespan() < 1 {
@@ -117,7 +117,7 @@ func (l *BBR) maxPASS() int64 {
 	return rawMaxPass
 }
 
-// minRT: 最小RT
+// minRT 最小RT
 func (l *BBR) minRT() int64 {
 	rawMinRT := atomic.LoadInt64(&l.rawMinRt)
 	if rawMinRT > 0 && l.rtStat.Timespan() < 1 {
@@ -146,12 +146,12 @@ func (l *BBR) minRT() int64 {
 	return rawMinRT
 }
 
-// maxFlight:
+// maxFlight
 func (l *BBR) maxFlight() int64 {
 	return int64(math.Floor(float64(l.maxPASS()*l.minRT()*l.winBucketPerSec)/1000.0 + 0.5))
 }
 
-// shouldDrop: 判断是否应该降低
+// shouldDrop 判断是否应该降低
 func (l *BBR) shouldDrop() bool {
 	if l.cpu() < l.conf.cPUThreshold {
 		prevDrop, _ := l.prevDrop.Load().(time.Duration)
@@ -180,7 +180,7 @@ func (l *BBR) shouldDrop() bool {
 	return drop
 }
 
-// Stat: 状态信息
+// Stat 状态信息
 func (l *BBR) Stat() Stat {
 	return Stat{
 		Cpu:         l.cpu(),
@@ -191,7 +191,7 @@ func (l *BBR) Stat() Stat {
 	}
 }
 
-// Allow: 检查所有入站流量
+// Allow 检查所有入站流量
 // 一旦检测到过载，它将引发 LimitExceed 错误。
 func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(info overload.DoneInfo), error) {
 	allowOpts := overload.DefaultAllowOpts()
@@ -217,7 +217,7 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	}, nil
 }
 
-// defaultConf: 默认配置
+// defaultConf 默认配置
 func defaultConf() *config {
 	return &config{
 		// window: 窗口周期
@@ -230,49 +230,43 @@ func defaultConf() *config {
 
 // Option
 
-// SetDebug:
 func SetDebug(debug bool) options.Option {
 	return func(c interface{}) {
 		c.(*config).debug = debug
 	}
 }
 
-// SetEnabled:
 func SetEnabled(enabled bool) options.Option {
 	return func(c interface{}) {
 		c.(*config).enabled = enabled
 	}
 }
 
-// SetWinBucket
 func SetWinBucket(winBucket int) options.Option {
 	return func(c interface{}) {
 		c.(*config).winBucket = winBucket
 	}
 }
 
-// SetCPUThreshold
 func SetCPUThreshold(cPUThreshold int64) options.Option {
 	return func(c interface{}) {
 		c.(*config).cPUThreshold = cPUThreshold
 	}
 }
 
-// SetWindow
 func SetWindow(window time.Duration) options.Option {
 	return func(c interface{}) {
 		c.(*config).window = window
 	}
 }
 
-// SetRule
 func SetRule(rule string) options.Option {
 	return func(c interface{}) {
 		c.(*config).rule = rule
 	}
 }
 
-// newLimiter: 实例化限制器
+// newLimiter 实例化限制器
 func newLimiter(options ...options.Option) overload.Limiter {
 	// 判断传入配置是否为空,否则使用默认配置
 	conf := defaultConf()
@@ -297,7 +291,7 @@ func newLimiter(options ...options.Option) overload.Limiter {
 	return limiter
 }
 
-// NewGroup: 实例化限制器容器
+// NewGroup 实例化限制器容器
 func NewGroup(options ...options.Option) *Group {
 	// 判断传入配置是否为空,否则使用默认配置
 	_group := group.NewGroup(func() interface{} {
@@ -308,7 +302,7 @@ func NewGroup(options ...options.Option) *Group {
 	}
 }
 
-// Get: 通过指定的键获取一个限制器，如果不存在限制器，则重新创建一个限制器。
+// Get 通过指定的键获取一个限制器，如果不存在限制器，则重新创建一个限制器。
 func (g *Group) Get(key string) overload.Limiter {
 	limiter := g.group.Get(key)
 	return limiter.(overload.Limiter)

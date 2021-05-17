@@ -9,31 +9,31 @@ import (
 	"syscall"
 )
 
-// LifeAdminer: 生命周期管理接口
+// LifeAdminer 生命周期管理接口
 type LifeAdminer interface {
 	Start(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 }
 
-// Member: 成员
+// Member 成员
 type Member struct {
 	Start    func(ctx context.Context) error
 	Shutdown func(ctx context.Context) error
 }
 
-// LifeAdmin: 生命周期管理
+// LifeAdmin 生命周期管理
 type LifeAdmin struct {
 	opts     *config
 	members  []Member
 	shutdown func()
 }
 
-// Add: 添加成员表(通过内部 Member 对象添加)
+// Add 添加成员表(通过内部 Member 对象添加)
 func (l *LifeAdmin) Add(member Member) {
 	l.members = append(l.members, member)
 }
 
-// AddMember: 添加程序表(通过外部接口 LifeAdminer 添加)
+// AddMember 添加程序表(通过外部接口 LifeAdminer 添加)
 func (l *LifeAdmin) AddMember(la LifeAdminer) {
 	l.members = append(l.members, Member{
 		Start:    la.Start,
@@ -41,7 +41,7 @@ func (l *LifeAdmin) AddMember(la LifeAdminer) {
 	})
 }
 
-// AddMember: 添加成员表(通过外部接口 LifeAdminer 添加)
+// AddMember 添加成员表(通过外部接口 LifeAdminer 添加)
 func (l *LifeAdmin) Start() error {
 	ctx := context.Background()
 	ctx, l.shutdown = context.WithCancel(ctx)
@@ -83,14 +83,14 @@ func (l *LifeAdmin) Start() error {
 	return g.Wait()
 }
 
-// Shutdown: 停止服务
+// Shutdown 停止服务
 func (l *LifeAdmin) Shutdown() {
 	if l.shutdown != nil {
 		l.shutdown()
 	}
 }
 
-// NewLifeAdmin: 实例化方法
+// NewLifeAdmin 实例化方法
 func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 	// 默认参数
 	o := &config{

@@ -6,7 +6,6 @@ import (
 	"sync"
 )
 
-// Group
 type Group struct {
 	ctx    context.Context
 	cancel func()
@@ -16,7 +15,7 @@ type Group struct {
 	err       error
 }
 
-// WithContext: 实例化方法
+// WithContext 实例化方法
 func WithContext(ctx context.Context) *Group {
 	g := &Group{}
 	g.ctx, g.cancel = context.WithCancel(ctx)
@@ -24,7 +23,7 @@ func WithContext(ctx context.Context) *Group {
 	return g
 }
 
-// wait: 等待
+// wait 等待
 func (g *Group) Wait() error {
 	g.wg.Wait()
 	if g.cancel != nil {
@@ -33,7 +32,7 @@ func (g *Group) Wait() error {
 	return g.err
 }
 
-// Go: 异步调用
+// Go 异步调用
 func (g *Group) Go(f func() error) {
 	g.wg.Add(1)
 	g.goroutine.AddTask(func() {

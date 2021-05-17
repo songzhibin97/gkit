@@ -1,6 +1,6 @@
 package registry
 
-// ServiceInstance: 服务发现的实例
+// ServiceInstance 服务发现的实例
 type ServiceInstance struct {
 	// ID: 全局唯一ID
 	ID string `json:"id"`

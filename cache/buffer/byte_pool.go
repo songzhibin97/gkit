@@ -12,7 +12,7 @@ const (
 
 var localBytePool = newBytePool()
 
-// byteSlot: 槽区
+// byteSlot 槽区
 type byteSlot struct {
 	// defaultSize 默认 slot 存储 []byte 大小
 	defaultSize int
@@ -21,7 +21,7 @@ type byteSlot struct {
 	pool sync.Pool
 }
 
-// bytePool: []byte pool
+// bytePool []byte pool
 type bytePool struct {
 	minShift int
 	minSize  int
@@ -31,7 +31,7 @@ type bytePool struct {
 	pool []*byteSlot
 }
 
-// slot: 根据 size 获取到 对应的 byteSlot 下标
+// slot 根据 size 获取到 对应的 byteSlot 下标
 func (b *bytePool) slot(size int) int {
 	// 超过阈值
 	if size > b.maxSize {
@@ -50,7 +50,7 @@ func (b *bytePool) slot(size int) int {
 	return slot
 }
 
-// get: 根据 size 从 bytePool 中获取到 *[]byte
+// get 根据 size 从 bytePool 中获取到 *[]byte
 func (b *bytePool) get(size int) *[]byte {
 	slot := b.slot(size)
 	if slot == errSlot {
@@ -72,7 +72,7 @@ func (b *bytePool) get(size int) *[]byte {
 	return ret
 }
 
-// put: 将 *[]byte 归还给 bytePool
+// put 将 *[]byte 归还给 bytePool
 func (b *bytePool) put(buf *[]byte) {
 	if buf == nil {
 		return
@@ -89,12 +89,12 @@ func (b *bytePool) put(buf *[]byte) {
 	b.pool[slot].pool.Put(buf)
 }
 
-// newBytes: 手动创建 []byte
+// newBytes 手动创建 []byte
 func newBytes(size int) []byte {
 	return make([]byte, size)
 }
 
-// newBytePool: 实例化
+// newBytePool 实例化
 func newBytePool() *bytePool {
 	b := &bytePool{
 		minShift: minShift,
@@ -108,13 +108,13 @@ func newBytePool() *bytePool {
 	return b
 }
 
-// BytePoolContainer: 暴露给外部使用的容器对象
+// BytePoolContainer 暴露给外部使用的容器对象
 type BytePoolContainer struct {
 	bytes []*[]byte
 	*bytePool
 }
 
-// Reset: 将 bytes 中缓存的buffer全部归还给 pool中
+// Reset 将 bytes 中缓存的buffer全部归还给 pool中
 func (B *BytePoolContainer) Reset() {
 	for _, buf := range B.bytes {
 		B.put(buf)
@@ -128,19 +128,19 @@ func (B *BytePoolContainer) Get(size int) *[]byte {
 	return buf
 }
 
-// NewBytePoolContainer: 实例化外部容器
+// NewBytePoolContainer 实例化外部容器
 func NewBytePoolContainer() *BytePoolContainer {
 	return &BytePoolContainer{
 		bytePool: localBytePool,
 	}
 }
 
-// GetBytes: 提供外部接口 获取 size 大小的 buffer
+// GetBytes 提供外部接口 获取 size 大小的 buffer
 func GetBytes(size int) *[]byte {
 	return localBytePool.get(size)
 }
 
-// PutBytes: 提供外部接口 将buffer 放回 pool中
+// PutBytes 提供外部接口 将buffer 放回 pool中
 func PutBytes(buf *[]byte) {
 	localBytePool.put(buf)
 }

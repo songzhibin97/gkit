@@ -23,17 +23,17 @@ type config struct {
 	handler func(*LifeAdmin, os.Signal)
 }
 
-// SetStartTimeout: 设置启动超时时间
+// SetStartTimeout 设置启动超时时间
 func SetStartTimeout(d time.Duration) options.Option {
 	return func(c interface{}) { c.(*config).startTimeout = d }
 }
 
-// SetStopTimeout: 设置停止超时时间
+// SetStopTimeout 设置停止超时时间
 func SetStopTimeout(d time.Duration) options.Option {
 	return func(c interface{}) { c.(*config).stopTimeout = d }
 }
 
-// SetSignal: 设置信号集合,和处理信号的函数
+// SetSignal 设置信号集合,和处理信号的函数
 func SetSignal(handler func(*LifeAdmin, os.Signal), signals ...os.Signal) options.Option {
 	return func(c interface{}) {
 		conf := c.(*config)

@@ -8,7 +8,7 @@ import (
 
 // package window: 提供环形窗口统计
 
-// Index: 指标信息
+// Index 指标信息
 type Index struct {
 	Name  string
 	Score uint
@@ -24,7 +24,7 @@ type conf struct {
 	ctx context.Context
 }
 
-// Window: 窗口对象
+// Window 窗口对象
 type Window struct {
 
 	// conf: 配置信息
@@ -47,7 +47,7 @@ type Window struct {
 	buffer []atomic.Value
 }
 
-// sentinel: 初始化window对象后 后台开始滚动计数并同步更新到total
+// sentinel 初始化window对象后 后台开始滚动计数并同步更新到total
 func (w *Window) sentinel() {
 	tick := time.NewTicker(w.interval)
 	defer tick.Stop()
@@ -73,7 +73,7 @@ func (w *Window) sentinel() {
 	}
 }
 
-// Shutdown: 关闭
+// Shutdown 关闭
 func (w *Window) Shutdown() {
 	if atomic.SwapUint32(&w.close, 1) == 1 {
 		// 已经执行过close了
@@ -83,7 +83,7 @@ func (w *Window) Shutdown() {
 	close(w.communication)
 }
 
-// AddIndex: 添加指标
+// AddIndex 添加指标
 func (w *Window) AddIndex(k string, v uint) {
 	if atomic.LoadUint32(&w.close) == 1 {
 		return
@@ -94,7 +94,7 @@ func (w *Window) AddIndex(k string, v uint) {
 	}
 }
 
-// Show: 展示total
+// Show 展示total
 func (w *Window) Show() []interface{} {
 	m := make(map[string]uint)
 	for _, v := range w.buffer {

@@ -5,13 +5,13 @@ import "sync"
 // localIOPool
 var localIOPool IoPool
 
-// IoPool: 存储 IoBuffer Pool
+// IoPool 存储 IoBuffer Pool
 type IoPool struct {
 	// IoBuffer
 	pool sync.Pool
 }
 
-// get: 从pool中 获取一个 IoBuffer
+// get 从pool中 获取一个 IoBuffer
 func (i *IoPool) get(size int) IoBuffer {
 	v := i.pool.Get()
 	if v == nil {
@@ -24,18 +24,18 @@ func (i *IoPool) get(size int) IoBuffer {
 	}
 }
 
-// put: 向pool中回填一个 IoBuffer
+// put 向pool中回填一个 IoBuffer
 func (i *IoPool) put(buf IoBuffer) {
 	buf.Free()
 	i.pool.Put(buf)
 }
 
-// GetIoPool: 从pool中 获取一个 IoBuffer
+// GetIoPool 从pool中 获取一个 IoBuffer
 func GetIoPool(size int) IoBuffer {
 	return localIOPool.get(size)
 }
 
-// PutIoPool: 向pool中回填一个 IoBuffer
+// PutIoPool 向pool中回填一个 IoBuffer
 func PutIoPool(buf IoBuffer) error {
 	count := buf.Count(-1)
 	if count > 0 {
@@ -51,7 +51,7 @@ func PutIoPool(buf IoBuffer) error {
 	return nil
 }
 
-// NewIoBuffer: GetIoPool 别名
+// NewIoBuffer GetIoPool 别名
 func NewIoBuffer(size int) IoBuffer {
 	return GetIoPool(size)
 }

@@ -16,7 +16,7 @@ var GoToPBMapping = map[string]string{
 	"[]byte":  "bytes",
 }
 
-// GoTypeToPB: go type 转化成 pb type
+// GoTypeToPB go type 转化成 pb type
 func GoTypeToPB(s string) string {
 	if v, ok := GoToPBMapping[s]; ok {
 		return v
@@ -25,7 +25,7 @@ func GoTypeToPB(s string) string {
 
 }
 
-// IsMappingKey: 判断是否是 pb map的key类型
+// IsMappingKey 判断是否是 pb map的key类型
 func IsMappingKey(key string) bool {
 	// Map key cannot be float, double, bytes, message, or enum types
 	switch key {
