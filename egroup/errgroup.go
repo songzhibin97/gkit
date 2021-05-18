@@ -23,7 +23,7 @@ func WithContext(ctx context.Context) *Group {
 	return g
 }
 
-// wait 等待
+// Wait 等待
 func (g *Group) Wait() error {
 	g.wg.Wait()
 	if g.cancel != nil {

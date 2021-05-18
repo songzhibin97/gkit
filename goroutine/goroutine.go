@@ -86,7 +86,7 @@ func (g *Goroutine) AddTask(f func()) bool {
 	return true
 }
 
-// AddTask 添加任务
+// AddTaskN 添加任务 有超时时间
 func (g *Goroutine) AddTaskN(ctx context.Context, f func()) bool {
 	// 判断channel是否关闭
 	if atomic.LoadInt32(&g.close) != 0 {
