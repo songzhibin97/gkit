@@ -41,7 +41,7 @@ func (l *LifeAdmin) AddMember(la LifeAdminer) {
 	})
 }
 
-// AddMember 添加成员表(通过外部接口 LifeAdminer 添加)
+// Start 启动
 func (l *LifeAdmin) Start() error {
 	ctx := context.Background()
 	ctx, l.shutdown = context.WithCancel(ctx)
