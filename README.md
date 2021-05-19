@@ -1009,7 +1009,7 @@ func main() {
 ```
 ## timeout
 
-各个服务间的超时控制
+各个服务间的超时控制(以及处理时间格式的结构体)
 
 ```go
 package main
@@ -1038,6 +1038,42 @@ func main() {
 	}
 	_ = d
 }
+```
+
+```go
+package main
+
+import (
+	"github.com/songzhibin97/gkit/timeout"
+	"fmt"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"time"
+)
+
+type GoStruct struct {
+	DateTime timeout.DateTime
+	DTime    timeout.DTime
+	Date     timeout.Date
+}
+
+func main() {
+	// 参考 https://github.com/go-sql-driver/mysql#dsn-data-source-name 获取详情
+	dsn := "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		panic(err)
+	}
+	db.AutoMigrate(&GoStruct{})
+	db.Create(&GoStruct{
+		DateTime: timeout.DateTime(time.Now()),
+		DTime:    timeout.DTime(time.Now()),
+		Date:     timeout.Date(time.Now()),
+	})
+	v := &GoStruct{}
+	db.Find(v) // 成功查出
+}
+
 ```
 
 ## window
