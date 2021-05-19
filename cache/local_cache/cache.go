@@ -140,7 +140,7 @@ func (c *cache) Get(k string) (interface{}, bool) {
 	}
 }
 
-// Get 根据key获取 cache
+// get 根据key获取 cache
 func (c *cache) get(k string) (interface{}, bool) {
 	if v, ok := c.member[k]; !ok {
 		return nil, false
@@ -171,7 +171,6 @@ func (c *cache) GetWithExpire(k string) (interface{}, time.Time, bool) {
 			return v.Val, time.Unix(0, v.Expire), true
 		}
 		return v.Val, time.Time{}, true
-
 	}
 }
 
@@ -187,7 +186,7 @@ func (c *cache) Add(k string, x interface{}, d time.Duration) error {
 	return nil
 }
 
-// Replace 替换cache 如果不存在抛出异常
+// Replace 替换cache 如果有就设置没有就抛出异常
 func (c *cache) Replace(k string, x interface{}, d time.Duration) error {
 	c.Lock()
 	if _, ok := c.get(k); !ok {
@@ -240,7 +239,7 @@ func (c *cache) Increment(k string, n int64) error {
 			v.Val = v.Val.(float64) + float64(n)
 		default:
 			c.Unlock()
-			return CacheIncrTypeErr
+			return CacheTypeErr
 		}
 		c.member[k] = v
 		c.Unlock()
@@ -267,7 +266,7 @@ func (c *cache) IncrementFloat(k string, n float64) error {
 			v.Val = v.Val.(float64) + n
 		default:
 			c.Unlock()
-			return CacheIncrTypeErr
+			return CacheTypeErr
 		}
 		c.member[k] = v
 		c.Unlock()
@@ -289,7 +288,7 @@ func (c *cache) IncrementInt(k string, n int) (int, error) {
 		}
 		if i, ok := v.Val.(int); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -314,7 +313,7 @@ func (c *cache) IncrementInt8(k string, n int8) (int8, error) {
 		}
 		if i, ok := v.Val.(int8); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -339,7 +338,7 @@ func (c *cache) IncrementInt16(k string, n int16) (int16, error) {
 		}
 		if i, ok := v.Val.(int16); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -364,7 +363,7 @@ func (c *cache) IncrementInt32(k string, n int32) (int32, error) {
 		}
 		if i, ok := v.Val.(int32); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -389,7 +388,7 @@ func (c *cache) IncrementInt64(k string, n int64) (int64, error) {
 		}
 		if i, ok := v.Val.(int64); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -414,7 +413,7 @@ func (c *cache) IncrementUint(k string, n uint) (uint, error) {
 		}
 		if i, ok := v.Val.(uint); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -439,7 +438,7 @@ func (c *cache) IncrementUint8(k string, n uint8) (uint8, error) {
 		}
 		if i, ok := v.Val.(uint8); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -464,7 +463,7 @@ func (c *cache) IncrementUint16(k string, n uint16) (uint16, error) {
 		}
 		if i, ok := v.Val.(uint16); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -489,7 +488,7 @@ func (c *cache) IncrementUint32(k string, n uint32) (uint32, error) {
 		}
 		if i, ok := v.Val.(uint32); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -514,7 +513,7 @@ func (c *cache) IncrementUint64(k string, n uint64) (uint64, error) {
 		}
 		if i, ok := v.Val.(uint64); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -539,7 +538,7 @@ func (c *cache) IncrementUintPtr(k string, n uintptr) (uintptr, error) {
 		}
 		if i, ok := v.Val.(uintptr); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -564,7 +563,7 @@ func (c *cache) IncrementFloat32(k string, n float32) (float32, error) {
 		}
 		if i, ok := v.Val.(float32); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -589,7 +588,7 @@ func (c *cache) IncrementFloat64(k string, n float64) (float64, error) {
 		}
 		if i, ok := v.Val.(float64); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i + n
 			v.Val = ret
@@ -641,7 +640,7 @@ func (c *cache) Decrement(k string, n int64) error {
 			v.Val = v.Val.(float64) - float64(n)
 		default:
 			c.Unlock()
-			return CacheIncrTypeErr
+			return CacheTypeErr
 		}
 		c.member[k] = v
 		c.Unlock()
@@ -668,7 +667,7 @@ func (c *cache) DecrementFloat(k string, n float64) error {
 			v.Val = v.Val.(float64) - n
 		default:
 			c.Unlock()
-			return CacheIncrTypeErr
+			return CacheTypeErr
 		}
 		c.member[k] = v
 		c.Unlock()
@@ -690,7 +689,7 @@ func (c *cache) DecrementInt(k string, n int) (int, error) {
 		}
 		if i, ok := v.Val.(int); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -715,7 +714,7 @@ func (c *cache) DecrementInt8(k string, n int8) (int8, error) {
 		}
 		if i, ok := v.Val.(int8); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -740,7 +739,7 @@ func (c *cache) DecrementInt16(k string, n int16) (int16, error) {
 		}
 		if i, ok := v.Val.(int16); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -765,7 +764,7 @@ func (c *cache) DecrementInt32(k string, n int32) (int32, error) {
 		}
 		if i, ok := v.Val.(int32); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -790,7 +789,7 @@ func (c *cache) DecrementInt64(k string, n int64) (int64, error) {
 		}
 		if i, ok := v.Val.(int64); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -815,7 +814,7 @@ func (c *cache) DecrementUint(k string, n uint) (uint, error) {
 		}
 		if i, ok := v.Val.(uint); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -840,7 +839,7 @@ func (c *cache) DecrementUint8(k string, n uint8) (uint8, error) {
 		}
 		if i, ok := v.Val.(uint8); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -865,7 +864,7 @@ func (c *cache) DecrementUint16(k string, n uint16) (uint16, error) {
 		}
 		if i, ok := v.Val.(uint16); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -890,7 +889,7 @@ func (c *cache) DecrementUint32(k string, n uint32) (uint32, error) {
 		}
 		if i, ok := v.Val.(uint32); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -915,7 +914,7 @@ func (c *cache) DecrementUint64(k string, n uint64) (uint64, error) {
 		}
 		if i, ok := v.Val.(uint64); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -940,7 +939,7 @@ func (c *cache) DecrementUintPtr(k string, n uintptr) (uintptr, error) {
 		}
 		if i, ok := v.Val.(uintptr); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -965,7 +964,7 @@ func (c *cache) DecrementFloat32(k string, n float32) (float32, error) {
 		}
 		if i, ok := v.Val.(float32); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -990,7 +989,7 @@ func (c *cache) DecrementFloat64(k string, n float64) (float64, error) {
 		}
 		if i, ok := v.Val.(float64); !ok {
 			c.Unlock()
-			return 0, CacheIncrTypeErr
+			return 0, CacheTypeErr
 		} else {
 			ret := i - n
 			v.Val = ret
@@ -1140,6 +1139,7 @@ func (c *cache) Count() int {
 	return len(c.member)
 }
 
+// Flush 释放member成员
 func (c *cache) Flush() {
 	c.Lock()
 	defer c.Unlock()
@@ -1147,6 +1147,7 @@ func (c *cache) Flush() {
 }
 
 func (c *cache) Shutdown() error {
+	c.Flush()
 	c.cancel()
 	return nil
 }
