@@ -16,6 +16,8 @@ type Config struct {
 
 	// capture 捕获删除对象时间 会返回kv值用于用户自定义处理
 	capture func(k string, v interface{})
+
+	member map[string]Iterator
 }
 
 // SetInternal 设置间隔时间
@@ -40,5 +42,11 @@ func SetFn(fn func()) options.Option {
 func SetCapture(capture func(k string, v interface{})) options.Option {
 	return func(c interface{}) {
 		c.(*Config).capture = capture
+	}
+}
+
+func SetMember(m map[string]Iterator) options.Option {
+	return func(c interface{}) {
+		c.(*Config).member = m
 	}
 }

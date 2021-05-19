@@ -24,7 +24,7 @@ func NewCache(options ...options.Option) Cache {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Config{
 		defaultExpire: 0,
-		interval:      1000,
+		interval:      0,
 		capture: func(k string, v interface{}) {
 			fmt.Printf("delete k:%s v:%v\n", k, v)
 		},
@@ -33,13 +33,19 @@ func NewCache(options ...options.Option) Cache {
 		option(c)
 	}
 	obj := &cache{
-		sentinel:      NewSentinel(ctx, c.interval, c.fn),
 		defaultExpire: c.defaultExpire,
-		member:        make(map[string]Iterator),
 		capture:       c.capture,
 		cancel:        cancel,
 	}
-	obj.sentinel.Start()
+	if c.member == nil {
+		c.member = map[string]Iterator{}
+	}
+	if c.fn == nil {
+		c.fn = obj.DeleteExpire
+	}
+	obj.member = c.member
+	obj.sentinel = NewSentinel(ctx, c.interval, c.fn)
+	go obj.sentinel.Start()
 	return Cache{obj}
 }
 
@@ -67,7 +73,9 @@ func (c *cache) Set(k string, v interface{}, d time.Duration) {
 	switch d {
 	case NoExpire:
 	case DefaultExpire:
-		expire = time.Now().Add(c.defaultExpire).UnixNano()
+		if c.defaultExpire > 0 {
+			expire = time.Now().Add(c.defaultExpire).UnixNano()
+		}
 	default:
 		if d > 0 {
 			expire = time.Now().Add(d).UnixNano()
@@ -88,7 +96,9 @@ func (c *cache) set(k string, v interface{}, d time.Duration) {
 	switch d {
 	case NoExpire:
 	case DefaultExpire:
-		expire = time.Now().Add(c.defaultExpire).UnixNano()
+		if c.defaultExpire > 0 {
+			expire = time.Now().Add(c.defaultExpire).UnixNano()
+		}
 	default:
 		if d > 0 {
 			expire = time.Now().Add(d).UnixNano()
@@ -136,10 +146,10 @@ func (c *cache) get(k string) (interface{}, bool) {
 		return nil, false
 	} else {
 		if v.Expired() {
-			c.Delete(k)
+			c._delete(k)
 			return nil, false
 		}
-		c.Delete(k)
+		c._delete(k)
 		return v.Val, true
 	}
 }
@@ -157,7 +167,11 @@ func (c *cache) GetWithExpire(k string) (interface{}, time.Time, bool) {
 			return nil, time.Time{}, false
 		}
 		c.RUnlock()
-		return v.Val, time.Unix(0, v.Expire), true
+		if v.Expire > 0 {
+			return v.Val, time.Unix(0, v.Expire), true
+		}
+		return v.Val, time.Time{}, true
+
 	}
 }
 
@@ -997,6 +1011,13 @@ func (c *cache) Delete(k string) {
 	}
 }
 
+func (c *cache) _delete(k string) {
+	v, ok := c.delete(k)
+	if ok {
+		c.capture(k, v)
+	}
+}
+
 // delete 删除k的cache 如果具有 capture != nil 则会携带v返回
 func (c *cache) delete(k string) (interface{}, bool) {
 	if c.capture != nil {
@@ -1015,15 +1036,12 @@ func (c *cache) DeleteExpire() {
 	if c.capture != nil {
 		kvList = make([]kv, 0, len(c.member)/4)
 	}
-
 	c.Lock()
+	t := time.Now().UnixNano()
 	for k, v := range c.member {
-		if v.Expired() {
-			if vv, ok := c.delete(k); ok {
-				kvList = append(kvList, kv{
-					key:   k,
-					value: vv,
-				})
+		if v.Expired(t) {
+			if vv, ok := c.delete(k); ok && c.capture != nil {
+				kvList = append(kvList, kv{k, vv})
 			}
 		}
 	}
@@ -1079,6 +1097,7 @@ func (c *cache) Load(r io.Reader) error {
 				c.member[k] = iterator
 			}
 		}
+		c.Unlock()
 	}
 	return nil
 }
