@@ -13,9 +13,12 @@ type Iterator struct {
 }
 
 // Expired 判断是否过期,过期返回 true
-func (i Iterator) Expired() bool {
+func (i Iterator) Expired(v ...int64) bool {
 	if i.Expire == 0 {
 		return false
+	}
+	if len(v) != 0 {
+		return v[0] > i.Expire
 	}
 	return time.Now().UnixNano() > i.Expire
 }

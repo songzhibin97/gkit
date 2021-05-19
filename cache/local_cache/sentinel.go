@@ -7,7 +7,7 @@ import (
 
 // sentinel 哨兵
 type sentinel struct {
-	// interval 间隔时间
+	// interval 间隔时间 0 不开启哨兵
 	interval time.Duration
 	// ctx context
 	ctx context.Context
@@ -16,6 +16,9 @@ type sentinel struct {
 }
 
 func (s *sentinel) Start() {
+	if s.interval <= 0 {
+		return
+	}
 	tick := time.NewTicker(s.interval)
 	defer tick.Stop()
 	for {
