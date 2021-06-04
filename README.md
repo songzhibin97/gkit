@@ -19,6 +19,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 # 目录结构
 ```shell
 ├── cache (构建缓存相关组件)
+├── coding (提供对象序列化/反序列化接口化, 提供json、proto、xml、yaml 实例方法)
 ├── container (容器化组件,提供group、pool、queue)
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
@@ -293,6 +294,40 @@ func ExampleFlush()  {
 func ExampleShutdown()  {
 	// Shutdown 释放对象
 	ch.Shutdown()
+}
+```
+
+## coding
+
+对象序列化反序列化接口以及实例
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/songzhibin97/gkit/coding"
+	_ "github.com/songzhibin97/gkit/json" // 一定要提前导入!!!
+)
+
+func main() {
+	t := struct {
+		Gkit  string
+		Lever int
+	}{"Gkit", 200}
+	fmt.Println(coding.GetCode("json").Name())
+	data, err := coding.GetCode("json").Marshal(t)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(string(data)) // {"Gkit":"Gkit","Lever":200}
+	v := struct {
+		Gkit  string
+		Lever int
+	}{}
+	coding.GetCode("json").Unmarshal(data,&v)
+	fmt.Println(v) // {Gkit 200}
 }
 ```
 
