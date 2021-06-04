@@ -23,7 +23,7 @@ type (
 		Marshal(v interface{}) ([]byte, error)
 
 		// Unmarshal 将[]byte 反序列化为v
-		Unmarshal([]byte, interface{}) error
+		Unmarshal(data []byte, v interface{}) error
 
 		// Name 返回实际调用编码器的类型, 例如 json、xml、yaml、proto
 		Name() string
