@@ -647,6 +647,26 @@ func Demo() {
 
 封装一些error处理
 
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+	"time"
+	
+	"github.com/songzhibin97/gkit/errors"
+)
+func main() {
+	err := errors.Errorf(http.StatusBadRequest, "原因", "携带信息%s", "测试")
+	err2 := err.AddMetadata(map[string]string{"time": time.Now().String()}) // 携带元信息
+	// err 是原来的错误 err2 是带有元信息的错误
+	fmt.Println(errors.Is(err,err2)) // ture
+	// 可以解析err2 来获取更多的信息
+	fmt.Println(err2.Metadata["time"]) // meta
+}
+```
+
 ## generator
 
 发号器
