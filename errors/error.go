@@ -4,114 +4,111 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
+	httputil "github.com/songzhibin97/gkit/errors/internal"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
-	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-var _ error = (*ErrorCode)(nil)
+//go:generate protoc -I. --go_out=paths=source_relative:. errors.proto
 
-var ErrDetails = errors.New("no error details for status with code OK")
+const (
+	// UnknownCode is unknown code for error info.
+	UnknownCode = 500
+	// UnknownReason is unknown reason for error info.
+	UnknownReason = ""
+)
 
-// ErrorCode 错误码
-type ErrorCode Status
+var (
+	ErrDetails = errors.New("no error details for status with code OK")
+)
 
 // Error 实现Error接口
-func (e *ErrorCode) Error() string {
-	return fmt.Sprintf("error: code = %d reason = %s message = %s details = %+v", e.Code, e.Reason, e.Message, e.Details)
+func (x *Error) Error() string {
+	return fmt.Sprintf("error: code = %d reason = %s message = %s details = %v", x.Code, x.Reason, x.Message, x.Metadata)
+}
+
+// StatusCode HTTP code
+func (x *Error) StatusCode() int {
+	return int(x.Code)
+}
+
+// GRPCStatus 返回grpc status
+func (x *Error) GRPCStatus() *status.Status {
+	s, _ := status.New(httputil.GRPCCodeFromStatus(x.StatusCode()), x.Message).
+		WithDetails(&errdetails.ErrorInfo{
+			Reason:   x.Reason,
+			Metadata: x.Metadata,
+		})
+	return s
 }
 
 // Is 跟 target Error 比较 判断是否相等
-func (e *ErrorCode) Is(target error) bool {
-	if err, ok := target.(*ErrorCode); !ok {
+func (x *Error) Is(target error) bool {
+	if err, ok := target.(*Error); !ok {
 		return false
 	} else {
-		return e.Code == err.Code
+		return x.Code == err.Code
 	}
 }
 
-// AddDetails 添加detail
-func (e *ErrorCode) AddDetails(details ...proto.Message) error {
-	for _, detail := range details {
-		any, err := ptypes.MarshalAny(detail)
-		if err != nil {
-			return err
-		}
-		e.Details = append(e.Details, any)
-	}
-	return nil
+// AddMetadata 增加metadata
+func (x *Error) AddMetadata(mp map[string]string) *Error {
+	err := proto.Clone(x).(*Error)
+	err.Metadata = mp
+	return err
 }
 
-// BindDetails 绑定 Details
-func (e *ErrorCode) BindDetails() error {
-	if codes.Code(e.Code) == codes.OK {
-		return ErrDetails
-	}
-	details := []proto.Message{
-		&errdetails.ErrorInfo{
-			Reason:   e.Reason,
-			Metadata: map[string]string{"message": e.Message},
-		},
-	}
-	return e.AddDetails(details...)
-}
-
-// ErrToCode error 中获取 Code 编码
-func ErrToCode(err error) int32 {
-	if err == nil {
-		// code 0 == ok
-		return 0
-	}
-	if eCode := new(ErrorCode); errors.As(err, &eCode) {
-		return eCode.Code
-	}
-	// code 2 == unknown
-	return 2
-}
-
-// ErrToReason error 中 获取 reason 数据
-func ErrToReason(err error) string {
-	if err == nil {
-		// code 0 == ok
-		return codes.OK.String()
-	}
-	if eCode := new(ErrorCode); errors.As(err, &eCode) {
-		return eCode.Reason
-	}
-	// code 2 == unknown
-	return codes.Unknown.String()
-}
-
-// ErrToMessage error 中 获取 message 数据
-func ErrToMessage(err error) string {
-	if err == nil {
-		// code 0 == ok
-		return codes.OK.String()
-	}
-	if eCode := new(ErrorCode); errors.As(err, &eCode) {
-		return eCode.Message
-	}
-	// code 2 == unknown
-	return codes.Unknown.String()
-}
-
-// IsError 传入code 和 err 判断是否数据该 error 是否属于该 code
-func IsError(code int32, err error) bool {
-	if eCode := new(ErrorCode); errors.As(err, &eCode) {
-		return eCode.Code == code
-	}
-	return false
-}
-
-// Error 实例化 ErrorCode 对象
-func Error(code int32, reason, message string) error {
-	return &ErrorCode{
-		Code:    code,
+// New 实例化 Error 对象
+func New(code int, reason, message string) *Error {
+	return &Error{
+		Code:    int32(code),
 		Reason:  reason,
 		Message: message,
 	}
 }
 
-func Errorf(code int32, reason, format string, a ...interface{}) error {
-	return Error(code, reason, fmt.Sprintf(format, a...))
+func Errorf(code int, reason, format string, a ...interface{}) *Error {
+	return New(code, reason, fmt.Sprintf(format, a...))
+}
+
+func FromError(err error) *Error {
+	if err == nil {
+		return nil
+	}
+	if se := new(Error); errors.As(err, &se) {
+		return se
+	}
+	gs, ok := status.FromError(err)
+	if ok {
+		for _, detail := range gs.Details() {
+			switch d := detail.(type) {
+			case *errdetails.ErrorInfo:
+				return New(
+					httputil.StatusFromGRPCCode(gs.Code()),
+					d.Reason,
+					gs.Message(),
+				).AddMetadata(d.Metadata)
+			}
+		}
+	}
+	return New(UnknownCode, UnknownReason, err.Error())
+}
+
+// Code 返回err指定的错误码
+func Code(err error) int {
+	if err == nil {
+		return 0
+	}
+	if se := FromError(err); err != nil {
+		return int(se.Code)
+	}
+	return UnknownCode
+}
+
+// Reason 返回err的reason
+func Reason(err error) string {
+	if se := FromError(err); err != nil {
+		return se.Reason
+	}
+	return UnknownReason
 }

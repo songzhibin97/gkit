@@ -1,11 +1,10 @@
 syntax = "proto3";
 
-package errors;
-// reference: https://cloud.google.com/apis/design/errors
+package gkit.errors;
 
-import "google/protobuf/any.proto";
+option go_package = "./;errors";
 
-message Status {
+message Error {
   // code: status code
   int32 code = 1;
 
@@ -15,6 +14,6 @@ message Status {
   // message:
   string message = 3;
 
-  // details:
-  repeated google.protobuf.Any details = 4;
+  // metadata:
+  map<string, string> metadata = 4;
 }
