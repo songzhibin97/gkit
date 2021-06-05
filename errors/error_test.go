@@ -51,7 +51,7 @@ func TestError(t *testing.T) {
 }
 
 
-func TestTypes(t *testing.T) {
+func TestCode(t *testing.T) {
 	var (
 		input = []error{
 			BadRequest("reason_400", "message_400"),
