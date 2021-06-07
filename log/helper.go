@@ -1,71 +1,85 @@
 package log
 
 import (
+	"context"
 	"fmt"
 )
 
-var Terminal = &terminal{}
-
-type terminal struct{}
-
-func (t *terminal) Print(i ...interface{}) {
-	fmt.Println(i)
-}
-
 type Helper struct {
 	Logger
-	lever Lever
 }
 
 // NewHelper 实例化函数
-func NewHelper(log Logger, lever Lever) *Helper {
-	return &Helper{log, lever}
+func NewHelper(log Logger) *Helper {
+	return &Helper{log}
 }
 
-func (h *Helper) Debug(kv ...interface{}) {
-	if h.lever.Allow(LevelDebug) {
-		Debug(h.Logger).Print(kv...)
-	}
+// WithContext 调用 logger WithContext 刷新ctx
+func (h *Helper) WithContext(ctx context.Context) *Helper {
+	return &Helper{Logger: WithContext(ctx, h.Logger)}
 }
 
-func (h *Helper) Info(kv ...interface{}) {
-	if h.lever.Allow(LevelInfo) {
-		Info(h.Logger).Print(kv...)
-	}
+// Log .
+func (h *Helper) Log(lever Lever, kvs ...interface{}) {
+	h.Logger.Log(lever, kvs)
 }
 
-func (h *Helper) Warn(kv ...interface{}) {
-	if h.lever.Allow(LevelWarn) {
-		Warn(h.Logger).Print(kv...)
-	}
+// Debug .
+func (h *Helper) Debug(a ...interface{}) {
+	h.Logger.Log(LevelDebug, "message", fmt.Sprint(a...))
 }
 
-func (h *Helper) Error(kv ...interface{}) {
-	if h.lever.Allow(LevelError) {
-		Error(h.Logger).Print(kv...)
-	}
+// Debugf .
+func (h *Helper) Debugf(format string, a ...interface{}) {
+	h.Logger.Log(LevelDebug, "message", fmt.Sprintf(format, a...))
 }
 
-func (h *Helper) Debugf(format string, kv ...interface{}) {
-	if h.lever.Allow(LevelDebug) {
-		Debug(h.Logger).Print(fmt.Sprintf(format, kv...))
-	}
+// Debugw .
+func (h *Helper) Debugw(keyvals ...interface{}) {
+	h.Logger.Log(LevelDebug, keyvals...)
 }
 
-func (h *Helper) Infof(format string, kv ...interface{}) {
-	if h.lever.Allow(LevelInfo) {
-		Info(h.Logger).Print(fmt.Sprintf(format, kv...))
-	}
+// Info .
+func (h *Helper) Info(a ...interface{}) {
+	h.Logger.Log(LevelInfo, "message", fmt.Sprint(a...))
 }
 
-func (h *Helper) Warnf(format string, kv ...interface{}) {
-	if h.lever.Allow(LevelWarn) {
-		Warn(h.Logger).Print(fmt.Sprintf(format, kv...))
-	}
+// Infof .
+func (h *Helper) Infof(format string, a ...interface{}) {
+	h.Logger.Log(LevelInfo, "message", fmt.Sprintf(format, a...))
 }
 
-func (h *Helper) Errorf(format string, kv ...interface{}) {
-	if h.lever.Allow(LevelError) {
-		Error(h.Logger).Print(fmt.Sprintf(format, kv...))
-	}
+// Infow .
+func (h *Helper) Infow(keyvals ...interface{}) {
+	h.Logger.Log(LevelInfo, keyvals...)
+}
+
+// Warn .
+func (h *Helper) Warn(a ...interface{}) {
+	h.Logger.Log(LevelWarn, "message", fmt.Sprint(a...))
+}
+
+// Warnf .
+func (h *Helper) Warnf(format string, a ...interface{}) {
+	h.Logger.Log(LevelWarn, "message", fmt.Sprintf(format, a...))
+}
+
+// Warnw .
+func (h *Helper) Warnw(keyvals ...interface{}) {
+	h.Logger.Log(LevelWarn, keyvals...)
+}
+
+// Error .
+func (h *Helper) Error(a ...interface{}) {
+	h.Logger.Log(LevelError, "message", fmt.Sprint(a...))
+}
+
+// Errorf .
+func (h *Helper) Errorf(format string, a ...interface{}) {
+	h.Logger.Log(LevelError, "message", fmt.Sprintf(format, a...))
+}
+
+// Errorw .
+func (h *Helper) Errorw(keyvals ...interface{}) {
+	h.Logger.Log(LevelError, keyvals...)
 }

@@ -774,7 +774,7 @@ func (l *testLogger) Print(kv ...interface{}) {
 }
 
 func main() {
-	logs := log.NewHelper(&testLogger{}, log.LevelDebug)
+	logs := log.NewHelper(log.DefaultLogger)
 	logs.Debug("debug", "v")
 	logs.Debugf("%s,%s", "debugf", "v")
 	logs.Info("Info", "v")
@@ -784,14 +784,14 @@ func main() {
 	logs.Error("Error", "v")
 	logs.Errorf("%s,%s", "errorf", "v")
 	/*
-	[debug] debug v
-	[debug] debugf,v
-	[Info] Info v
-	[Info] infof,v
-	[Warn] Warn v
-	[Warn] warnf,v
-	[Error] Error v
-	[Error] errorf,v
+	[debug] message=debugv
+    [debug] message=debugf,v
+    [Info] message=Infov
+    [Info] message=infof,v
+    [Warn] message=Warnv
+    [Warn] message=warnf,v
+    [Error] message=Errorv
+    [Error] message=errorf,v
 	*/
 }
 ```

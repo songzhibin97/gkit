@@ -1,52 +1,79 @@
 package log
 
+import (
+	"context"
+	"log"
+)
+
+var (
+	// DefaultLogger is default logger.
+	DefaultLogger Logger = NewStdLogger(log.Writer())
+)
+
 // Logger 操作日志对外的接口
 // 实现该接口需要保证它是并发安全的
 type Logger interface {
-	Print(kv ...interface{})
+	Log(lever Lever, kv ...interface{}) error
 }
 
-type log struct {
+type logger struct {
 	// log: 输出对象
-	log Logger
-	// kv: kv键值对
-	kv []interface{}
+	logs []Logger
+	// prefix: kv键值对 构建前缀
+	prefix []interface{}
+	// hasValuer 判断是否包含 Valuer 类型
+	hasValuer bool
+	// ctx 上下文
+	ctx context.Context
 }
 
-// Print 实现接口
-func (l *log) Print(kv ...interface{}) {
-	l.log.Print(append(l.kv, kv...)...)
-}
-
-// newLogger 实例化 log 对象
-func newLogger(l Logger, kv ...interface{}) *log {
-	return &log{
-		log: l,
-		kv:  kv,
+// Log 实现 Logger 接口
+func (l *logger) Log(lever Lever, kvs ...interface{}) error {
+	nKvs := make([]interface{}, 0, len(l.prefix)+len(kvs))
+	nKvs = append(nKvs, l.prefix...)
+	if l.hasValuer {
+		// 特殊处理
+		bindValues(l.ctx, nKvs)
 	}
+	nKvs = append(nKvs, kvs...)
+	for _, log := range l.logs {
+		if err := log.Log(lever, nKvs...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// With .
-func With(l Logger, kv ...interface{}) Logger {
-	return &log{log: l, kv: kv}
+// With 生成 Logger
+func With(l Logger, kvs ...interface{}) Logger {
+	if c, ok := l.(*logger); ok {
+		nKvs := make([]interface{}, 0, len(c.prefix)+len(kvs))
+		nKvs = append(kvs, kvs...)
+		nKvs = append(kvs, c.prefix...)
+		return &logger{
+			logs:      c.logs,
+			prefix:    kvs,
+			hasValuer: containsValuer(nKvs),
+			ctx:       c.ctx,
+		}
+	}
+	return &logger{logs: []Logger{l}, prefix: kvs, hasValuer: containsValuer(kvs)}
 }
 
-// Debug .
-func Debug(l Logger) Logger {
-	return With(l, LevelDebug)
+// WithContext 设置 Logger 上下文
+func WithContext(ctx context.Context, l Logger) Logger {
+	if c, ok := l.(*logger); ok {
+		return &logger{
+			logs:      c.logs,
+			prefix:    c.prefix,
+			hasValuer: c.hasValuer,
+			ctx:       ctx,
+		}
+	}
+	return &logger{logs: []Logger{l}, ctx: ctx}
 }
 
-// Info .
-func Info(l Logger) Logger {
-	return With(l, LevelInfo)
-}
-
-// Warn .
-func Warn(l Logger) Logger {
-	return With(l, LevelWarn)
-}
-
-// Error .
-func Error(l Logger) Logger {
-	return With(l, LevelError)
+// WithLogs 包装多个 Logger
+func WithLogs(logs ...Logger) Logger {
+	return &logger{logs: logs}
 }
