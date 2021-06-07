@@ -1,20 +1,21 @@
 package log
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
-type testLogger struct {
-	*testing.T
+
+func TestInfo(t *testing.T) {
+	logger := DefaultLogger
+	logger = With(logger, "ts", DefaultTimestamp, "caller", DefaultCaller)
+	logger.Log(LevelInfo, "key1", "value1")
 }
 
-func (t *testLogger) Print(kv ...interface{}) {
-	t.Log(kv...)
-}
+func TestWrapper(t *testing.T) {
+	out := NewStdLogger(os.Stdout)
+	err := NewStdLogger(os.Stderr)
 
-func Test_log_Print(t *testing.T) {
-	logs := &testLogger{t}
-	logs.Print("key", "value")
-	Debug(logs).Print("key", "value")
-	Info(logs).Print("key", "value")
-	Warn(logs).Print("key", "value")
-	Error(logs).Print("key", "value")
+	l := With(WithLogs(out, err), "ts", DefaultTimestamp, "caller", DefaultCaller)
+	l.Log(LevelInfo, "msg", "test")
 }
