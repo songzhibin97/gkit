@@ -793,6 +793,11 @@ func main() {
     [Error] message=Errorv
     [Error] message=errorf,v
 	*/
+	
+	logger := log.DefaultLogger
+	logger = log.With(logger, "ts", log.DefaultTimestamp, "caller", log.DefaultCaller)
+	logger.Log(log.LevelInfo, "msg", "helloworld")
+	// [Info] ts=2021-06-10T13:41:35+08:00 caller=main.go:8 msg=helloworld
 }
 ```
 
