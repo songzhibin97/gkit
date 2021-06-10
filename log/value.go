@@ -35,7 +35,7 @@ func Value(ctx context.Context, value interface{}) interface{} {
 func Caller(depth int) Valuer {
 	return func(ctx context.Context) interface{} {
 		_, file, line, _ := runtime.Caller(depth)
-		if strings.LastIndex(file, "github.com/songzhibin97/gkit") > 0 {
+		if strings.LastIndex(file, "gkit/log") > 0 {
 			_, file, line, _ = runtime.Caller(depth + 1)
 		}
 		idx := strings.LastIndexByte(file, '/')
