@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	EOF                  = errors.New("EOF")
+	ErrEOF                  = errors.New("EOF")
 	ErrTooLarge          = errors.New("io buffer: too large")
 	ErrNegativeCount     = errors.New("io buffer: negative count")
 	ErrInvalidWriteCount = errors.New("io buffer: invalid write count")

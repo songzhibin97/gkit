@@ -78,7 +78,7 @@ func cpuProc() {
 	defer func() {
 		ticker.Stop()
 		if err := recover(); err != nil {
-			log.NewHelper(log.Terminal, log.LevelDebug).Errorf("rate.limit.cpuproc() err(%+v)", err)
+			log.NewHelper(log.DefaultLogger).Errorf("rate.limit.cpuproc() err(%+v)", err)
 			go cpuProc()
 		}
 	}()

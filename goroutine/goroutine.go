@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/timeout"
 	"sync"
@@ -44,7 +45,7 @@ func (g *Goroutine) _go() {
 			if err := recover(); err != nil {
 				// recover panic
 				if g.logger != nil {
-					g.logger.Print("Panic", err)
+					g.logger.Log(log.LevelError, "Panic", err)
 				}
 				return
 			}
@@ -121,7 +122,7 @@ func (g *Goroutine) Shutdown() error {
 		return nil
 	})
 	if g.logger != nil {
-		g.logger.Print(err)
+		g.logger.Log(log.LevelDebug, err)
 	}
 	return err
 }
@@ -129,7 +130,7 @@ func (g *Goroutine) Shutdown() error {
 // trick Debug使用
 func (g *Goroutine) trick() {
 	if g.logger != nil {
-		g.logger.Print(atomic.LoadInt64(&g.max), atomic.LoadInt64(&g.n), len(g.task))
+		g.logger.Log(log.LevelDebug, atomic.LoadInt64(&g.max), atomic.LoadInt64(&g.n), len(g.task))
 	}
 }
 
