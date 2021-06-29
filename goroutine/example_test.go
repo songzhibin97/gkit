@@ -2,6 +2,7 @@ package goroutine
 
 import (
 	"context"
+	"github.com/songzhibin97/gkit/log"
 	"time"
 )
 
@@ -30,7 +31,7 @@ func ExampleNewGoroutine() {
 
 	gGroup = NewGoroutine(context.TODO(),
 		SetStopTimeout(time.Second),
-		SetLogger(&testLogger{}),
+		SetLogger(log.DefaultLogger),
 		SetMax(100),
 	)
 }
