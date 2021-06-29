@@ -3,19 +3,14 @@ package goroutine
 import (
 	"context"
 	"fmt"
+	"github.com/songzhibin97/gkit/log"
 	"testing"
 	"time"
 )
 
-type testLogger struct {
-	*testing.T
-}
 
-func (t *testLogger) Print(kv ...interface{}) {
-	t.Log(kv...)
-}
 func TestNewGoroutine(t *testing.T) {
-	g := NewGoroutine(context.Background(), SetMax(10), SetLogger(&testLogger{t}))
+	g := NewGoroutine(context.Background(), SetMax(10), SetLogger(log.DefaultLogger))
 	for i := 0; i < 20; i++ {
 		i := i
 		fmt.Println(g.AddTask(func() {
