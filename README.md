@@ -1201,7 +1201,10 @@ func main() {
 
 	// 打桩注入
 	_ = r.PileDriving("", "start", "end", "var _ = 1")
-
+    
+	// 拆装
+	_ = r.PileDismantle("", "start", "end", "var _ = 1")
+	
 	ppb, err := parsePb.ParsePb("GKit/parse/demo/test.proto")
 	if err != nil {
 		panic(err)
