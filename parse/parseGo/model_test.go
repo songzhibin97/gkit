@@ -22,7 +22,7 @@ func TestGoParsePB_PileDriving(t *testing.T) {
 		panic(err)
 	}
 	r := rr.(*GoParsePB)
-	t.Log(r.PileDismantle("Register", "start", "end", "var _ = 1"))
+	t.Log(r.PileDismantle("var _ = 1"))
 }
 
 func Test_checkRepeat(t *testing.T) {
