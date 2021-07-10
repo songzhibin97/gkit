@@ -42,14 +42,15 @@ type Response struct {
 // @service:User
 // @method:post
 // @router:/register
-func Register(req Request)(Response)
+func Register(req Request)(Response){
 
-           
+
 
             // start
             var _ = 1
             // end
-           
+
+}
 
 
 
