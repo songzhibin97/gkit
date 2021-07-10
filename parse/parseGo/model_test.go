@@ -5,7 +5,7 @@ import (
 )
 
 func TestGoParsePB_GeneratePB(t *testing.T) {
-	rr, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/gkit/parse/demo/demo.api")
+	rr, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/gin-vue-admin/server/initialize/gorm.go")
 	if err != nil {
 		panic(err)
 	}
@@ -22,7 +22,7 @@ func TestGoParsePB_PileDriving(t *testing.T) {
 		panic(err)
 	}
 	r := rr.(*GoParsePB)
-	t.Log(r.PileDismantle("", "start", "end", "var _ = 2"))
+	t.Log(r.PileDismantle("Register", "start", "end", "var _ = 1"))
 }
 
 func Test_checkRepeat(t *testing.T) {

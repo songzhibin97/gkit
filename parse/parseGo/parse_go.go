@@ -1,8 +1,8 @@
 package parseGo
 
 import (
-	"github.com/songzhibin97/gkit/parse"
 	"fmt"
+	"github.com/songzhibin97/gkit/parse"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -22,7 +22,7 @@ func ParseGo(filepath string) (parse.Parse, error) {
 		return nil, err
 	}
 	// 将注释存档
-	comment := []*Note{}
+	var comment []*Note
 	for _, group := range fParse.Comments {
 		for _, c := range group.List {
 			comment = append(comment, &Note{Comment: c})
@@ -33,9 +33,9 @@ func ParseGo(filepath string) (parse.Parse, error) {
 	for _, decl := range fParse.Decls {
 		switch v := decl.(type) {
 		case *ast.GenDecl:
-			ret.parseStruct(v, parseTag)
+			ret.parseStruct(v)
 		case *ast.FuncDecl:
-			ret.parseFunc(v, parseDoc)
+			ret.parseFunc(v)
 		}
 	}
 	return ret, ret.checkFormat()

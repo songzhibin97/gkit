@@ -171,7 +171,6 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 						}
 					}
 				}
-
 				// 执行tag解析
 				for _, f := range parseTag {
 					for _, file := range ret.Files {
@@ -239,34 +238,32 @@ func (g *GoParsePB) checkFormat() error {
 				message.Notes = append(message.Notes, note.Comment)
 				note.IsUse = true
 			}
-
 		}
 		msgHashSet[message.Name] = struct{}{}
 	}
-	serverHashSet := make(map[string]struct{})
+	//serverHashSet := make(map[string]struct{})
 	for _, serve := range g.Server {
 		if serve.ServerName != "" {
 			g.Metas["ServerName"] = serve.ServerName
 		}
-		if serve.Router == "" || serve.Method == "" {
-			return errors.New("server router or method is empty")
-		}
-		if _, ok := serverHashSet[serve.Router+serve.Method]; ok {
-			return errors.New("server router method repeat")
-		}
-		if _, ok := msgHashSet[serve.InputParameter]; !ok {
-			return errors.New("server input Parameters is empty")
-		}
-		if _, ok := msgHashSet[serve.OutputParameter]; !ok {
-			return errors.New("server output Parameters is empty")
-		}
+		//if serve.Router == "" || serve.Method == "" {
+		//	return errors.New("server router or method is empty")
+		//}
+		//if _, ok := serverHashSet[serve.Router+serve.Method]; ok {
+		//	return errors.New("server router method repeat")
+		//}
+		//if _, ok := msgHashSet[serve.InputParameter]; !ok {
+		//	return errors.New("server input Parameters is empty")
+		//}
+		//if _, ok := msgHashSet[serve.OutputParameter]; !ok {
+		//	return errors.New("server output Parameters is empty")
+		//}
 		for _, note := range g.Note {
 			if !note.IsUse && int(note.Pos()) > serve.Pos && int(note.End()) <= serve.End {
 				serve.Notes = append(serve.Notes, note.Comment)
 				note.IsUse = true
 			}
 		}
-		serverHashSet[serve.Router+serve.Method] = struct{}{}
 	}
 	return nil
 }
@@ -355,15 +352,14 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	return ioutil.WriteFile(g.FilePath, srcData, 0600)
 }
 
-func (g *GoParsePB) PileDismantle(functionName string, startNotes, endNotes string, clearCode string) error {
+func (g *GoParsePB) PileDismantle(clearCode string) error {
 	// srcData: 源文件内容
 	srcData, err := ioutil.ReadFile(g.FilePath)
 	if err != nil {
 		return err
 	}
-	startNotesPos, endNotesPos, err := g.pileFind(srcData, functionName, startNotes, endNotes)
 
-	srcData, err = g.pileDismantle(srcData, startNotesPos, endNotesPos, clearCode)
+	srcData, err = g.pileDismantle(srcData, clearCode)
 	if err != nil {
 		return err
 	}
@@ -412,7 +408,7 @@ func (g *GoParsePB) pileFind(srcData []byte, functionName string, startNotes, en
 	}
 	// 判断是否找到桩点
 	if startNotesPos == -1 && endNotesPos == len(srcData)+1 {
-		return -1, -1, errors.New("startNotes and endNotes is not find")
+		return 0, 0, errors.New("startNotes and endNotes is not find")
 	}
 	// 判断是否两个都找到
 	if startNotesPos != -1 && endNotesPos != len(srcData)+1 {
@@ -424,6 +420,7 @@ func (g *GoParsePB) pileFind(srcData []byte, functionName string, startNotes, en
 			}
 		}
 	}
+
 	return startNotesPos, endNotesPos, nil
 }
 
@@ -479,8 +476,8 @@ func (g *GoParsePB) pileDriving(srcData []byte, startNotesPos, endNotesPos int, 
 	return srcData, nil
 }
 
-func (g *GoParsePB) pileDismantle(srcData []byte, startNotesPos, endNotesPos int, clearCode string) ([]byte, error) {
-	 return cleanCode(clearCode, string(srcData))
+func (g *GoParsePB) pileDismantle(srcData []byte, clearCode string) ([]byte, error) {
+	return cleanCode(clearCode, string(srcData))
 
 }
 
