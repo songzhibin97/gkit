@@ -347,6 +347,31 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	if err != nil {
 		return err
 	}
+	startNotesPos, endNotesPos, err := g.pileFind(srcData, functionName, startNotes, endNotes)
+	srcData, err = g.pileDriving(srcData, startNotesPos, endNotesPos, insertCode)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(g.FilePath, srcData, 0600)
+}
+
+func (g *GoParsePB) PileDismantle(functionName string, startNotes, endNotes string, clearCode string) error {
+	// srcData: 源文件内容
+	srcData, err := ioutil.ReadFile(g.FilePath)
+	if err != nil {
+		return err
+	}
+	startNotesPos, endNotesPos, err := g.pileFind(srcData, functionName, startNotes, endNotes)
+
+	srcData, err = g.pileDismantle(srcData, startNotesPos, endNotesPos, clearCode)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(g.FilePath, srcData, 0600)
+}
+
+// pileFind: 找到打桩点,返回 startNotesPos、endNotesPos
+func (g *GoParsePB) pileFind(srcData []byte, functionName string, startNotes, endNotes string) (int, int, error) {
 	var (
 		startNotesPos = -1
 		endNotesPos   = len(srcData) + 1
@@ -387,7 +412,7 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	}
 	// 判断是否找到桩点
 	if startNotesPos == -1 && endNotesPos == len(srcData)+1 {
-		return errors.New("startNotes and endNotes is not find")
+		return -1, -1, errors.New("startNotes and endNotes is not find")
 	}
 	// 判断是否两个都找到
 	if startNotesPos != -1 && endNotesPos != len(srcData)+1 {
@@ -399,6 +424,11 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 			}
 		}
 	}
+	return startNotesPos, endNotesPos, nil
+}
+
+// pileDriving: 打桩,返回已经打好的 srcData数据
+func (g *GoParsePB) pileDriving(srcData []byte, startNotesPos, endNotesPos int, insertCode string) ([]byte, error) {
 	var (
 		sym     []byte
 		oldTail []byte
@@ -406,7 +436,7 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	if endNotesPos == len(srcData)+1 {
 		endNotesPos = startNotesPos
 		if checkRepeat(insertCode, string(srcData[endNotesPos:])) {
-			return errors.New("重复添加")
+			return nil, errors.New("重复添加")
 		}
 
 		// 收集标记符
@@ -428,7 +458,7 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 		srcData = srcData[:endNotesPos]
 	} else {
 		if checkRepeat(insertCode, string(srcData[:endNotesPos])) {
-			return errors.New("重复添加")
+			return nil, errors.New("重复添加")
 		}
 		endNotesPos--
 		symStart := endNotesPos
@@ -446,10 +476,31 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	srcData = append(srcData, sym...)
 	srcData = append(srcData, []byte(insertCode)...)
 	srcData = append(srcData, oldTail...)
-
-	return ioutil.WriteFile(g.FilePath, srcData, 0600)
+	return srcData, nil
 }
 
+func (g *GoParsePB) pileDismantle(srcData []byte, startNotesPos, endNotesPos int, clearCode string) ([]byte, error) {
+	 return cleanCode(clearCode, string(srcData))
+
+}
+
+// cleanCode: 清除桩内内容
+func cleanCode(clearCode string, srcData string) ([]byte, error) {
+	bf := make([]rune, 0, 1024)
+	for i, v := range srcData {
+		if v == '\n' {
+			if strings.TrimSpace(string(bf)) == clearCode {
+				return append([]byte(srcData[:i-len(bf)]), []byte(srcData[i+1:])...), nil
+			}
+			bf = (bf)[:0]
+			continue
+		}
+		bf = append(bf, v)
+	}
+	return []byte(srcData), errors.New("未找到内容")
+}
+
+// checkRepeat 检查是否重复
 func checkRepeat(code string, context string) bool {
 	bf := make([]rune, 0, 1024)
 	for _, v := range context {

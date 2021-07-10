@@ -5,7 +5,7 @@ import (
 )
 
 func TestGoParsePB_GeneratePB(t *testing.T) {
-	rr, err := ParseGo("/Users/songzhibin/go/src/github.com/songzhibin97/gkit/parse/demo/demo.api")
+	rr, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/gkit/parse/demo/demo.api")
 	if err != nil {
 		panic(err)
 	}
@@ -17,12 +17,12 @@ func TestGoParsePB_GeneratePB(t *testing.T) {
 }
 
 func TestGoParsePB_PileDriving(t *testing.T) {
-	rr, err := ParseGo("/Users/songzhibin/go/src/github.com/songzhibin97/gkit/parse/demo/demo.api")
+	rr, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/gkit/parse/demo/demo.api")
 	if err != nil {
 		panic(err)
 	}
 	r := rr.(*GoParsePB)
-	t.Log(r.PileDriving("", "start", "end", "var _ = 1"))
+	t.Log(r.PileDismantle("", "start", "end", "var _ = 2"))
 }
 
 func Test_checkRepeat(t *testing.T) {
