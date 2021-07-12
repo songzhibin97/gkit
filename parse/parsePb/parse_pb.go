@@ -1,13 +1,14 @@
 package parsePb
 
 import (
-	"github.com/songzhibin97/gkit/parse"
 	"bytes"
 	"github.com/emicklei/proto"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/parse"
 	"io/ioutil"
 )
 
-func ParsePb(filepath string) (parse.Parse, error) {
+func ParsePb(filepath string, options ...options.Option) (parse.Parse, error) {
 	reader, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, err
@@ -19,6 +20,9 @@ func ParsePb(filepath string) (parse.Parse, error) {
 	}
 
 	ret := CreatePbParseGo()
+	for _, v := range options {
+		v(ret)
+	}
 	ret.FilePath = filepath
 	for _, element := range definition.Elements {
 		switch v := element.(type) {

@@ -4,16 +4,25 @@ import (
 	"fmt"
 	"github.com/emicklei/proto"
 	"github.com/songzhibin97/gkit/cache/buffer"
+	"github.com/songzhibin97/gkit/options"
 	"text/template"
 )
 
+type (
+	ParseMessage func(m *Message)
+	ParseService func(server *Server)
+	//CheckFunc    func(p *PbParseGo) error
+)
+
 type PbParseGo struct {
-	PkgName  string            // PkgName: 包名
-	FilePath string            // FilePath: 文件的路径
-	Server   []*Server         // Server: 解析出来function的信息
-	Message  []*Message        // Message: 解析出struct的信息
-	Note     []*Note           // Note: 其他注释
-	Metas    map[string]string // Metas: 其他元信息
+	PkgName       string            // PkgName: 包名
+	FilePath      string            // FilePath: 文件的路径
+	Server        []*Server         // Server: 解析出来function的信息
+	Message       []*Message        // Message: 解析出struct的信息
+	Note          []*Note           // Note: 其他注释
+	Metas         map[string]string // Metas: 其他元信息
+	ParseMessages []ParseMessage
+	ParseServices []ParseService
 }
 
 // CreatePbParseGo 创建 PbParseGo
@@ -83,17 +92,27 @@ func CreateFile(name string, tGo string, tPb string) *File {
 	}
 }
 
+// addParseStruct 添加自定义解析struct内容
+func (p *PbParseGo) addParseMessage(parseMessage ...ParseMessage) {
+	p.ParseMessages = append(p.ParseMessages, parseMessage...)
+}
+
+// addParseFunc 添加自定义解析Func
+func (p *PbParseGo) addParseService(parseService ...ParseService) {
+	p.ParseServices = append(p.ParseServices, parseService...)
+}
+
 // AddServers 添加server信息
 func (p *PbParseGo) AddServers(servers ...*Server) {
 	p.Server = append(p.Server, servers...)
 }
 
-// AddMessage 添加message信息
+// AddMessages 添加message信息
 func (p *PbParseGo) AddMessages(messages ...*Message) {
 	p.Message = append(p.Message, messages...)
 }
 
-func (p *PbParseGo) parseMessage(ms *proto.Message, parseNote ...func(message *Message)) {
+func (p *PbParseGo) parseMessage(ms *proto.Message) {
 	ret := CreateMessage(ms.Name, ms.Position.Offset)
 	// note
 	if ms.Comment != nil {
@@ -116,13 +135,13 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, parseNote ...func(message *M
 				PbTypeToGo(keyType), PbTypeToGo(valueType)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
 		}
 	}
-	for _, f := range parseNote {
+	for _, f := range p.ParseMessages {
 		f(ret)
 	}
 	p.AddMessages(ret)
 }
 
-func (p *PbParseGo) parseService(sv *proto.Service, parseDoc ...func(server *Server)) {
+func (p *PbParseGo) parseService(sv *proto.Service) {
 	for _, element := range sv.Elements {
 		switch v := element.(type) {
 		case *proto.RPC:
@@ -135,7 +154,7 @@ func (p *PbParseGo) parseService(sv *proto.Service, parseDoc ...func(server *Ser
 				for _, doc := range sv.Comment.Lines {
 					server.Doc = append(server.Doc, doc)
 				}
-				for _, f := range parseDoc {
+				for _, f := range p.ParseServices {
 					f(server)
 				}
 			}
@@ -173,4 +192,18 @@ func {{.Name }} ({{.InputParameter}}) {{.OutputParameter}} {
 		return ""
 	}
 	return b.String()
+}
+
+// AddParseMessage 添加自定义解析message
+func AddParseMessage(parseMessages ...ParseMessage) options.Option {
+	return func(o interface{}) {
+		o.(*PbParseGo).addParseMessage(parseMessages...)
+	}
+}
+
+// AddParseService 添加自定义解析service
+func AddParseService(parseServices ...ParseService) options.Option {
+	return func(o interface{}) {
+		o.(*PbParseGo).addParseService(parseServices...)
+	}
 }
