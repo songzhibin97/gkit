@@ -5,7 +5,8 @@ import (
 )
 
 func TestGoParsePB_GeneratePB(t *testing.T) {
-	rr, err := ParseGo("/Users/songzhibin/go/src/Songzhibin/gin-vue-admin/server/initialize/gorm.go")
+	rr, err := ParseGo(
+		"/Users/songzhibin/go/src/Songzhibin/gkit/parse/demo/demo.api", AddParseFunc(parseDoc), AddParseStruct(parseTag))
 	if err != nil {
 		panic(err)
 	}
