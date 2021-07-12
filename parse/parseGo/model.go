@@ -4,20 +4,30 @@ import (
 	"errors"
 	"fmt"
 	"github.com/songzhibin97/gkit/cache/buffer"
+	"github.com/songzhibin97/gkit/options"
 	"go/ast"
 	"io/ioutil"
 	"strings"
 	"text/template"
 )
 
+type (
+	ParseStruct func(file *File)
+	ParseFunc   func(server *Server)
+	CheckFunc   func(g *GoParsePB) error
+)
+
 // GoParsePB .go 文件转成 pb文件
 type GoParsePB struct {
-	PkgName  string            // PkgName: 包名
-	FilePath string            // FilePath: 文件的路径
-	Server   []*Server         // Server: 解析出来function的信息
-	Message  []*Message        // Message: 解析出struct的信息
-	Note     []*Note           // Note: 其他注释
-	Metas    map[string]string // Metas: 其他元信息
+	PkgName      string            // PkgName: 包名
+	FilePath     string            // FilePath: 文件的路径
+	Server       []*Server         // Server: 解析出来function的信息
+	Message      []*Message        // Message: 解析出struct的信息
+	Note         []*Note           // Note: 其他注释
+	Metas        map[string]string // Metas: 其他元信息
+	ParseStructs []ParseStruct
+	ParseFuncS   []ParseFunc
+	CheckFuncS   []CheckFunc
 }
 
 type Note struct {
@@ -103,8 +113,23 @@ func CreateGoParsePB(pkgName string, filepath string, notes []*Note) *GoParsePB 
 	}
 }
 
+// addParseStruct 添加自定义解析struct内容
+func (g *GoParsePB) addParseStruct(parseTag ...ParseStruct) {
+	g.ParseStructs = append(g.ParseStructs, parseTag...)
+}
+
+// addParseFunc 添加自定义解析Func
+func (g *GoParsePB) addParseFunc(parseDocs ...ParseFunc) {
+	g.ParseFuncS = append(g.ParseFuncS, parseDocs...)
+}
+
+// addCheck 添加后续校验信息
+func (g *GoParsePB) addCheck(checkFunc ...CheckFunc) {
+	g.CheckFuncS = append(g.CheckFuncS, checkFunc...)
+}
+
 // parseStruct 解析struct信息
-func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
+func (g *GoParsePB) parseStruct(st *ast.GenDecl) {
 	for _, spec := range st.Specs {
 		if v, ok := spec.(*ast.TypeSpec); ok {
 			ret := CreateMessage(v.Name.Name, int(v.Pos()), int(v.End()))
@@ -172,7 +197,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 					}
 				}
 				// 执行tag解析
-				for _, f := range parseTag {
+				for _, f := range g.ParseStructs {
 					for _, file := range ret.Files {
 						f(file)
 					}
@@ -185,7 +210,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl, parseTag ...func(file *File)) {
 }
 
 // parseFunc 解析函数信息
-func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
+func (g *GoParsePB) parseFunc(fn *ast.FuncDecl) {
 	var (
 		tags            []string
 		name            string
@@ -216,14 +241,15 @@ func (g *GoParsePB) parseFunc(fn *ast.FuncDecl, parseDocs ...func(*Server)) {
 		}
 	}
 	ret := CreateServer(name, int(fn.Pos()), int(fn.End()), tags, inputParameter, outputParameter)
-	for _, f := range parseDocs {
+	for _, f := range g.ParseFuncS {
 		f(ret)
 	}
 	g.AddServers(ret)
 }
 
-// checkFormat 查重,以及确认服务中的出参入参是否在上文中出现
+// checkFormat 简单处理meta信息,将对应func、server中的注释移入
 func (g *GoParsePB) checkFormat() error {
+	// 之前已经调用过了,就直接返回了
 	if _, ok := g.Metas["ServerName"]; ok {
 		return nil
 	}
@@ -265,6 +291,13 @@ func (g *GoParsePB) checkFormat() error {
 			}
 		}
 	}
+
+	for _, checkFunc := range g.CheckFuncS {
+		if err := checkFunc(g); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -283,7 +316,7 @@ func (g *GoParsePB) AddServers(servers ...*Server) {
 	g.Server = append(g.Server, servers...)
 }
 
-// AddMessage 添加message信息
+// AddMessages 添加message信息
 func (g *GoParsePB) AddMessages(messages ...*Message) {
 	g.Message = append(g.Message, messages...)
 }
@@ -511,4 +544,25 @@ func checkRepeat(code string, context string) bool {
 		bf = append(bf, v)
 	}
 	return false
+}
+
+// AddParseStruct 添加自定义解析struct内容
+func AddParseStruct(parseTag ...ParseStruct) options.Option {
+	return func(o interface{}) {
+		o.(*GoParsePB).addParseStruct(parseTag...)
+	}
+}
+
+// AddParseFunc 添加自定义解析Func
+func AddParseFunc(parseDocs ...ParseFunc) options.Option {
+	return func(o interface{}) {
+		o.(*GoParsePB).addParseFunc(parseDocs...)
+	}
+}
+
+// AddCheck 添加后续校验信息
+func AddCheck(checkFunc ...CheckFunc) options.Option {
+	return func(o interface{}) {
+		o.(*GoParsePB).addCheck(checkFunc...)
+	}
 }

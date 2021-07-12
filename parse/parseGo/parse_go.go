@@ -2,6 +2,7 @@ package parseGo
 
 import (
 	"fmt"
+	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/parse"
 	"go/ast"
 	"go/parser"
@@ -10,7 +11,7 @@ import (
 	"strings"
 )
 
-func ParseGo(filepath string) (parse.Parse, error) {
+func ParseGo(filepath string, options ...options.Option) (parse.Parse, error) {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, err
@@ -30,6 +31,9 @@ func ParseGo(filepath string) (parse.Parse, error) {
 	}
 	// 根据内容找到 struct 以及 func
 	ret := CreateGoParsePB(fParse.Name.Name, filepath, comment)
+	for _, v := range options {
+		v(ret)
+	}
 	for _, decl := range fParse.Decls {
 		switch v := decl.(type) {
 		case *ast.GenDecl:
