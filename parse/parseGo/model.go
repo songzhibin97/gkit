@@ -561,8 +561,8 @@ func AddParseFunc(parseDocs ...ParseFunc) options.Option {
 }
 
 // AddCheck 添加后续校验信息
-func AddCheck(checkFunc ...CheckFunc) options.Option {
+func AddCheck(checkFuncs ...CheckFunc) options.Option {
 	return func(o interface{}) {
-		o.(*GoParsePB).addCheck(checkFunc...)
+		o.(*GoParsePB).addCheck(checkFuncs...)
 	}
 }
