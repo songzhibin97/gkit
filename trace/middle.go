@@ -23,8 +23,8 @@ func WithServer(opts ...options.Option) middleware.MiddleWare {
 	}
 }
 
-// Client returns a new client middleware for OpenTelemetry.
-func Client(opts ...options.Option) middleware.MiddleWare {
+// WithClient returns a new client middleware for OpenTelemetry.
+func WithClient(opts ...options.Option) middleware.MiddleWare {
 	tracer := NewTracer(trace.SpanKindClient, opts...)
 	return func(handler middleware.Endpoint) middleware.Endpoint {
 		return func(ctx context.Context, req interface{}) (reply interface{}, err error) {
