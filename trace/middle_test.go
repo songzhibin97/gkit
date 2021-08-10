@@ -25,7 +25,8 @@ func (tr *_Transport) Operation() string      { return tr.operation }
 func (tr *_Transport) RequestHeader() Header  { return tr.header }
 func (tr *_Transport) ResponseHeader() Header { return tr.header }
 
-func TestTracing(t *testing.T) {
+
+func TestTrace(t *testing.T) {
 	var carrier = headerCarrier{}
 	tp := sdk.NewTracerProvider(sdk.WithSampler(sdk.TraceIDRatioBased(0)))
 
@@ -49,5 +50,8 @@ func TestTracing(t *testing.T) {
 
 	if v, ok := FromClientTransportContext(ctx); !ok || len(v.RequestHeader().Keys()) == 0 {
 		t.Fatalf("traceHeader failed to deliver")
+	} else {
+		t.Log(v)
+		t.Log(v.RequestHeader().Keys())
 	}
 }
