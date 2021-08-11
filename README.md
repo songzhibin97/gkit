@@ -37,6 +37,8 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── registry (服务发现接口化)
 ├── restrictor (限流,提供令牌桶和漏桶接口封装)
 ├── timeout (超时控制,全链路保护)
+├── tools (简单工具,目前只有一个`vo to do`的解析器)
+├── trace (链路追踪)
 └── window (滑动窗口,支持多数据类型指标窗口收集)
 
 ```
@@ -1244,4 +1246,41 @@ func main() {
 
     // 将数据写入并读出已经超时的链接
     SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error)
+```
+
+## tools
+### votodo
+```go
+package main
+
+import "github.com/songzhibin97/gkit/tools"
+
+type CP struct {
+	Z1 int
+	Z2 string
+}
+
+func main() {
+	c1 := CP{
+		Z1: 22,
+		Z2: "33",
+	}
+	c2 := CP{}
+	_ = tools.VoToDo(&c2,&c1)
+	// c2 CP{ Z1: 22, Z2: "33"}
+	// 相同名称相同类型的执行复制
+	// 一定要dst、src 必须传指针类型
+}
+```
+
+
+## trace
+链路追踪
+
+```go
+package main
+
+import "github.com/songzhibin97/gkit/trace"
+
+
 ```
