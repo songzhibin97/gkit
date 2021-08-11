@@ -1280,7 +1280,34 @@ func main() {
 ```go
 package main
 
-import "github.com/songzhibin97/gkit/trace"
+import (
+	"context"
+	"fmt"
 
+	gtrace "github.com/songzhibin97/gkit/trace"
+	"go.opentelemetry.io/otel/trace"
+)
 
+type _Transport struct {
+}
+
+func (tr *_Transport) Get(key string) string {
+	panic("implement me")
+}
+
+func (tr *_Transport) Set(key string, value string) {
+	panic("implement me")
+}
+
+func (tr *_Transport) Keys() []string {
+	panic("implement me")
+}
+func main() {
+	// trace.WithServer() 服务端使用中间件
+	// trace.WithClient() 客户端使用中间件
+	tracer := gtrace.NewTracer(trace.SpanKindServer)
+	ctx, span := tracer.Start(context.Background(), "使用gkit", &_Transport{})
+	fmt.Println(span)
+	defer tracer.End(ctx, span, "replay", nil)
+}
 ```
