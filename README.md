@@ -30,6 +30,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── metrics (指标接口化)
 ├── log (接口化日志,使用日志组件接入)
 ├── middleware (中间件接口模型定义)
+├── mutex (封装了一些锁的用法)
 ├── net (网络相关封装)
 ├── options (选项模式接口化)
 ├── overload (服务器自适应保护,提供bbr接口,监控部署服务器状态选择流量放行,保护服务器可用性)
@@ -1214,6 +1215,40 @@ func main() {
 	// 输出 字符串,如果需要自行导入文件
 	fmt.Println(ppb.Generate())
 }
+```
+
+## mutex
+    锁相关封装（实现了trylock、重入锁等、重入token锁,还可以获取锁指标数据）
+```go
+    // 获取锁
+    lk := mutex.NewMutex()
+    // 尝试获取锁
+    if lk.TryLock() {
+    	// 获取到锁
+    	defer lk.Unlock()
+    }
+    // 获取失败执行其他逻辑
+    
+    lk.Count() // 获取等待锁的数量
+    
+    lk.IsLocked() // 锁是否被持有
+    
+    lk.IsWoken() // 内部是否有等待者被唤醒
+    
+    lk.IsStarving() // 是否处于饥饿模式
+    
+    // 重入锁
+    // 在同一个goroutine可以多次获取
+    rvlk := mutex.NewRecursiveMutex() 
+    rvlk.Lock()
+    defer rvlk.Unlock()
+    
+    // token重入锁
+    // 传入相同token 可以实现重入功能
+    tklk := mutex.NewTokenRecursiveMutex()
+    tklk.Lock(token)
+    defer tklk.Unlock(token)
+    
 ```
 
 
