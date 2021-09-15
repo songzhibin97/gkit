@@ -14,6 +14,10 @@ type Stamp int64
 func (jt *Stamp) Scan(src interface{}) (err error) {
 	// 断言,只处理string以及原生的time.Time
 	switch sc := src.(type) {
+	case []byte:
+		var i int64
+		i, err = strconv.ParseInt(string(sc), 10, 64)
+		*jt = Stamp(i)
 	case time.Time:
 		*jt = Stamp(sc.Unix())
 	case string:
