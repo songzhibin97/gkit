@@ -37,7 +37,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── parse (文件解析,proto<->go相互解析)
 ├── registry (服务发现接口化)
 ├── restrictor (限流,提供令牌桶和漏桶接口封装)
-├── timeout (超时控制,全链路保护)
+├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装)
 ├── tools (简单工具,目前只有一个`vo to do`的解析器)
 ├── trace (链路追踪)
 └── window (滑动窗口,支持多数据类型指标窗口收集)
@@ -1102,6 +1102,17 @@ func main() {
 	_ = d
 }
 ```
+其他
+```go
+    timeout.DbJSON // 提供db json格式的一些功能
+	timeout.DTime // 提供db 15:04:05 格式的一些功能
+	timeout.DateStruct // 提供db 15:04:05 格式的一些功能 嵌入模式为struct
+	timeout.Date // 提供db 2006-01-02 格式的一些功能
+	timeout.DateTime // 提供db 2006-01-02 15:04:05 格式的一些功能
+	timeout.DateTimeStruct // 提供db 2006-01-02 15:04:05 格式的一些功能 嵌入模式为struct
+	timeout.Stamp // 提供db 时间戳格式的一些功能
+```
+
 
 ```go
 package main
