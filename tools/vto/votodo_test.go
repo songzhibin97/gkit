@@ -20,6 +20,37 @@ func TestVoToDo(t *testing.T) {
 			Mock *mock1
 			Ok   *bool
 		}
+		mock4 struct {
+			String     string   `default:"handsome"`
+			Int8       int8     `default:"8"`
+			Int16      int16    `default:"16"`
+			Int32      int32    `default:"32"`
+			Int64      int64    `default:"64"`
+			Int        int      `default:"644"`
+			Float32    float32  `default:"32.23"`
+			Float64    float64  `default:"64.46"`
+			Bool       bool     `default:"true"`
+			StringPre  *string  `default:"handsome"`
+			Int8Pre    *int8    `default:"8"`
+			Int16Pre   *int16   `default:"16"`
+			Int32Pre   *int32   `default:"32"`
+			Int64Pre   *int64   `default:"64"`
+			IntPre     *int     `default:"644"`
+			Float32Pre *float32 `default:"32.23"`
+			Float64Pre *float64 `default:"64.46"`
+			BoolPre    *bool    `default:"true"`
+		}
+	)
+	var (
+		String  = "handsome"
+		Int8    = int8(8)
+		Int16   = int16(16)
+		Int32   = int32(32)
+		Int64   = int64(64)
+		Int     = 644
+		Float32 = float32(32.23)
+		Float64 = 64.46
+		Bool    = true
 	)
 	{
 		m0, m1 := mock1{}, mock1{
@@ -66,4 +97,32 @@ func TestVoToDo(t *testing.T) {
 		assert.Equal(t, m0.Mock, m1.Mock)
 		assert.Equal(t, m0.Ok, *m1.Ok)
 	}
+
+	{
+		m0, m1 := mock4{}, mock4{}
+		_ = VoToDo(&m0, &m1)
+		m2 := mock4{
+			String:     String,
+			Int8:       Int8,
+			Int16:      Int16,
+			Int32:      Int32,
+			Int64:      Int64,
+			Int:        Int,
+			Float32:    Float32,
+			Float64:    Float64,
+			Bool:       Bool,
+			StringPre:  &String,
+			Int8Pre:    &Int8,
+			Int16Pre:   &Int16,
+			Int32Pre:   &Int32,
+			Int64Pre:   &Int64,
+			IntPre:     &Int,
+			Float32Pre: &Float32,
+			Float64Pre: &Float64,
+			BoolPre:    &Bool,
+		}
+		assert.Equal(t, m0, m2)
+	}
+
 }
+
