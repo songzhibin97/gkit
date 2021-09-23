@@ -5,15 +5,16 @@ go 1.15
 require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/proto v1.9.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/go-playground/validator/v10 v10.9.0
 	github.com/golang/protobuf v1.5.2
 	github.com/juju/ratelimit v1.0.1
 	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil v3.20.11+incompatible
 	github.com/smartystreets/goconvey v1.6.4 // indirect
 	github.com/stretchr/testify v1.7.0
+	github.com/ugorji/go/codec v1.2.6 // indirect
 	go.opentelemetry.io/otel v1.0.0-RC2
 	go.opentelemetry.io/otel/sdk v1.0.0-RC2
 	go.opentelemetry.io/otel/trace v1.0.0-RC2
