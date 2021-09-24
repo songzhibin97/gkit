@@ -1299,11 +1299,11 @@ func main() {
 ```go
 package main
 
-import "github.com/songzhibin97/gkit/tools"
+import "github.com/songzhibin97/gkit/tools/vto"
 
 type CP struct {
-	Z1 int
-	Z2 string
+	Z1 int `default:"1"`
+	Z2 string `default:"z2"`
 }
 
 func main() {
@@ -1312,13 +1312,57 @@ func main() {
 		Z2: "33",
 	}
 	c2 := CP{}
-	_ = tools.VoToDo(&c2,&c1)
+	c3 := CP{}
+	_ = vto.VoToDo(&c2,&c1)
 	// c2 CP{ Z1: 22, Z2: "33"}
 	// 相同名称相同类型的执行复制
 	// 一定要dst、src 必须传指针类型
+	
+	// v1.1.2 新增default标签
+	_ = vto.VoToDo(&c2,&c3)
+	// c2 CP{ Z1: 1, Z2: "z2"}
+	// 相同名称相同类型的执行复制
+	// 一定要dst、src 必须传指针类型
+	
 }
 ```
 
+### bind
+```go
+
+package main
+
+// 为 gin提供一个全能bind工具
+import (
+	"github.com/songzhibin97/gkit/tools/bind"
+
+	"github.com/gin-gonic/gin"
+)
+
+type Test struct {
+	Json  string `json:"json,default=jjjson" form:"json"`
+	Query string `json:"query" form:"query"`
+}
+
+func main() {
+	r := gin.Default()
+	r.POST("test", func(c *gin.Context) {
+		t := Test{}
+		// url : 127.0.0.1:8080/test?query=query
+		// {
+		//  "json":"json",
+		//  "query":"query"
+		// }
+		err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()))
+		if err != nil {
+			c.JSON(200, err)
+			return
+		}
+		c.JSON(200, t)
+	})
+	r.Run(":8080")
+}
+```
 
 ## trace
 链路追踪
