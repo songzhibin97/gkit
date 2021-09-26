@@ -44,8 +44,5 @@ func decodeJSON(r io.Reader, obj interface{}) error {
 	if EnableDecoderDisallowUnknownFields {
 		decoder.DisallowUnknownFields()
 	}
-	if err := decoder.Decode(obj); err != nil {
-		return err
-	}
-	return validate(obj)
+	return decoder.Decode(obj)
 }

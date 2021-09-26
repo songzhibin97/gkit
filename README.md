@@ -1340,7 +1340,7 @@ import (
 )
 
 type Test struct {
-	Json  string `json:"json,default=jjjson" form:"json"`
+	Json  string `json:"json" form:"json,default=jjjson"`
 	Query string `json:"query" form:"query"`
 }
 
@@ -1353,7 +1353,9 @@ func main() {
 		//  "json":"json",
 		//  "query":"query"
 		// }
-		err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()))
+		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()),bind.)
+		// 自定义binding对象
+		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(),bind.SetSelectorParse([]bind.Binding{})))
 		if err != nil {
 			c.JSON(200, err)
 			return
