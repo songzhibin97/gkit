@@ -23,8 +23,5 @@ func (yamlBinding) BindBody(body []byte, obj interface{}) error {
 
 func decodeYAML(r io.Reader, obj interface{}) error {
 	decoder := yaml.NewDecoder(r)
-	if err := decoder.Decode(obj); err != nil {
-		return err
-	}
-	return validate(obj)
+	return decoder.Decode(obj)
 }

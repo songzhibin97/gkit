@@ -1,3 +1,4 @@
+//go:build !nomsgpack
 // +build !nomsgpack
 
 package bind
@@ -81,7 +82,8 @@ var (
 )
 
 
-func Default(contentType string) Binding {
+
+func contentTypeSelect(contentType string) Binding {
 	switch contentType {
 	case MIMEJSON:
 		return JSON
@@ -95,7 +97,7 @@ func Default(contentType string) Binding {
 		return YAML
 	case MIMEMultipartPOSTForm:
 		return FormMultipart
-	default: // case MIMEPOSTForm:
+	default:
 		return Form
 	}
 }
@@ -104,6 +106,5 @@ func validate(obj interface{}) error {
 	if Validator == nil {
 		return nil
 	}
-	// todo default
 	return Validator.ValidateStruct(obj)
 }
