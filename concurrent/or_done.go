@@ -13,7 +13,7 @@ func OrDone(channels ...<-chan interface{}) <-chan interface{} {
 	case 1:
 		return channels[0]
 	}
-	orDone := make(chan interface{})
+	orDone := make(chan interface{}, 1)
 	go func() {
 		defer close(orDone)
 		var cases []reflect.SelectCase
