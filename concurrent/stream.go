@@ -157,6 +157,8 @@ func SkipWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v in
 			if fn(v) {
 				select {
 				case <-ctx.Done():
+				default:
+
 				}
 			} else {
 				for {
