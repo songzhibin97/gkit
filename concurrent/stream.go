@@ -30,7 +30,12 @@ func TaskN(ctx context.Context, valueStream <-chan interface{}, num int) <-chan 
 				if !ok {
 					return
 				}
-				outStream <- v
+				select {
+				case <-ctx.Done():
+					return
+				case outStream <- v:
+
+				}
 			}
 		}
 	}()
@@ -53,6 +58,7 @@ func TaskFn(ctx context.Context, valueStream <-chan interface{}, fn func(v inter
 				if fn(v) {
 					select {
 					case <-ctx.Done():
+						return
 					case outStream <- v:
 					}
 				}
@@ -67,20 +73,22 @@ func TaskWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v in
 	outStream := make(chan interface{})
 	go func() {
 		defer close(outStream)
-		select {
-		case <-ctx.Done():
-			return
-		case v, ok := <-valueStream:
-			if !ok {
+		for {
+			select {
+			case <-ctx.Done():
 				return
-			}
-			if fn(v) {
-				select {
-				case <-ctx.Done():
-				case outStream <- v:
+			case v, ok := <-valueStream:
+				if !ok {
+					return
 				}
-			} else {
-				return
+				if fn(v) {
+					select {
+					case <-ctx.Done():
+						return
+					case outStream <- v:
+					}
+					return
+				}
 			}
 		}
 	}()
@@ -110,7 +118,11 @@ func SkipN(ctx context.Context, valueStream <-chan interface{}, num int) <-chan 
 				if !ok {
 					return
 				}
-				outStream <- v
+				select {
+				case <-ctx.Done():
+					return
+				case outStream <- v:
+				}
 			}
 		}
 	}()
@@ -133,6 +145,7 @@ func SkipFn(ctx context.Context, valueStream <-chan interface{}, fn func(v inter
 				if !fn(v) {
 					select {
 					case <-ctx.Done():
+						return
 					case outStream <- v:
 					}
 				}
@@ -147,31 +160,40 @@ func SkipWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v in
 	outStream := make(chan interface{})
 	go func() {
 		defer close(outStream)
-		select {
-		case <-ctx.Done():
-			return
-		case v, ok := <-valueStream:
-			if !ok {
+		for {
+			select {
+			case <-ctx.Done():
 				return
-			}
-			if fn(v) {
-				select {
-				case <-ctx.Done():
-				default:
-
+			case v, ok := <-valueStream:
+				if !ok {
+					return
 				}
-			} else {
-				for {
+				if fn(v) {
 					select {
 					case <-ctx.Done():
 						return
-					case v, ok = <-valueStream:
-						if !ok {
-							return
-						}
+					default:
+
+					}
+				} else {
+					select {
+					case <-ctx.Done():
+						return
+					case outStream <- v:
+					}
+					for {
 						select {
 						case <-ctx.Done():
-						case outStream <- v:
+							return
+						case v, ok = <-valueStream:
+							if !ok {
+								return
+							}
+							select {
+							case <-ctx.Done():
+								return
+							case outStream <- v:
+							}
 						}
 					}
 				}
