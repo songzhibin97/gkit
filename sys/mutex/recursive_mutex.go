@@ -7,10 +7,6 @@ import (
 	"sync/atomic"
 )
 
-func NewRecursiveMutex() *RecursiveMutex {
-	return &RecursiveMutex{}
-}
-
 // RecursiveMutex 包装一个Mutex,实现可重入
 type RecursiveMutex struct {
 	sync.Mutex
