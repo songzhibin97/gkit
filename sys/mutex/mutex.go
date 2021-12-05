@@ -19,10 +19,6 @@ type Mutex struct {
 	sync.Mutex
 }
 
-func NewMutex() *Mutex  {
-	return &Mutex{}
-}
-
 func (m *Mutex) TryLock() bool {
 	// 如果能成功抢到锁
 	if atomic.CompareAndSwapInt32((*int32)(unsafe.Pointer(&m.Mutex)), 0, mutexLocked) {
