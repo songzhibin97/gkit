@@ -33,7 +33,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── pipeline (并发变为串行)
 ├── container (容器化组件,提供group、pool、queue)
   ├── group (提供了容器懒加载模式,类似sync.Pool,在使用时使用key获取对应容器实例,如果不存在则进行生成)
-  ├── pool (提供了pool的封装抽象,以及list实现对接口的实现)
+  ├── pool (提供了pool的封装抽象,以及使用list对接口的实现)
   ├── queue
     ├── codel (对列实现可控制延时算法,对积压任务实现制裁)
 ├── downgrade (熔断降级相关组件)
@@ -43,8 +43,8 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── goroutine (提供goroutine池,控制goroutine数量激增)
 ├── internal (core)
   ├── clock (获取时间戳)
-  ├── metadata (元数据模式封装)
-  ├── stat (Metric进阶实现包括滑动窗)
+  ├── metadata (元数据封装)
+  ├── stat (metric进阶实现包括滑动窗)
 ├── metrics (指标接口化)
 ├── log (接口化日志,使用日志组件接入)
 ├── middleware (中间件接口模型定义)
@@ -58,6 +58,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── parsePb (解析pb生成go)
 ├── registry (服务发现接口化、google sre subset实现)
 ├── restrictor (限流,提供令牌桶和漏桶接口封装)
+  ├── client_throttling (客户端节流)
   ├── rate 
   ├── ratelimite 
 ├── sync
@@ -68,7 +69,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
     ├── once (once 更强大的实现,设置once函数增加返回error,失败后可重试)
     ├── queue (无锁队列)
     ├── safe_map (并发安全的map)
-├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装)
+├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装实现)
   ├── ctime.go (链路超时控制)
   ├── c_json.go (适配数据库json类型)
   ├── d_time.go (适配数据库 只存储时间)
@@ -379,6 +380,11 @@ func main() {
 	fmt.Println(v) // {Gkit 200}
 }
 ```
+
+## concurrent
+
+并发中channel最佳实践
+
 
 ## container
 
