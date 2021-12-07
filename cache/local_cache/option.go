@@ -1,8 +1,9 @@
 package local_cache
 
 import (
-	"github.com/songzhibin97/gkit/options"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
 )
 
 type Config struct {

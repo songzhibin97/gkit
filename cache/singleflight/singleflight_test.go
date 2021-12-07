@@ -16,7 +16,7 @@ import (
 )
 
 func TestDo(t *testing.T) {
-	var g = NewSingleFlight()
+	g := NewSingleFlight()
 	v, err, _ := g.Do("key", func() (interface{}, error) {
 		return "bar", nil
 	})
@@ -29,7 +29,7 @@ func TestDo(t *testing.T) {
 }
 
 func TestDoErr(t *testing.T) {
-	var g = NewSingleFlight()
+	g := NewSingleFlight()
 	someErr := errors.New("Some error")
 	v, err, _ := g.Do("key", func() (interface{}, error) {
 		return nil, someErr
@@ -43,7 +43,7 @@ func TestDoErr(t *testing.T) {
 }
 
 func TestDoDupSuppress(t *testing.T) {
-	var g = NewSingleFlight()
+	g := NewSingleFlight()
 	var wg1, wg2 sync.WaitGroup
 	c := make(chan string, 1)
 	var calls int32
@@ -88,7 +88,7 @@ func TestDoDupSuppress(t *testing.T) {
 }
 
 func TestPanicDo(t *testing.T) {
-	var g = NewSingleFlight()
+	g := NewSingleFlight()
 	fn := func() (interface{}, error) {
 		panic("invalid memory address or nil pointer dereference")
 	}
@@ -125,7 +125,7 @@ func TestPanicDo(t *testing.T) {
 }
 
 func TestGoexitDo(t *testing.T) {
-	var g = NewSingleFlight()
+	g := NewSingleFlight()
 	fn := func() (interface{}, error) {
 		runtime.Goexit()
 		return nil, nil
@@ -166,7 +166,7 @@ func TestPanicDoChan(t *testing.T) {
 			recover()
 		}()
 
-		var g = NewSingleFlight()
+		g := NewSingleFlight()
 		ch := g.DoChan("", func() (interface{}, error) {
 			panic("Panicking in DoChan")
 		})
@@ -207,7 +207,7 @@ func TestPanicDoSharedByDoChan(t *testing.T) {
 		blocked := make(chan struct{})
 		unblock := make(chan struct{})
 
-		var g = NewSingleFlight()
+		g := NewSingleFlight()
 		go func() {
 			defer func() {
 				recover()

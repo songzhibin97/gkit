@@ -4,10 +4,11 @@ package sjson
 
 import (
 	jsongo "encoding/json"
-	"github.com/songzhibin97/gkit/tools/gjson"
 	"reflect"
 	"strconv"
 	"unsafe"
+
+	"github.com/songzhibin97/gkit/tools/gjson"
 )
 
 type errorType struct {
@@ -88,10 +89,12 @@ func parsePath(path string) (pathResult, error) {
 						return r, nil
 					} else if path[i] == '*' || path[i] == '?' {
 						return r, &errorType{
-							"wildcard characters not allowed in path"}
+							"wildcard characters not allowed in path",
+						}
 					} else if path[i] == '#' {
 						return r, &errorType{
-							"array access character not allowed in path"}
+							"array access character not allowed in path",
+						}
 					}
 					epart = append(epart, path[i])
 					gpart = append(gpart, path[i])
@@ -362,7 +365,8 @@ func appendRawPaths(buf []byte, jstr string, paths []pathResult, raw string,
 			} else {
 				return nil, &errorType{
 					"cannot set array element for non-numeric key '" +
-						paths[0].part + "'"}
+						paths[0].part + "'",
+				}
 			}
 		}
 		if appendit {
@@ -505,7 +509,8 @@ func set(jstr, path, raw string,
 				if !stringify || !mustMarshalString(raw) {
 					jsonh := *(*reflect.StringHeader)(unsafe.Pointer(&jstr))
 					jsonbh := reflect.SliceHeader{
-						Data: jsonh.Data, Len: jsonh.Len, Cap: jsonh.Len}
+						Data: jsonh.Data, Len: jsonh.Len, Cap: jsonh.Len,
+					}
 					jbytes := *(*[]byte)(unsafe.Pointer(&jsonbh))
 					if stringify {
 						jbytes[res.Index] = '"'

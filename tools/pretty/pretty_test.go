@@ -87,6 +87,7 @@ func TestRandom(t *testing.T) {
 		Ugly(b)
 	}
 }
+
 func TestBig(t *testing.T) {
 	js := `[
   {
@@ -404,6 +405,7 @@ func BenchmarkPrettySortKeys(t *testing.B) {
 		BestOptions(example1, &opts)
 	}
 }
+
 func BenchmarkUgly(t *testing.B) {
 	t.ReportAllocs()
 	t.ResetTimer()
@@ -420,6 +422,7 @@ func BenchmarkUglyInPlace(t *testing.B) {
 		UglyInPlace(example2)
 	}
 }
+
 func BenchmarkJSONIndent(t *testing.B) {
 	var dst bytes.Buffer
 	t.ReportAllocs()

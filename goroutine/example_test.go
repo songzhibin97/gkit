@@ -2,32 +2,32 @@ package goroutine
 
 import (
 	"context"
-	"github.com/songzhibin97/gkit/log"
 	"time"
+
+	"github.com/songzhibin97/gkit/log"
 )
 
 var gGroup GGroup
 
 func mockFunc() func() {
 	return func() {
-
 	}
 }
 
 func ExampleNewGoroutine() {
 	// 默认配置
-	//gGroup = NewGoroutine(context.TODO())
+	// gGroup = NewGoroutine(context.TODO())
 
 	// 可供选择配置选项
 
 	// 设置停止超时时间
-	//SetStopTimeout(time.Second)
+	// SetStopTimeout(time.Second)
 
 	// 设置日志对象
-	//SetLogger(&testLogger{})
+	// SetLogger(&testLogger{})
 
 	// 设置pool最大容量
-	//SetMax(100)
+	// SetMax(100)
 
 	gGroup = NewGoroutine(context.TODO(),
 		SetStopTimeout(time.Second),

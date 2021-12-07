@@ -1,11 +1,12 @@
 package mutex
 
 import (
-	"github.com/songzhibin97/gkit/internal/clock"
 	"runtime"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/songzhibin97/gkit/internal/clock"
 )
 
 func Test_Mutex_TryLock(t *testing.T) {
@@ -42,7 +43,7 @@ func utTriableMutexConcurrent(t *testing.T) {
 		}(m, wg, &cnt, t)
 	}
 	wg.Wait()
-	//fmt.Println("count=", cnt)
+	// fmt.Println("count=", cnt)
 	if cnt != 1000 {
 		t.Error("count error concurrency")
 	}

@@ -23,7 +23,6 @@ func PbTypeToGo(s string) string {
 		return v
 	}
 	return s
-
 }
 
 func addOne(a int) int {

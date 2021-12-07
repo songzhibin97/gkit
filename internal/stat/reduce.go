@@ -2,7 +2,7 @@ package stat
 
 // Sum 返回窗口所有值之和
 func Sum(iterator Iterator) float64 {
-	var result = 0.0
+	result := 0.0
 	for iterator.Next() {
 		bucket := iterator.Bucket()
 		for _, p := range bucket.Points {
@@ -14,8 +14,8 @@ func Sum(iterator Iterator) float64 {
 
 // Avg 返回窗口平均值
 func Avg(iterator Iterator) float64 {
-	var result = 0.0
-	var count = 0.0
+	result := 0.0
+	count := 0.0
 	for iterator.Next() {
 		bucket := iterator.Bucket()
 		for _, p := range bucket.Points {
@@ -28,8 +28,8 @@ func Avg(iterator Iterator) float64 {
 
 // Min 返回窗口最小值
 func Min(iterator Iterator) float64 {
-	var result = 0.0
-	var started = false
+	result := 0.0
+	started := false
 	for iterator.Next() {
 		bucket := iterator.Bucket()
 		for _, p := range bucket.Points {
@@ -48,8 +48,8 @@ func Min(iterator Iterator) float64 {
 
 // Max 返回窗口最大值
 func Max(iterator Iterator) float64 {
-	var result = 0.0
-	var started = false
+	result := 0.0
+	started := false
 	for iterator.Next() {
 		bucket := iterator.Bucket()
 		for _, p := range bucket.Points {

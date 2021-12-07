@@ -2,15 +2,16 @@ package bbr
 
 import (
 	"context"
+	"math"
+	"sync/atomic"
+	"time"
+
 	"github.com/songzhibin97/gkit/container/group"
 	"github.com/songzhibin97/gkit/internal/stat"
 	cupstat "github.com/songzhibin97/gkit/internal/sys/cpu"
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/overload"
-	"math"
-	"sync/atomic"
-	"time"
 )
 
 // package bbr: bbr 限流
@@ -99,7 +100,7 @@ func (l *BBR) maxPASS() int64 {
 		return rawMaxPass
 	}
 	rawMaxPass = int64(l.passStat.Reduce(func(iterator stat.Iterator) float64 {
-		var result = 1.0
+		result := 1.0
 		for i := 1; iterator.Next() && i < l.conf.winBucket; i++ {
 			bucket := iterator.Bucket()
 			count := 0.0
@@ -124,7 +125,7 @@ func (l *BBR) minRT() int64 {
 		return rawMinRT
 	}
 	rawMinRT = int64(math.Ceil(l.rtStat.Reduce(func(iterator stat.Iterator) float64 {
-		var result = math.MaxFloat64
+		result := math.MaxFloat64
 		for i := 1; iterator.Next() && i < l.conf.winBucket; i++ {
 			bucket := iterator.Bucket()
 			if len(bucket.Points) == 0 {

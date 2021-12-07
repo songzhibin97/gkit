@@ -1,9 +1,10 @@
 package concurrent
 
 import (
-	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func fanIn(start, end int) <-chan interface{} {
@@ -27,8 +28,7 @@ func TestFanInRec(t *testing.T) {
 	sort.Slice(outSlice, func(i, j int) bool {
 		return outSlice[i].(int) < outSlice[j].(int)
 	})
-	assert.Equal(t, outSlice, []interface{}{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19})
-
+	assert.Equal(t, outSlice, []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19})
 }
 
 func TestMergeChannel(t *testing.T) {
@@ -41,5 +41,5 @@ func TestMergeChannel(t *testing.T) {
 	sort.Slice(outSlice, func(i, j int) bool {
 		return outSlice[i].(int) < outSlice[j].(int)
 	})
-	assert.Equal(t, outSlice, []interface{}{0,1,2,3,4,5,6,7,8,9,10})
+	assert.Equal(t, outSlice, []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
 }

@@ -1,15 +1,16 @@
 package local_cache
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"log"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
 )
 
 var ch Cache
 
 func ExampleNewCache() {
 	// 默认配置
-	//ch = NewCache()
+	// ch = NewCache()
 
 	// 可供选择的配置选项
 
@@ -137,12 +138,12 @@ func ExampleSaveLoad() {
 	_ = ch.LoadFile("path")
 }
 
-func ExampleFlush()  {
+func ExampleFlush() {
 	// Flush 释放member成员
 	ch.Flush()
 }
 
-func ExampleShutdown()  {
+func ExampleShutdown() {
 	// Shutdown 释放对象
 	ch.Shutdown()
 }

@@ -127,7 +127,8 @@ func TestWildcardMatch(t *testing.T) {
 		},
 		// Test case - 10.
 		// Test case with keyname part being a wildcard in the pattern.
-		{pattern: "my-folder/*",
+		{
+			pattern: "my-folder/*",
 			text:    "my-folder/India",
 			matched: true,
 		},
@@ -356,6 +357,7 @@ func TestWildcardMatch(t *testing.T) {
 		}
 	}
 }
+
 func TestRandomInput(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	b1 := make([]byte, 100)
@@ -370,6 +372,7 @@ func TestRandomInput(t *testing.T) {
 		Match(string(b1), string(b2))
 	}
 }
+
 func testAllowable(pattern, exmin, exmax string) error {
 	min, max := Allowable(pattern)
 	if min != exmin || max != exmax {
@@ -378,6 +381,7 @@ func testAllowable(pattern, exmin, exmax string) error {
 	}
 	return nil
 }
+
 func TestAllowable(t *testing.T) {
 	if err := testAllowable("hell*", "hell", "helm"); err != nil {
 		t.Fatal(err)
@@ -413,6 +417,7 @@ func TestIsPattern(t *testing.T) {
 		}
 	}
 }
+
 func BenchmarkAscii(t *testing.B) {
 	for i := 0; i < t.N; i++ {
 		if !Match("hello", "hello") {

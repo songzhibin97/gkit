@@ -2,10 +2,11 @@ package window
 
 import (
 	"errors"
-	"github.com/songzhibin97/gkit/internal/clock"
-	"github.com/songzhibin97/gkit/internal/sys/mutex"
 	"runtime"
 	"sync/atomic"
+
+	"github.com/songzhibin97/gkit/internal/clock"
+	"github.com/songzhibin97/gkit/internal/sys/mutex"
 )
 
 var (

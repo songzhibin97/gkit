@@ -2,8 +2,9 @@ package egroup
 
 import (
 	"context"
-	"github.com/songzhibin97/gkit/goroutine"
 	"sync"
+
+	"github.com/songzhibin97/gkit/goroutine"
 )
 
 type Group struct {

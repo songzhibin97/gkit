@@ -2,8 +2,9 @@ package ratelimite
 
 import (
 	"context"
-	"github.com/juju/ratelimit"
 	"time"
+
+	"github.com/juju/ratelimit"
 )
 
 func ExampleNewRateLimit() {

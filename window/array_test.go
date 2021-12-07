@@ -1,12 +1,13 @@
 package window
 
 import (
-	"github.com/songzhibin97/gkit/internal/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"sync/atomic"
 	"testing"
 	"unsafe"
+
+	"github.com/songzhibin97/gkit/internal/clock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 const (
@@ -14,7 +15,7 @@ const (
 	BucketSize uint64 = 500
 	// N: 长度
 	N uint64 = 20
-	//IntervalSize 时间间隔 10s
+	// IntervalSize 时间间隔 10s
 	IntervalSize uint64 = 10 * 1000
 )
 

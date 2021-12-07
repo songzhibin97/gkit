@@ -2,16 +2,17 @@ package parsePb
 
 import (
 	"fmt"
+	"text/template"
+
 	"github.com/emicklei/proto"
 	"github.com/songzhibin97/gkit/cache/buffer"
 	"github.com/songzhibin97/gkit/options"
-	"text/template"
 )
 
 type (
 	ParseMessage func(m *Message)
 	ParseService func(server *Server)
-	//CheckFunc    func(p *PbParseGo) error
+	// CheckFunc    func(p *PbParseGo) error
 )
 
 type PbParseGo struct {
@@ -168,7 +169,7 @@ func (p *PbParseGo) PackageName() string {
 }
 
 func (p *PbParseGo) Generate() string {
-	var temp = `package {{.PkgName}}
+	temp := `package {{.PkgName}}
 
 // struct{{range .Message}}
 type {{.Name}} struct {

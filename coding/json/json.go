@@ -2,10 +2,11 @@ package json
 
 import (
 	"encoding/json"
+	"reflect"
+
 	"github.com/songzhibin97/gkit/coding"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"reflect"
 )
 
 const Name = "json"

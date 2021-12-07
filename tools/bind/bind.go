@@ -81,8 +81,6 @@ var (
 	Header        = headerBinding{}
 )
 
-
-
 func contentTypeSelect(contentType string) Binding {
 	switch contentType {
 	case MIMEJSON:

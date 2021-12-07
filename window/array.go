@@ -1,10 +1,11 @@
 package window
 
 import (
-	"github.com/songzhibin97/gkit/internal/clock"
-	"github.com/songzhibin97/gkit/internal/sys/safe"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/songzhibin97/gkit/internal/clock"
+	"github.com/songzhibin97/gkit/internal/sys/safe"
 )
 
 // AtomicArray 封装原子操作, 底层维护 []*Bucket

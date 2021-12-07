@@ -2,9 +2,10 @@ package rate
 
 import (
 	"context"
-	"golang.org/x/time/rate"
 	"testing"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 func TestRate(t *testing.T) {

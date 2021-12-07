@@ -1,9 +1,10 @@
 package yaml
 
 import (
+	"reflect"
+
 	"github.com/songzhibin97/gkit/coding"
 	"gopkg.in/yaml.v2"
-	"reflect"
 )
 
 const Name = "yaml"

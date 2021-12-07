@@ -1,17 +1,18 @@
 package bbr
 
 import (
-	"github.com/songzhibin97/gkit/internal/stat"
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/overload"
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/songzhibin97/gkit/internal/stat"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/overload"
+	"github.com/stretchr/testify/assert"
 )
 
 func confForTest() []options.Option {
@@ -160,7 +161,7 @@ func TestBBRShouldDrop(t *testing.T) {
 }
 
 func TestGroup(t *testing.T) {
-	group := NewGroup(SetWindow(time.Second * 5),SetWinBucket(50),SetCPUThreshold(100))
+	group := NewGroup(SetWindow(time.Second*5), SetWinBucket(50), SetCPUThreshold(100))
 	t.Run("get", func(t *testing.T) {
 		limiter := group.Get("test")
 		assert.NotNil(t, limiter)

@@ -1,10 +1,11 @@
 package concurrent
 
 import (
-	"github.com/stretchr/testify/assert"
 	"sort"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func production() <-chan interface{} {
@@ -40,7 +41,6 @@ func TestFanOut(t *testing.T) {
 		go func(c chan interface{}) {
 			defer wg.Done()
 			assert.Equal(t, consumer(c), []interface{}{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
-
 		}(c)
 	}
 	wg.Wait()

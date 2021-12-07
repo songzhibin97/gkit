@@ -3,11 +3,12 @@ package pool
 import (
 	"container/list"
 	"context"
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/timeout"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/timeout"
 )
 
 var _ Pool = &List{}

@@ -8,9 +8,7 @@ import (
 )
 
 func TestError(t *testing.T) {
-	var (
-		base *Error
-	)
+	var base *Error
 	err := Errorf(http.StatusBadRequest, "reason", "message")
 	err2 := Errorf(http.StatusBadRequest, "reason", "message")
 	err3 := err.AddMetadata(map[string]string{
@@ -49,7 +47,6 @@ func TestError(t *testing.T) {
 		t.Errorf("got %+v want %+v", se, err)
 	}
 }
-
 
 func TestCode(t *testing.T) {
 	var (

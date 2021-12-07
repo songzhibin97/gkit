@@ -2,12 +2,13 @@ package codel
 
 import (
 	"context"
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/overload/bbr"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/overload/bbr"
 )
 
 // package queue: 对列实现可控制延时算法
@@ -21,7 +22,6 @@ type config struct {
 	// internal: 滑动最小时间窗口宽度(默认是500ms)
 	internal int64
 }
-
 
 // Stat CoDel 状态信息
 type Stat struct {
@@ -51,7 +51,6 @@ type Queue struct {
 	faTime   int64
 	dropNext int64 // 丢弃请求的数量
 }
-
 
 // Reload 重新加载配置
 func (q *Queue) Reload(c *config) {
@@ -161,7 +160,7 @@ func (q *Queue) judge(p packet) (drop bool) {
 		// on the last cycle is a good starting point to control it now.
 		if now-atomic.LoadInt64(&q.dropNext) < q.conf.internal {
 			if atomic.LoadInt64(&q.count) > 2 {
-				atomic.AddInt64(&q.count, - 2)
+				atomic.AddInt64(&q.count, -2)
 			} else {
 				atomic.StoreInt64(&q.count, 1)
 			}
@@ -175,12 +174,10 @@ func (q *Queue) judge(p packet) (drop bool) {
 	return
 }
 
-
 // Default 默认配置CoDel Queue
 func Default() *Queue {
 	return New()
 }
-
 
 // defaultConfig 默认配置
 func defaultConfig() *config {
@@ -208,7 +205,6 @@ func SetInternal(internal int64) options.Option {
 
 // New 实例化 CoDel Queue
 func New(options ...options.Option) *Queue {
-
 	// new pool
 	q := &Queue{
 		packets: make(chan packet, 2048),
@@ -222,4 +218,3 @@ func New(options ...options.Option) *Queue {
 	}
 	return q
 }
-

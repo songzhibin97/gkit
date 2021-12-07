@@ -20,4 +20,3 @@ func Shrink(c context.Context, d time.Duration) (time.Duration, context.Context,
 	ctx, cancel := context.WithTimeout(c, d)
 	return d, ctx, cancel
 }
-

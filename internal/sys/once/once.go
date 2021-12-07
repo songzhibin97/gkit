@@ -16,7 +16,7 @@ type Once struct {
 // Do 传入的函数f有返回值error，如果初始化失败，需要返回失败的error
 // Do方法会把这个error返回给调用者
 func (o *Once) Do(f func() error) error {
-	if atomic.LoadUint32(&o.done) == 1 { //fast path
+	if atomic.LoadUint32(&o.done) == 1 { // fast path
 		return nil
 	}
 	return o.slowDo(f)

@@ -2,10 +2,11 @@ package parsePb
 
 import (
 	"bytes"
+	"io/ioutil"
+
 	"github.com/emicklei/proto"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/parse"
-	"io/ioutil"
 )
 
 func ParsePb(filepath string, options ...options.Option) (parse.Parse, error) {

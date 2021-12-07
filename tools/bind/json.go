@@ -3,9 +3,10 @@ package bind
 import (
 	"bytes"
 	"fmt"
-	"github.com/songzhibin97/gkit/tools/bind/internal/json"
 	"io"
 	"net/http"
+
+	"github.com/songzhibin97/gkit/tools/bind/internal/json"
 )
 
 // EnableDecoderUseNumber is used to call the UseNumber method on the JSON

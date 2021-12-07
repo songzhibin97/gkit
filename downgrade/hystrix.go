@@ -2,6 +2,7 @@ package downgrade
 
 import (
 	"context"
+
 	"github.com/afex/hystrix-go/hystrix"
 )
 

@@ -5,10 +5,8 @@ import (
 	"log"
 )
 
-var (
-	// DefaultLogger is default logger.
-	DefaultLogger Logger = NewStdLogger(log.Writer())
-)
+// DefaultLogger is default logger.
+var DefaultLogger Logger = NewStdLogger(log.Writer())
 
 // Logger 操作日志对外的接口
 // 实现该接口需要保证它是并发安全的

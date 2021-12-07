@@ -29,17 +29,17 @@ func (m *mockLifeAdminer) Shutdown(ctx context.Context) error {
 
 func ExampleNewLifeAdmin() {
 	// 默认配置
-	//admin = NewLifeAdmin()
+	// admin = NewLifeAdmin()
 
 	// 可供选择配置选项
 
 	// 设置启动超时时间
 	// <=0 不启动超时时间,注意要在shutdown处理关闭通知
-	//SetStartTimeout(time.Second)
+	// SetStartTimeout(time.Second)
 
 	//  设置关闭超时时间
 	//	<=0 不启动超时时间
-	//SetStopTimeout(time.Second)
+	// SetStopTimeout(time.Second)
 
 	// 设置信号集合,和处理信号的函数
 	//SetSignal(func(lifeAdmin *LifeAdmin, signal os.Signal) {

@@ -3,6 +3,7 @@ package errors
 import (
 	"errors"
 	"fmt"
+
 	"github.com/golang/protobuf/proto"
 	httputil "github.com/songzhibin97/gkit/errors/internal"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -18,9 +19,7 @@ const (
 	UnknownReason = ""
 )
 
-var (
-	ErrDetails = errors.New("no error details for status with code OK")
-)
+var ErrDetails = errors.New("no error details for status with code OK")
 
 // Error 实现Error接口
 func (x *Error) Error() string {
@@ -117,4 +116,4 @@ func Is(err, target error) bool { return errors.Is(err, target) }
 
 func As(err error, target interface{}) bool { return errors.As(err, target) }
 
-func Unwrap(err error) error {return errors.Unwrap(err)}
+func Unwrap(err error) error { return errors.Unwrap(err) }

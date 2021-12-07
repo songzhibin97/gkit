@@ -2,13 +2,13 @@ package clock
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-
-//Time zone should be considered for time related operations
+// Time zone should be considered for time related operations
 func TestFormatTimeMillis(t *testing.T) {
 	type args struct {
 		ts uint64
@@ -166,7 +166,6 @@ func TestMockTicker(t *testing.T) {
 func BenchmarkGetTimeInMs(b *testing.B) {
 	StartTicker()
 	GetTimeMillisDirect := func() uint64 {
-
 		tickerNow := GetTimestamp()
 		if tickerNow > uint64(0) {
 			return tickerNow

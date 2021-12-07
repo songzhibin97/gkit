@@ -9,12 +9,18 @@ import (
 func TestWindow(t *testing.T) {
 	w := InitWindow()
 	slice := []Index{
-		{Name: "1", Score: 1}, {Name: "2", Score: 2},
-		{Name: "2", Score: 2}, {Name: "3", Score: 3},
-		{Name: "2", Score: 2}, {Name: "3", Score: 3},
-		{Name: "4", Score: 4}, {Name: "3", Score: 3},
-		{Name: "5", Score: 5}, {Name: "2", Score: 2},
-		{Name: "6", Score: 6}, {Name: "5", Score: 5},
+		{Name: "1", Score: 1},
+		{Name: "2", Score: 2},
+		{Name: "2", Score: 2},
+		{Name: "3", Score: 3},
+		{Name: "2", Score: 2},
+		{Name: "3", Score: 3},
+		{Name: "4", Score: 4},
+		{Name: "3", Score: 3},
+		{Name: "5", Score: 5},
+		{Name: "2", Score: 2},
+		{Name: "6", Score: 6},
+		{Name: "5", Score: 5},
 	}
 	/*
 			[{1 1} {2 2}]
@@ -33,7 +39,7 @@ func TestWindow(t *testing.T) {
 }
 
 func BenchmarkWindow(b *testing.B) {
-	var w = InitWindow()
+	w := InitWindow()
 	for i := 0; i < b.N; i++ {
 		w.AddIndex(strconv.Itoa(i), uint(i))
 		w.Show()

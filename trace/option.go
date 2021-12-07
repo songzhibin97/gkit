@@ -24,4 +24,3 @@ func WithTracerProvider(provider trace.TracerProvider) options.Option {
 		o.(*config).tracerProvider = provider
 	}
 }
-

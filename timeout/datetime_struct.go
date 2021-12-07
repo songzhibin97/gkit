@@ -33,7 +33,6 @@ func (m *DateTimeStruct) UnmarshalTextByLayout(layout, value string) error {
 	return nil
 }
 
-
 // ToDate DateTime 2 Date
 // Author [SliverHorn](https://github.com/SliverHorn)
 func (m *DateTimeStruct) ToDate() *DateStruct {
@@ -42,6 +41,7 @@ func (m *DateTimeStruct) ToDate() *DateStruct {
 	}
 	return &DateStruct{Time: m.Time}
 }
+
 // UnmarshalJSON 反序列化
 // Author [SliverHorn](https://github.com/SliverHorn)
 func (m *DateTimeStruct) UnmarshalJSON(src []byte) error {

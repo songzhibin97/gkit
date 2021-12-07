@@ -36,7 +36,6 @@ type Window struct {
 	size   int
 }
 
-
 // NewWindow 实例化 Window 对象
 func NewWindow(size int) *Window {
 	buckets := make([]Bucket, size)

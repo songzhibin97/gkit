@@ -46,7 +46,6 @@ func ExampleChain() {
 func annotate(s string) MiddleWare {
 	return func(next Endpoint) Endpoint {
 		return func(ctx context.Context, request interface{}) (interface{}, error) {
-
 			fmt.Println(s, "pre")
 			defer fmt.Println(s, "post")
 			return next(ctx, request)

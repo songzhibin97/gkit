@@ -2,9 +2,10 @@ package pool
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type shutdown struct{}
@@ -19,7 +20,7 @@ type connection struct {
 }
 
 func (c *connection) HandleQuick() {
-	//time.Sleep(1 * time.Millisecond)
+	// time.Sleep(1 * time.Millisecond)
 }
 
 func (c *connection) HandleNormal() {
@@ -49,7 +50,7 @@ func TestListGetPut(t *testing.T) {
 }
 
 func TestListPut(t *testing.T) {
-	var id = 0
+	id := 0
 	type connID struct {
 		IShutdown
 		id int
@@ -77,7 +78,7 @@ func TestListPut(t *testing.T) {
 }
 
 func TestListIdleTimeout(t *testing.T) {
-	var id = 0
+	id := 0
 	type connID struct {
 		IShutdown
 		id int
@@ -145,7 +146,7 @@ func TestListPoolExhausted(t *testing.T) {
 }
 
 func TestListStaleClean(t *testing.T) {
-	var id = 0
+	id := 0
 	type connID struct {
 		IShutdown
 		id int

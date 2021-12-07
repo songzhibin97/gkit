@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-	"github.com/songzhibin97/gkit/options"
 	"io"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
 )
 
 const (
@@ -136,7 +137,6 @@ func (c *cache) Get(k string) (interface{}, bool) {
 			c.RUnlock()
 			return v.Val, true
 		}
-
 	}
 }
 

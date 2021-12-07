@@ -1,12 +1,12 @@
 package vto
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestVoToDo(t *testing.T) {
-
 	type (
 		mock1 struct {
 			Name string
@@ -123,6 +123,4 @@ func TestVoToDo(t *testing.T) {
 		}
 		assert.Equal(t, m0, m2)
 	}
-
 }
-

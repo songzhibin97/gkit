@@ -2,9 +2,10 @@ package window
 
 import (
 	"context"
-	"github.com/songzhibin97/gkit/options"
 	"sync/atomic"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
 )
 
 // SetSize 设置大小

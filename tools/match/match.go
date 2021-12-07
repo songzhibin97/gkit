@@ -6,7 +6,6 @@ import "unicode/utf8"
 // * 匹配任意数字字符
 // ? 匹配任何一个字符
 
-
 // Match 判断是否匹配
 func Match(str, pattern string) bool {
 	return deepMatch(str, pattern)

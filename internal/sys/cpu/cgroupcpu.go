@@ -105,7 +105,7 @@ func (cpu *cGroupCPU) Info() Info {
 const nanoSecondsPerSecond = 1e9
 
 // ErrNoCFSLimit: 没有配额限制
-//var ErrNoCFSLimit = errors.Errorf("no quota limit")
+// var ErrNoCFSLimit = errors.Errorf("no quota limit")
 
 var clockTicksPerSecond = uint64(getClockTicks())
 

@@ -3,12 +3,13 @@ package parseGo
 import (
 	"errors"
 	"fmt"
-	"github.com/songzhibin97/gkit/cache/buffer"
-	"github.com/songzhibin97/gkit/options"
 	"go/ast"
 	"io/ioutil"
 	"strings"
 	"text/template"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
+	"github.com/songzhibin97/gkit/options"
 )
 
 type (
@@ -136,9 +137,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl) {
 			if sType, ok := v.Type.(*ast.StructType); ok {
 
 				for _, field := range sType.Fields.List {
-					var (
-						tag, name string
-					)
+					var tag, name string
 					if field.Tag != nil {
 						tag = field.Tag.Value
 					}
@@ -267,7 +266,7 @@ func (g *GoParsePB) checkFormat() error {
 		}
 		msgHashSet[message.Name] = struct{}{}
 	}
-	//serverHashSet := make(map[string]struct{})
+	// serverHashSet := make(map[string]struct{})
 	for _, serve := range g.Server {
 		if serve.ServerName != "" {
 			g.Metas["ServerName"] = serve.ServerName
@@ -337,7 +336,7 @@ func (g *GoParsePB) PackageName() string {
 
 // Generate 生成pb文件
 func (g *GoParsePB) Generate() string {
-	var temp = `syntax = "proto3";
+	temp := `syntax = "proto3";
 package {{.PackageName}};
 
 // message{{range .Message}}
@@ -382,7 +381,7 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(g.FilePath, srcData, 0600)
+	return ioutil.WriteFile(g.FilePath, srcData, 0o600)
 }
 
 func (g *GoParsePB) PileDismantle(clearCode string) error {
@@ -396,7 +395,7 @@ func (g *GoParsePB) PileDismantle(clearCode string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(g.FilePath, srcData, 0600)
+	return ioutil.WriteFile(g.FilePath, srcData, 0o600)
 }
 
 // pileFind: 找到打桩点,返回 startNotesPos、endNotesPos
@@ -511,7 +510,6 @@ func (g *GoParsePB) pileDriving(srcData []byte, startNotesPos, endNotesPos int, 
 
 func (g *GoParsePB) pileDismantle(srcData []byte, clearCode string) ([]byte, error) {
 	return cleanCode(clearCode, string(srcData))
-
 }
 
 // cleanCode: 清除桩内内容

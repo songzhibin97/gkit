@@ -2,15 +2,16 @@ package trace
 
 import (
 	"context"
+	"net"
+	"net/url"
+	"strings"
+
 	"github.com/songzhibin97/gkit/internal/metadata"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/proto"
-	"net"
-	"net/url"
-	"strings"
 )
 
 func setClientSpan(ctx context.Context, span trace.Span, m interface{}) {
