@@ -2,16 +2,19 @@ package downgrade
 
 import (
 	"context"
+
 	"github.com/afex/hystrix-go/hystrix"
 )
 
 // package downgrade: 熔断降级
 // 与 "github.com/afex/hystrix-go/hystrix" 使用方法一致,只是做了抽象封装,避免因为升级对服务造成影响"
 
-type runFunc = func() error
-type fallbackFunc = func(error) error
-type runFuncC = func(context.Context) error
-type fallbackFuncC = func(context.Context, error) error
+type (
+	runFunc       = func() error
+	fallbackFunc  = func(error) error
+	runFuncC      = func(context.Context) error
+	fallbackFuncC = func(context.Context, error) error
+)
 
 // Fuse 熔断降级接口
 type Fuse interface {

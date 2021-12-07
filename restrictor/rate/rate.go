@@ -4,9 +4,10 @@ package rate
 
 import (
 	"context"
+	"time"
+
 	"github.com/songzhibin97/gkit/restrictor"
 	"golang.org/x/time/rate"
-	"time"
 )
 
 // NewRate 返回limiter对应的 restrictor.AllowFunc, restrictor.WaitFunc
@@ -17,5 +18,3 @@ func NewRate(limiter *rate.Limiter) (restrictor.AllowFunc, restrictor.WaitFunc) 
 			return limiter.WaitN(ctx, n)
 		}
 }
-
-

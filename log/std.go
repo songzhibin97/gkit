@@ -29,7 +29,6 @@ func NewStdLogger(w io.Writer) Logger {
 
 // Log print the kv pairs log.
 func (l *stdLogger) Log(level Lever, kvs ...interface{}) error {
-
 	if len(kvs) == 0 {
 		return nil
 	}

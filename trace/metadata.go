@@ -2,6 +2,7 @@ package trace
 
 import (
 	"context"
+
 	"github.com/songzhibin97/gkit/internal/metadata"
 	"go.opentelemetry.io/otel/propagation"
 )

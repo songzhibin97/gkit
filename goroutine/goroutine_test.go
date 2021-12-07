@@ -3,11 +3,11 @@ package goroutine
 import (
 	"context"
 	"fmt"
-	"github.com/songzhibin97/gkit/log"
 	"testing"
 	"time"
-)
 
+	"github.com/songzhibin97/gkit/log"
+)
 
 func TestNewGoroutine(t *testing.T) {
 	g := NewGoroutine(context.Background(), SetMax(10), SetLogger(log.DefaultLogger))

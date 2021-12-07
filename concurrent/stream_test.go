@@ -2,9 +2,10 @@ package concurrent
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func generateStreamNumber(n int) (ret []interface{}) {

@@ -8,13 +8,9 @@ import (
 
 // package encoding 各种格式编码解码
 
-var (
-	ErrorTypeCode = errors.New("coding: code type error")
-)
+var ErrorTypeCode = errors.New("coding: code type error")
 
-var (
-	registerCode = CodeStorage{storage: map[string]Code{}}
-)
+var registerCode = CodeStorage{storage: map[string]Code{}}
 
 type (
 	// Code coding 接口

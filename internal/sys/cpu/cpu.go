@@ -22,9 +22,7 @@ type CPU interface {
 }
 
 func init() {
-	var (
-		err error
-	)
+	var err error
 	// 判断操作系统使用的是cGroup,如果不是cGroup退化为Psutil
 	stats, err = newCGroupCPU()
 	if err != nil {

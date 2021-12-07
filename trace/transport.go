@@ -12,10 +12,6 @@ const (
 	KindHTTP Kind = "HTTP"
 )
 
-var (
-
-)
-
 type (
 	Kind string
 

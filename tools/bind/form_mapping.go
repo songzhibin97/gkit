@@ -3,12 +3,13 @@ package bind
 import (
 	"errors"
 	"fmt"
-	"github.com/songzhibin97/gkit/tools/bind/internal/bytesconv"
-	"github.com/songzhibin97/gkit/tools/bind/internal/json"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/songzhibin97/gkit/tools/bind/internal/bytesconv"
+	"github.com/songzhibin97/gkit/tools/bind/internal/json"
 )
 
 var errUnknownType = errors.New("unknown type")
@@ -71,7 +72,7 @@ func mapping(value reflect.Value, field reflect.StructField, setter setter, tag 
 		return false, nil
 	}
 
-	var vKind = value.Kind()
+	vKind := value.Kind()
 
 	// obj kind 如果是指针
 	if vKind == reflect.Ptr {
@@ -319,7 +320,6 @@ func setTimeField(val string, structField reflect.StructField, value reflect.Val
 		t := time.Unix(tv/int64(d), tv%int64(d))
 		value.Set(reflect.ValueOf(t))
 		return nil
-
 	}
 
 	if val == "" {

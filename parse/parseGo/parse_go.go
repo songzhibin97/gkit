@@ -2,13 +2,14 @@ package parseGo
 
 import (
 	"fmt"
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/parse"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/ioutil"
 	"strings"
+
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/parse"
 )
 
 func ParseGo(filepath string, options ...options.Option) (parse.Parse, error) {

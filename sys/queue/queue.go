@@ -30,8 +30,8 @@ func (q *LKQueue) Enqueue(v interface{}) {
 		next := load(&tail.next)
 		if tail == load(&q.tail) { // 尾还是尾
 			if next == nil { // 还没有新数据入队
-				if cas(&tail.next, next, n) { //增加到队尾
-					cas(&q.tail, tail, n) //入队成功，移动尾巴指针
+				if cas(&tail.next, next, n) { // 增加到队尾
+					cas(&q.tail, tail, n) // 入队成功，移动尾巴指针
 					return
 				}
 			} else { // 已有新数据加到队列后面，需要移动尾指针

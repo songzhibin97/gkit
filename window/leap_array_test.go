@@ -1,10 +1,11 @@
 package window
 
 import (
-	"github.com/songzhibin97/gkit/internal/sys/mutex"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+
+	"github.com/songzhibin97/gkit/internal/sys/mutex"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetTimeIndex(t *testing.T) {
@@ -54,8 +55,7 @@ func TestGetTimeIndex(t *testing.T) {
 }
 
 func TestCalculateStartTime(t *testing.T) {
-	type fields struct {
-	}
+	type fields struct{}
 	type args struct {
 		timeMillis uint64
 		bucketSize uint64

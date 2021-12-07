@@ -1,23 +1,24 @@
 package codel
 
 import (
-	"github.com/songzhibin97/gkit/overload/bbr"
 	"context"
+
+	"github.com/songzhibin97/gkit/overload/bbr"
 )
 
 var queue *Queue
 
 func ExampleNew() {
 	// 默认配置
-	//queue = New()
+	// queue = New()
 
 	// 可供选择配置选项
 
 	// 设置对列延时
-	//SetTarget(40)
+	// SetTarget(40)
 
 	// 设置滑动窗口最小时间宽度
-	//SetInternal(1000)
+	// SetInternal(1000)
 
 	queue = New(SetTarget(40), SetInternal(1000))
 }

@@ -1,9 +1,10 @@
 package goroutine
 
 import (
+	"time"
+
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
-	"time"
 )
 
 // config

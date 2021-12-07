@@ -21,21 +21,21 @@ func getResources(c context.Context) (IShutdown, error) {
 func ExampleNewList() {
 	// NewList(options ...)
 	// 默认配置
-	//pool = NewList()
+	// pool = NewList()
 
 	// 可供选择配置选项
 
 	// 设置 Pool 连接数, 如果 == 0 则无限制
-	//SetActive(100)
+	// SetActive(100)
 
 	// 设置最大空闲连接数
-	//SetIdle(20)
+	// SetIdle(20)
 
 	// 设置空闲等待时间
-	//SetIdleTimeout(time.Second)
+	// SetIdleTimeout(time.Second)
 
 	// 设置期望等待
-	//SetWait(false,time.Second)
+	// SetWait(false,time.Second)
 
 	// 自定义配置
 	pool = NewList(
@@ -67,13 +67,11 @@ func ExampleList_Put() {
 	// forceClose: true 内部帮你调用 Shutdown回收, 否则判断是否是可回收,挂载到list上
 	err = pool.Put(context.TODO(), v, false)
 	if err != nil {
-	  // 处理错误
+		// 处理错误
 	}
 }
 
-
 func ExampleList_Shutdown() {
-
 	// Shutdown 回收资源,关闭所有资源
 	_ = pool.Shutdown()
 }

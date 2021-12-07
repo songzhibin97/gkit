@@ -109,10 +109,8 @@ type IoBuffer interface {
 	// EOF returns whether Io is EOF on the connection
 	EOF() bool
 
-	//SetEOF sets the IoBuffer EOF
+	// SetEOF sets the IoBuffer EOF
 	SetEOF(eof bool)
-
 	Append(data []byte) error
-
 	CloseWithError(err error)
 }

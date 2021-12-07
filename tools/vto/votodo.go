@@ -3,8 +3,9 @@ package vto
 import (
 	"errors"
 	"fmt"
-	"github.com/songzhibin97/gkit/tools/bind"
 	"reflect"
+
+	"github.com/songzhibin97/gkit/tools/bind"
 )
 
 // VoToDo 试图对象与domino对象转换,只能转相同字段且类型相同的
@@ -31,7 +32,7 @@ func VoToDo(dst interface{}, src interface{}) error {
 				s = s.Elem()
 			}
 			if d.Kind() == s.Kind() {
-				var bindTag = true
+				bindTag := true
 				if s.IsZero() && len(defaultTag) > 0 {
 					if d.Kind() == reflect.Ptr {
 						s = reflect.New(d.Type().Elem())

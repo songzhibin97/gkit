@@ -1,9 +1,10 @@
 package egroup
 
 import (
-	"github.com/songzhibin97/gkit/options"
 	"os"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
 )
 
 // config

@@ -2,6 +2,7 @@ package trace
 
 import (
 	"context"
+
 	"github.com/songzhibin97/gkit/middleware"
 	"github.com/songzhibin97/gkit/options"
 	"go.opentelemetry.io/otel/trace"

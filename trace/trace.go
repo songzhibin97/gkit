@@ -3,6 +3,7 @@ package trace
 import (
 	"context"
 	"fmt"
+
 	"github.com/songzhibin97/gkit/errors"
 	"github.com/songzhibin97/gkit/options"
 	"go.opentelemetry.io/otel"

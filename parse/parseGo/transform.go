@@ -22,7 +22,6 @@ func GoTypeToPB(s string) string {
 		return v
 	}
 	return s
-
 }
 
 // IsMappingKey 判断是否是 pb map的key类型

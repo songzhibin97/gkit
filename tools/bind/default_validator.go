@@ -2,10 +2,11 @@ package bind
 
 import (
 	"fmt"
-	"github.com/go-playground/validator/v10"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/go-playground/validator/v10"
 )
 
 type defaultValidator struct {

@@ -2,15 +2,14 @@ package trace
 
 import (
 	"context"
+	"testing"
+
 	"go.opentelemetry.io/otel/propagation"
 	sdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	"testing"
 )
 
-var (
-	_ Transporter = &Transport{}
-)
+var _ Transporter = &Transport{}
 
 type _Transport struct {
 	kind      Kind
@@ -25,9 +24,8 @@ func (tr *_Transport) Operation() string      { return tr.operation }
 func (tr *_Transport) RequestHeader() Header  { return tr.header }
 func (tr *_Transport) ResponseHeader() Header { return tr.header }
 
-
 func TestTrace(t *testing.T) {
-	var carrier = headerCarrier{}
+	carrier := headerCarrier{}
 	tp := sdk.NewTracerProvider(sdk.WithSampler(sdk.TraceIDRatioBased(0)))
 
 	// caller use Inject

@@ -45,7 +45,7 @@ func (m *RWMap) Len() int {
 
 // Each 遍历map
 func (m *RWMap) Each(f func(k, v int) bool) {
-	m.RLock() //遍历期间一直持有读锁
+	m.RLock() // 遍历期间一直持有读锁
 	defer m.RUnlock()
 
 	for k, v := range m.m {

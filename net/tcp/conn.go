@@ -4,15 +4,14 @@ import (
 	"bufio"
 	"crypto/tls"
 	"errors"
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"io"
 	"net"
 	"time"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
 )
 
-var (
-	defaultRetry Retry
-)
+var defaultRetry Retry
 
 // Conn 封装原始 net.conn 对象
 type Conn struct {

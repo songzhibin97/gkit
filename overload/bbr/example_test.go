@@ -1,8 +1,9 @@
 package bbr
 
 import (
-	"github.com/songzhibin97/gkit/overload"
 	"context"
+
+	"github.com/songzhibin97/gkit/overload"
 )
 
 func ExampleNewGroup() {

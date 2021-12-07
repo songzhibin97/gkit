@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	ErrEOF                  = errors.New("EOF")
+	ErrEOF               = errors.New("EOF")
 	ErrTooLarge          = errors.New("io buffer: too large")
 	ErrNegativeCount     = errors.New("io buffer: negative count")
 	ErrInvalidWriteCount = errors.New("io buffer: invalid write count")
@@ -391,7 +391,6 @@ func (i *ioBuffer) Clone() IoBuffer {
 	_, _ = buf.Write(i.Bytes())
 	buf.SetEOF(i.EOF())
 	return buf
-
 }
 
 // String 返回缓冲区未读的部分内容,作为字符串,如果底层buffer 为nil 返回 "<nil>"

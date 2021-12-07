@@ -3,11 +3,11 @@ package local_cache
 import "errors"
 
 var (
-	CacheExist       = errors.New("local_cache: cache exist")
-	CacheNoExist     = errors.New("local_cache: cache no exist")
-	CacheExpire      = errors.New("local_cache: cache expire")
+	CacheExist   = errors.New("local_cache: cache exist")
+	CacheNoExist = errors.New("local_cache: cache no exist")
+	CacheExpire  = errors.New("local_cache: cache expire")
 	CacheTypeErr = errors.New("local_cache: cache incr type err")
-	CacheGobErr      = errors.New("local_cache: cache save gob err")
+	CacheGobErr  = errors.New("local_cache: cache save gob err")
 )
 
 func CacheErrExist(e error) bool {

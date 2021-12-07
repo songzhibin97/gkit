@@ -8,10 +8,10 @@ import (
 // Transport is an HTTP transport.
 type Transport struct {
 	endpoint     string
-	operation   string
-	reqHeader   headerCarrier
-	replyHeader headerCarrier
-	request     *http.Request
+	operation    string
+	reqHeader    headerCarrier
+	replyHeader  headerCarrier
+	request      *http.Request
 	pathTemplate string
 }
 

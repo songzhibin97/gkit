@@ -102,7 +102,7 @@ func newBytePool() *bytePool {
 		maxSize:  1 << maxShift,
 	}
 	for i := (uint)(0); i < maxShift-minShift; i++ {
-		slot := &byteSlot{defaultSize: 1<<(i + minShift)}
+		slot := &byteSlot{defaultSize: 1 << (i + minShift)}
 		b.pool = append(b.pool, slot)
 	}
 	return b

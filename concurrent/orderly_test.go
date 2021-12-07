@@ -2,8 +2,9 @@ package concurrent
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func productionOrder() (ret []*OrderlyTask) {
@@ -28,5 +29,5 @@ func TestOrderly(t *testing.T) {
 		return ret
 	}
 	Orderly(productionOrder())
-	assert.Equal(t, slice,[]int{0,1,2,3,4,5,6,7,8,9})
+	assert.Equal(t, slice, []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 }

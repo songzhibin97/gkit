@@ -1,15 +1,15 @@
 package codel
 
 import (
-	"github.com/songzhibin97/gkit/overload/bbr"
 	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-)
 
+	"github.com/songzhibin97/gkit/overload/bbr"
+)
 
 var qps = time.Microsecond * 2000
 

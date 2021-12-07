@@ -3,14 +3,13 @@ package ratelimite
 import (
 	"context"
 	"errors"
+	"time"
+
 	"github.com/juju/ratelimit"
 	"github.com/songzhibin97/gkit/restrictor"
-	"time"
 )
 
-var (
-	ErrTimeOut = errors.New("restrictor/ratelimite: 超时")
-)
+var ErrTimeOut = errors.New("restrictor/ratelimite: 超时")
 
 // package ratelimite: https://pkg.go.dev/github.com/juju/ratelimit 实现 limiter 接口
 

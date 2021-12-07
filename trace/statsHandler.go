@@ -9,8 +9,7 @@ import (
 )
 
 // ClientHandler 客户端追踪
-type ClientHandler struct {
-}
+type ClientHandler struct{}
 
 // HandleConn exists to satisfy gRPC stats.Handler.
 func (c *ClientHandler) HandleConn(ctx context.Context, cs stats.ConnStats) {}

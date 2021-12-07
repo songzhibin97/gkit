@@ -4,7 +4,7 @@ import "reflect"
 
 // FanInRec 扇入模式
 func FanInRec(channels ...<-chan interface{}) <-chan interface{} {
-	out := make(chan interface{},1)
+	out := make(chan interface{}, 1)
 	go func() {
 		defer close(out)
 		var cases []reflect.SelectCase

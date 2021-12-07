@@ -1,9 +1,10 @@
 package tcp
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestConn_Send(t *testing.T) {
@@ -29,7 +30,6 @@ func TestConn_Send(t *testing.T) {
 
 	readBody := make([]byte, len(body))
 	for conn == nil {
-
 	}
 	n, err := conn.Read(readBody)
 	assert.NoError(t, err)
@@ -60,7 +60,6 @@ func TestConn_Recv(t *testing.T) {
 
 	body := []byte("hello world")
 	for conn == nil {
-
 	}
 	{
 		// 正常一次收发
@@ -143,7 +142,6 @@ func TestConn_RecvLine(t *testing.T) {
 测试Debug
 `
 	for conn == nil {
-
 	}
 	n, err := conn.Write([]byte(body))
 	assert.NoError(t, err)
@@ -167,4 +165,3 @@ func TestConn_RecvLine(t *testing.T) {
 		t.Log("send:", "测试Debug", "->", "read:", string(readBody))
 	}
 }
-

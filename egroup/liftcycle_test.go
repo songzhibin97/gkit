@@ -3,9 +3,10 @@ package egroup
 import (
 	"context"
 	"fmt"
-	"github.com/songzhibin97/gkit/goroutine"
 	"net/http"
 	"testing"
+
+	"github.com/songzhibin97/gkit/goroutine"
 )
 
 var _admin = NewLifeAdmin()

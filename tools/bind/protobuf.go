@@ -1,9 +1,10 @@
 package bind
 
 import (
-	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"net/http"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type protobufBinding struct{}

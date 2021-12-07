@@ -2,8 +2,9 @@ package xml
 
 import (
 	"encoding/xml"
-	"github.com/songzhibin97/gkit/coding"
 	"reflect"
+
+	"github.com/songzhibin97/gkit/coding"
 )
 
 const Name = "xml"

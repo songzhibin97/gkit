@@ -6,17 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/songzhibin97/gkit/log"
-	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/timeout"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/songzhibin97/gkit/log"
+	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/timeout"
 )
 
-var (
-	ErrRepeatClose = errors.New("goroutine/goroutine :重复关闭")
-)
+var ErrRepeatClose = errors.New("goroutine/goroutine :重复关闭")
 
 type Goroutine struct {
 	close int32

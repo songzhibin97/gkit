@@ -1,7 +1,7 @@
 package concurrent
 
 func MapChan(in <-chan interface{}, fn func(interface{}) interface{}) <-chan interface{} {
-	out := make(chan interface{},1)
+	out := make(chan interface{}, 1)
 	if in == nil {
 		close(out)
 		return out
