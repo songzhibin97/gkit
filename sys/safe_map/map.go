@@ -4,18 +4,18 @@ import "sync"
 
 type RWMap struct { // 一个读写锁保护的线程安全的map
 	sync.RWMutex // 读写锁保护下面的map字段
-	m            map[int]int
+	m            map[string]interface{}
 }
 
 // NewRWMap  新建一个RWMap
 func NewRWMap(n int) *RWMap {
 	return &RWMap{
-		m: make(map[int]int, n),
+		m: make(map[string]interface{}, n),
 	}
 }
 
 // Get 从map中读取一个值
-func (m *RWMap) Get(k int) (int, bool) {
+func (m *RWMap) Get(k string) (interface{}, bool) {
 	m.RLock()
 	defer m.RUnlock()
 	v, existed := m.m[k] // 在锁的保护下从map中读取
@@ -23,14 +23,14 @@ func (m *RWMap) Get(k int) (int, bool) {
 }
 
 // Set 设置一个键值对
-func (m *RWMap) Set(k int, v int) {
+func (m *RWMap) Set(k string, v interface{}) {
 	m.Lock() // 锁保护
 	defer m.Unlock()
 	m.m[k] = v
 }
 
 // Delete 删除一个键
-func (m *RWMap) Delete(k int) {
+func (m *RWMap) Delete(k string) {
 	m.Lock() // 锁保护
 	defer m.Unlock()
 	delete(m.m, k)
@@ -44,7 +44,7 @@ func (m *RWMap) Len() int {
 }
 
 // Each 遍历map
-func (m *RWMap) Each(f func(k, v int) bool) {
+func (m *RWMap) Each(f func(k string, v interface{}) bool) {
 	m.RLock() // 遍历期间一直持有读锁
 	defer m.RUnlock()
 
