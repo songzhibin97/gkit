@@ -1,6 +1,7 @@
 package vto
 
 import (
+	"github.com/songzhibin97/gkit/tools"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -123,4 +124,10 @@ func TestVoToDo(t *testing.T) {
 		}
 		assert.Equal(t, m0, m2)
 	}
+	{
+		m0, m1 := 1, mock4{}
+		err := VoToDo(&m0, &m1)
+		assert.Error(t, err, tools.ErrorMustStructPtr)
+	}
+
 }
