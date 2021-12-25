@@ -1,8 +1,8 @@
 package vto
 
 import (
-	"errors"
 	"fmt"
+	"github.com/songzhibin97/gkit/tools"
 	"reflect"
 
 	"github.com/songzhibin97/gkit/tools/bind"
@@ -14,10 +14,16 @@ import (
 // 支持简单的 default模式 在基础类型增加default可以指定默认值
 func VoToDo(dst interface{}, src interface{}) error {
 	dstT, srcT := reflect.TypeOf(dst), reflect.TypeOf(src)
-	if dstT.Kind() != reflect.Ptr || srcT.Kind() != reflect.Ptr {
-		return errors.New("dst 或 src 必须是指针类型")
+	if dstT.Kind() != srcT.Kind() {
+		return tools.ErrorNoEquals
+	}
+	if dstT.Kind() != reflect.Ptr {
+		return tools.ErrorMustPtr
 	}
 	dstT, srcT = dstT.Elem(), srcT.Elem()
+	if dstT.Kind() != reflect.Struct || srcT.Kind() != reflect.Struct {
+		return tools.ErrorMustStructPtr
+	}
 	dstV, srcV := reflect.ValueOf(dst).Elem(), reflect.ValueOf(src).Elem()
 	for i := 0; i < dstT.NumField(); i++ {
 		field := dstT.Field(i)
