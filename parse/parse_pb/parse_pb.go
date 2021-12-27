@@ -1,4 +1,4 @@
-package parsePb
+package parse_pb
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package parsePb
+package parse_pb
 
 var PbToGoMapping = map[string]string{
 	"double":   "float64",
