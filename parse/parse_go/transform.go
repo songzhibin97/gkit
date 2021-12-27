@@ -1,4 +1,4 @@
-package parseGo
+package parse_go
 
 var GoToPBMapping = map[string]string{
 	"int":     "int64",

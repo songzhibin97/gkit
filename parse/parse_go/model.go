@@ -1,4 +1,4 @@
-package parseGo
+package parse_go
 
 import (
 	"errors"
