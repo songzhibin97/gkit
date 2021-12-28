@@ -71,7 +71,7 @@ func (m *DateTimeStruct) Scan(value interface{}) error {
 	case time.Time:
 		m.Time = v
 	case nil:
-		m = &DateTimeStruct{}
+		*m = DateTimeStruct{}
 	default:
 		return fmt.Errorf("cannot sql.Scan() DBDate from: %#v", v)
 	}

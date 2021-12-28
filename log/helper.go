@@ -21,12 +21,12 @@ func (h *Helper) WithContext(ctx context.Context) *Helper {
 
 // Log .
 func (h *Helper) Log(lever Lever, kvs ...interface{}) {
-	h.Logger.Log(lever, kvs)
+	_ = h.Logger.Log(lever, kvs)
 }
 
 // Debug .
 func (h *Helper) Debug(a ...interface{}) {
-	h.Logger.Log(LevelDebug, "message", fmt.Sprint(a...))
+	_ = h.Logger.Log(LevelDebug, "message", fmt.Sprint(a...))
 }
 
 // Debugf .
