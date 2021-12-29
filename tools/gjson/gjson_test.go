@@ -70,7 +70,7 @@ func TestEmoji(t *testing.T) {
 		`OK: \u2764\ufe0f "}`
 	value := Get(input, "utf8")
 	var s string
-	json.Unmarshal([]byte(value.Raw), &s)
+	_ = json.Unmarshal([]byte(value.Raw), &s)
 	if value.String() != s {
 		t.Fatalf("expected '%v', got '%v'", s, value.String())
 	}

@@ -185,7 +185,7 @@ func TestRandomData(t *testing.T) {
 			t.Fatal(err)
 		}
 		lstr = string(b[:n])
-		SetRaw(lstr, "zzzz.zzzz.zzzz", "123")
+		_, _ = SetRaw(lstr, "zzzz.zzzz.zzzz", "123")
 	}
 }
 
