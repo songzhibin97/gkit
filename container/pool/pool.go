@@ -10,8 +10,7 @@ import (
 
 // package pool: 连接池
 const (
-	minDuration      = 100 * time.Millisecond
-	defaultIdleItems = 2
+	minDuration = 100 * time.Millisecond
 )
 
 var (

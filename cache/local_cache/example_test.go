@@ -145,5 +145,5 @@ func ExampleFlush() {
 
 func ExampleShutdown() {
 	// Shutdown 释放对象
-	ch.Shutdown()
+	_ = ch.Shutdown()
 }
