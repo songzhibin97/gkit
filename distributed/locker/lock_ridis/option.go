@@ -1,8 +1,9 @@
-package redis
+package lock_ridis
 
 import (
-	"github.com/songzhibin97/gkit/options"
 	"time"
+
+	"github.com/songzhibin97/gkit/options"
 )
 
 // config
