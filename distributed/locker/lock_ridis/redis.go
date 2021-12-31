@@ -1,12 +1,13 @@
-package redis
+package lock_ridis
 
 import (
 	"errors"
+	"strconv"
+	"time"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/songzhibin97/gkit/distributed/locker"
 	"github.com/songzhibin97/gkit/options"
-	"strconv"
-	"time"
 )
 
 var (
@@ -26,9 +27,8 @@ end`
 )
 
 type Lock struct {
-	retries  int           // 重试次数
-	interval time.Duration // 重试间隔时间
-	client   redis.UniversalClient
+	config
+	client redis.UniversalClient
 }
 
 func (l *Lock) lock(key string, expire int, mark string) error {
@@ -91,5 +91,6 @@ func NewRedisLock(client redis.UniversalClient, opts ...options.Option) locker.L
 	}
 	return &Lock{
 		client: client,
+		config: *o,
 	}
 }
