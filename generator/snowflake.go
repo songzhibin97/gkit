@@ -152,7 +152,7 @@ func LocalIpToUint16() (uint16, error) {
 // NewSnowflake 初始化
 // StartTime 起始时间
 // NodeID 服务器ID
-func NewSnowflake(startTime time.Time, nodeID uint16) *Snowflake {
+func NewSnowflake(startTime time.Time, nodeID uint16) Generator {
 	sf := new(Snowflake)
 	sf.sequence = uint16(1<<SequenceBit - 1)
 	sf.node = nodeID
