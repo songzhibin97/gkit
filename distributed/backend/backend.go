@@ -19,22 +19,22 @@ type Backend interface {
 	// 设置任务状态
 
 	// SetStatePending 设置任务状态为等待
-	SetStatePending(task *task.Task) error
+	SetStatePending(signature *task.Signature) error
 
 	// SetStateReceived 设置任务状态为接受
-	SetStateReceived(task *task.Task) error
+	SetStateReceived(signature *task.Signature) error
 
 	// SetStateStarted 设置任务状态为开始
-	SetStateStarted(task *task.Task) error
+	SetStateStarted(signature *task.Signature) error
 
 	// SetStateRetry 设置任务状态为重试
-	SetStateRetry(task *task.Task) error
+	SetStateRetry(signature *task.Signature) error
 
 	// SetStateSuccess 设置任务状态为成功
-	SetStateSuccess(task *task.Task, results []*task.Result) error
+	SetStateSuccess(signature *task.Signature, results []*task.Result) error
 
 	// SetStateFailure 设置任务状态为失败
-	SetStateFailure(task *task.Task, err string) error
+	SetStateFailure(signature *task.Signature, err string) error
 
 	// GetStatus 获取任务状态
 	GetStatus(taskID string) (*task.Status, error)
