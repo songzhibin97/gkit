@@ -24,7 +24,7 @@ func InitBackend() backend.Backend {
 	if err != nil {
 		return nil
 	}
-	return NewBackendMongoDB(client, -1)
+	return CreateBackendMongoDB(client, -1)
 }
 
 func TestGroupTaskOver(t *testing.T) {
