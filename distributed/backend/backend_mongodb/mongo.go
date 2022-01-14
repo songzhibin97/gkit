@@ -213,7 +213,7 @@ func (b *BackendMongoDB) createIndex() error {
 	return err
 }
 
-func NewBackendMongoDB(client *mongo.Client, resultExpire int64, options ...options.Option) backend.Backend {
+func CreateBackendMongoDB(client *mongo.Client, resultExpire int64, options ...options.Option) backend.Backend {
 	c := &config{
 		databaseName:   "gkit",
 		tableTaskName:  "tasks",

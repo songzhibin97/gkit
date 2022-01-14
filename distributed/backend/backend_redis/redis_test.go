@@ -22,7 +22,7 @@ func InitBackend() backend.Backend {
 	if client == nil {
 		return nil
 	}
-	return NewBackendRedis(client, -1)
+	return CreateBackendRedis(client, -1)
 }
 
 func TestGroupTakeOver(t *testing.T) {

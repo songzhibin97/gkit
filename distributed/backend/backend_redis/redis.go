@@ -31,7 +31,7 @@ type BackendRedis struct {
 	resultExpire int64
 }
 
-func NewBackendRedis(client redis.UniversalClient, resultExpire int64) backend.Backend {
+func CreateBackendRedis(client redis.UniversalClient, resultExpire int64) backend.Backend {
 	b := &BackendRedis{
 		client:       client,
 		lock:         redsync.New(goredis.NewPool(client)),
