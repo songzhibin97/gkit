@@ -1,6 +1,7 @@
 package backend_redis
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -121,7 +122,7 @@ func (b *BackendRedis) GroupTaskStatus(groupID string) ([]*task.Status, error) {
 
 func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	// 分布式锁
-	l := b.lock.NewMutex(groupID)
+	l := b.lock.NewMutex("TriggerCompletedMutex" + groupID)
 	if err := l.Lock(); err != nil {
 		return false, err
 	}
@@ -262,7 +263,13 @@ func (b *BackendRedis) getStatus(taskID string) (*task.Status, error) {
 		return nil, err
 	}
 	var status task.Status
-	return &status, json.Unmarshal(body, &status)
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(&status); err != nil {
+		return nil, err
+	}
+
+	return &status, nil
 }
 
 func (b *BackendRedis) migrate(dst *task.Status) {
