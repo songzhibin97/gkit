@@ -77,7 +77,7 @@ func (b *BackendSQLDB) GroupTaskStatus(groupID string) ([]*task.Status, error) {
 }
 
 func (b *BackendSQLDB) TriggerCompleted(groupID string) (bool, error) {
-	result := b.gClient.Where("id = ?", groupID).Where("lock = false").Update("lock", true)
+	result := b.gClient.Debug().Model(&task.GroupMeta{}).Where("id = ? and `lock` = false", groupID).Update("`lock`", true)
 	if result.Error != nil {
 		return false, result.Error
 	}
@@ -199,7 +199,7 @@ func (b *BackendSQLDB) SetStateFailure(signature *task.Signature, err string) er
 			TaskID:   signature.ID,
 			GroupID:  signature.GroupID,
 			Name:     signature.Name,
-			Status:   task.StateSuccess,
+			Status:   task.StateFailure,
 			Error:    err,
 			CreateAt: time.Now(),
 		}
@@ -209,7 +209,7 @@ func (b *BackendSQLDB) SetStateFailure(signature *task.Signature, err string) er
 		return _err
 	}
 
-	return b.gClient.Model(&task.Status{}).Where("id = ?", signature.ID).Updates(map[string]interface{}{"status": task.StateSuccess, "error": err}).Error
+	return b.gClient.Model(&task.Status{}).Where("id = ?", signature.ID).Updates(map[string]interface{}{"status": task.StateFailure, "error": err}).Error
 }
 
 func (b *BackendSQLDB) GetStatus(taskID string) (*task.Status, error) {
