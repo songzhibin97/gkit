@@ -98,17 +98,18 @@ func (b *BackendMongoDB) TriggerCompleted(groupID string) (bool, error) {
 		"trigger_chord": false,
 	}
 	change := bson.M{
-		"_id":           groupID,
-		"trigger_chord": true,
+		"$set": bson.M{
+			"trigger_chord": true,
+		},
 	}
-	_, err := b.groupTable.UpdateOne(context.Background(), query, change, moption.Update())
+	v, err := b.groupTable.UpdateOne(context.Background(), query, change, moption.Update())
 	if err != nil && errors.Is(err, mongo.ErrNoDocuments) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	return true, nil
+	return v.ModifiedCount > 0, nil
 }
 
 func (b *BackendMongoDB) SetStatePending(signature *task.Signature) error {
