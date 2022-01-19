@@ -1,13 +1,14 @@
 package gjson
 
 import (
-	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf16"
 	"unicode/utf8"
 	"unsafe"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/songzhibin97/gkit/tools/match"
 	"github.com/songzhibin97/gkit/tools/pretty"

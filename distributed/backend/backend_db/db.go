@@ -26,6 +26,11 @@ type BackendSQLDB struct {
 	resultExpire int64
 }
 
+// SetResultExpire 设置结果超时时间
+func (b *BackendSQLDB) SetResultExpire(expire int64) {
+	b.resultExpire = expire
+}
+
 func (b *BackendSQLDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
 	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
 	return b.gClient.Create(group).Error
@@ -236,7 +241,7 @@ func (b *BackendSQLDB) autoMigrate() error {
 	)
 }
 
-func CreateBackendSQLDB(db *sql.DB, resultExpire int64, dbType string, config *gorm.Config) backend.Backend {
+func NewBackendSQLDB(db *sql.DB, resultExpire int64, dbType string, config *gorm.Config) backend.Backend {
 	if config == nil {
 		config = &gorm.Config{}
 	}

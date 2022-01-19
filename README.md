@@ -486,7 +486,7 @@ func main() {
 		pool.SetWait(false, time.Second))
 
 	// New需要实例化,否则在 pool.Get() 会无法获取到资源
-	p.New(getResources)
+	p.NewQueue(getResources)
 
 	v, err := p.Get(context.TODO())
 	if err != nil {
@@ -1214,7 +1214,7 @@ import (
 	"time"
 )
 func main() {
-	w := window.InitWindow()
+	w := window.NewWindow()
 	slice := []window.Index{
 		{Name: "1", Score: 1}, {Name: "2", Score: 2},
 		{Name: "2", Score: 2}, {Name: "3", Score: 3},

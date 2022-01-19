@@ -3,10 +3,11 @@ package sjson
 // import https://github.com/tidwall
 
 import (
-	jsongo "encoding/json"
 	"reflect"
 	"strconv"
 	"unsafe"
+
+	jsongo "github.com/json-iterator/go"
 
 	"github.com/songzhibin97/gkit/tools/gjson"
 )

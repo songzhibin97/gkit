@@ -21,7 +21,7 @@ func InitBackend() backend.Backend {
 	if err != nil {
 		return nil
 	}
-	return CreateBackendSQLDB(sqlDB, -1, "mysql", nil)
+	return NewBackendSQLDB(sqlDB, -1, "mysql", nil)
 }
 
 func TestGroupTaskOver(t *testing.T) {

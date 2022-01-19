@@ -109,8 +109,8 @@ func SignatureFromContext(ctx context.Context) *Signature {
 	return signature
 }
 
-// CreateTaskWithSignature 初始化Task通过Signature
-func CreateTaskWithSignature(taskFunc interface{}, signature *Signature) (*Task, error) {
+// NewTaskWithSignature 初始化Task通过Signature
+func NewTaskWithSignature(taskFunc interface{}, signature *Signature) (*Task, error) {
 	ctx := context.WithValue(context.Background(), signatureCtx, signature)
 	task := &Task{
 		TaskFunc: reflect.ValueOf(taskFunc),
@@ -128,8 +128,8 @@ func CreateTaskWithSignature(taskFunc interface{}, signature *Signature) (*Task,
 	return task, nil
 }
 
-// CreateTask 初始化Task
-func CreateTask(taskFunc interface{}, args []Arg) (*Task, error) {
+// NewTask 初始化Task
+func NewTask(taskFunc interface{}, args []Arg) (*Task, error) {
 	task := &Task{
 		TaskFunc: reflect.ValueOf(taskFunc),
 		Context:  context.Background(),

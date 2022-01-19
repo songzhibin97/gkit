@@ -44,4 +44,8 @@ type Backend interface {
 
 	// ResetGroup 重置组信息
 	ResetGroup(groupIDs ...string) error
+
+	// SetResultExpire 设置过期时间
+	// 在使用controller中接管时候统一设置
+	SetResultExpire(expire int64)
 }

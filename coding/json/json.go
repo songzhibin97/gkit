@@ -1,8 +1,9 @@
 package json
 
 import (
-	"encoding/json"
 	"reflect"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/songzhibin97/gkit/coding"
 	"google.golang.org/protobuf/encoding/protojson"

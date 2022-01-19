@@ -14,7 +14,7 @@ import (
 var qps = time.Microsecond * 2000
 
 func TestCoDel1200(t *testing.T) {
-	q := New()
+	q := NewQueue()
 	drop := new(int64)
 	tm := new(int64)
 	delay := time.Millisecond * 3000
@@ -24,7 +24,7 @@ func TestCoDel1200(t *testing.T) {
 }
 
 func TestCoDel200(t *testing.T) {
-	q := New()
+	q := NewQueue()
 	drop := new(int64)
 	tm := new(int64)
 	delay := time.Millisecond * 2000
@@ -34,7 +34,7 @@ func TestCoDel200(t *testing.T) {
 }
 
 func TestCoDel100(t *testing.T) {
-	q := New()
+	q := NewQueue()
 	drop := new(int64)
 	tm := new(int64)
 	delay := time.Millisecond * 1000
@@ -43,7 +43,7 @@ func TestCoDel100(t *testing.T) {
 }
 
 func TestCoDel50(t *testing.T) {
-	q := New()
+	q := NewQueue()
 	drop := new(int64)
 	tm := new(int64)
 	delay := time.Millisecond * 500

@@ -77,7 +77,7 @@ func (l *Lock) UnLock(key string, mark string) error {
 	return nil
 }
 
-func CreateRedisLock(client redis.UniversalClient, opts ...options.Option) locker.Locker {
+func NewRedisLock(client redis.UniversalClient, opts ...options.Option) locker.Locker {
 	o := &config{
 		interval: 0,
 		retries:  0,

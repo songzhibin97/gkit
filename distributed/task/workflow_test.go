@@ -47,7 +47,7 @@ func TestNewChain(t *testing.T) {
 		},
 	}
 
-	chain, err := CreateChain("", &task1, &task2, &task3)
+	chain, err := NewChain("", &task1, &task2, &task3)
 	if err != nil {
 		t.Fatal(err)
 	}

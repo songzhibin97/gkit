@@ -13,7 +13,7 @@ func TestTaskCallError(t *testing.T) {
 	t.Parallel()
 	retrievable := func() error { return NewErrRetryTaskLater("error", time.Minute) }
 
-	task, err := CreateTask(retrievable, []Arg{})
+	task, err := NewTask(retrievable, []Arg{})
 	assert.NoError(t, err)
 
 	results, err := task.Call()
@@ -23,7 +23,7 @@ func TestTaskCallError(t *testing.T) {
 	assert.True(t, ok, "err must is ErrRetryTaskLater type")
 
 	errFn := func() error { return errors.New("error") }
-	task, err = CreateTask(errFn, []Arg{})
+	task, err = NewTask(errFn, []Arg{})
 	assert.NoError(t, err)
 	results, err = task.Call()
 	assert.Nil(t, results)
@@ -55,14 +55,14 @@ func TestTaskCallBeyondExpectationErr(t *testing.T) {
 			Value: true,
 		},
 	}
-	task, err := CreateTask(f1, args)
+	task, err := NewTask(f1, args)
 	assert.NoError(t, err)
 	results, err := task.Call()
 	assert.Equal(t, "reflect: Call using bool as type int", err.Error())
 	assert.Nil(t, results)
 
 	f2 := func() (interface{}, error) { return 1.11, nil }
-	task, err = CreateTask(f2, []Arg{})
+	task, err = NewTask(f2, []Arg{})
 	assert.NoError(t, err)
 
 	results, err = task.Call()
@@ -78,7 +78,7 @@ func TestTaskCallWithContext(t *testing.T) {
 		assert.Nil(t, SignatureFromContext(ctx))
 		return 1.11, nil
 	}
-	task, err := CreateTask(f, []Arg{})
+	task, err := NewTask(f, []Arg{})
 	assert.NoError(t, err)
 	results, err := task.Call()
 	assert.NoError(t, err)
@@ -96,8 +96,8 @@ func TestTaskCallWithSignatureInContext(t *testing.T) {
 		assert.Equal(t, "bar", signature.Name)
 		return 1.11, nil
 	}
-	signature := CreateSignature("", "bar")
-	task, err := CreateTaskWithSignature(f, signature)
+	signature := NewSignature("", "bar")
+	task, err := NewTaskWithSignature(f, signature)
 	assert.NoError(t, err)
 	results, err := task.Call()
 	assert.NoError(t, err)

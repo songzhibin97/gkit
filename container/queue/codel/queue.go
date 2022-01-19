@@ -176,7 +176,7 @@ func (q *Queue) judge(p packet) (drop bool) {
 
 // Default 默认配置CoDel Queue
 func Default() *Queue {
-	return New()
+	return NewQueue()
 }
 
 // defaultConfig 默认配置
@@ -203,8 +203,8 @@ func SetInternal(internal int64) options.Option {
 	}
 }
 
-// New 实例化 CoDel Queue
-func New(options ...options.Option) *Queue {
+// NewQueue 实例化 CoDel Queue
+func NewQueue(options ...options.Option) *Queue {
 	// new pool
 	q := &Queue{
 		packets: make(chan packet, 2048),

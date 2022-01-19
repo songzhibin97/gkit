@@ -7,7 +7,7 @@ import (
 )
 
 func TestWindow(t *testing.T) {
-	w := InitWindow()
+	w := NewWindow()
 	slice := []Index{
 		{Name: "1", Score: 1},
 		{Name: "2", Score: 2},
@@ -39,7 +39,7 @@ func TestWindow(t *testing.T) {
 }
 
 func BenchmarkWindow(b *testing.B) {
-	w := InitWindow()
+	w := NewWindow()
 	for i := 0; i < b.N; i++ {
 		w.AddIndex(strconv.Itoa(i), uint(i))
 		w.Show()

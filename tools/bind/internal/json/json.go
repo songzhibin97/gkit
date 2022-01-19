@@ -7,7 +7,9 @@
 
 package json
 
-import "encoding/json"
+import (
+	json "github.com/json-iterator/go"
+)
 
 var (
 	// Marshal is exported by gin/json package.

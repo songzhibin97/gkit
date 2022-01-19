@@ -28,6 +28,11 @@ type BackendMongoDB struct {
 	groupTable *mongo.Collection
 }
 
+// SetResultExpire 设置结果超时时间
+func (b *BackendMongoDB) SetResultExpire(expire int64) {
+	b.resultExpire = expire
+}
+
 func (b *BackendMongoDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
 	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
 	_, err := b.groupTable.InsertOne(context.Background(), group)
@@ -214,7 +219,7 @@ func (b *BackendMongoDB) createIndex() error {
 	return err
 }
 
-func CreateBackendMongoDB(client *mongo.Client, resultExpire int64, options ...options.Option) backend.Backend {
+func NewBackendMongoDB(client *mongo.Client, resultExpire int64, options ...options.Option) backend.Backend {
 	c := &config{
 		databaseName:   "gkit",
 		tableTaskName:  "tasks",
