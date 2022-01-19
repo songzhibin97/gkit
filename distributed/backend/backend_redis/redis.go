@@ -3,10 +3,11 @@ package backend_redis
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"reflect"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
 	"github.com/songzhibin97/gkit/distributed/task"
@@ -32,7 +33,7 @@ type BackendRedis struct {
 	resultExpire int64
 }
 
-func CreateBackendRedis(client redis.UniversalClient, resultExpire int64) backend.Backend {
+func NewBackendRedis(client redis.UniversalClient, resultExpire int64) backend.Backend {
 	b := &BackendRedis{
 		client:       client,
 		lock:         redsync.New(goredis.NewPool(client)),
@@ -42,6 +43,11 @@ func CreateBackendRedis(client redis.UniversalClient, resultExpire int64) backen
 		b.resultExpire = defaultResultExpire
 	}
 	return b
+}
+
+// SetResultExpire 设置结果超时时间
+func (b *BackendRedis) SetResultExpire(expire int64) {
+	b.resultExpire = expire
 }
 
 func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...string) error {

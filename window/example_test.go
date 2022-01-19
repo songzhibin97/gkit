@@ -2,7 +2,7 @@ package window
 
 func ExampleInitWindow() {
 	// 初始化窗口
-	w := InitWindow()
+	w := NewWindow()
 
 	// 增加指标
 	// key:权重

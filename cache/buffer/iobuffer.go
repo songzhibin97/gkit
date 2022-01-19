@@ -532,7 +532,7 @@ func (i *ioBuffer) copy(expand int) {
 		bufferP = i.makeSlice(cap_ + expand)
 		newBuf = *bufferP
 		copy(newBuf, i.buffer[i.off:])
-		// todo 将原来的 b.buffer 放回缓存
+		PutBytes(i.b)
 		i.b = bufferP
 	} else {
 		newBuf = i.buffer

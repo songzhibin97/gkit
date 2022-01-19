@@ -5,13 +5,14 @@ package gjson
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/songzhibin97/gkit/tools/pretty"
 )

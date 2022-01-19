@@ -9,8 +9,8 @@ type Meta struct {
 	safe bool
 }
 
-// CreateMeta 生成meta信息
-func CreateMeta(safe bool) *Meta {
+// NewMeta 生成meta信息
+func NewMeta(safe bool) *Meta {
 	return &Meta{
 		meta: make(map[string]interface{}),
 		safe: safe,

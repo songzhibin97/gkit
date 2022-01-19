@@ -29,8 +29,8 @@ func SetContext(context context.Context) options.Option {
 	}
 }
 
-// InitWindow 实例化
-func InitWindow(options ...options.Option) SlidingWindow {
+// NewWindow 实例化
+func NewWindow(options ...options.Option) SlidingWindow {
 	w := Window{
 		// 默认值:
 		conf: conf{

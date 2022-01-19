@@ -33,8 +33,8 @@ type GroupCallbackAsyncResult struct {
 	backend             backend.Backend // backend 执行的实现
 }
 
-// CreateAsyncResult 创建异步任务返回结果
-func CreateAsyncResult(signature *task.Signature, backend backend.Backend) *AsyncResult {
+// NewAsyncResult 创建异步任务返回结果
+func NewAsyncResult(signature *task.Signature, backend backend.Backend) *AsyncResult {
 	return &AsyncResult{
 		Signature: signature,
 		state:     &task.Status{},
@@ -42,11 +42,11 @@ func CreateAsyncResult(signature *task.Signature, backend backend.Backend) *Asyn
 	}
 }
 
-// CreateChainAsyncResult 创建链式调用任务返回结果
-func CreateChainAsyncResult(chainAsyncResult []*task.Signature, backend backend.Backend) *ChainAsyncResult {
+// NewChainAsyncResult 创建链式调用任务返回结果
+func NewChainAsyncResult(chainAsyncResult []*task.Signature, backend backend.Backend) *ChainAsyncResult {
 	asyncResults := make([]*AsyncResult, 0, len(chainAsyncResult))
 	for _, signature := range chainAsyncResult {
-		asyncResults = append(asyncResults, CreateAsyncResult(signature, backend))
+		asyncResults = append(asyncResults, NewAsyncResult(signature, backend))
 	}
 	return &ChainAsyncResult{
 		asyncResult: asyncResults,
@@ -54,15 +54,15 @@ func CreateChainAsyncResult(chainAsyncResult []*task.Signature, backend backend.
 	}
 }
 
-// CreateGroupCallbackAsyncResult 创建具有回调任务组的异步返回结果
-func CreateGroupCallbackAsyncResult(groupAsyncResult []*task.Signature, callbackAsyncResult *task.Signature, backend backend.Backend) *GroupCallbackAsyncResult {
+// NewGroupCallbackAsyncResult 创建具有回调任务组的异步返回结果
+func NewGroupCallbackAsyncResult(groupAsyncResult []*task.Signature, callbackAsyncResult *task.Signature, backend backend.Backend) *GroupCallbackAsyncResult {
 	asyncResults := make([]*AsyncResult, 0, len(groupAsyncResult))
 	for _, signature := range groupAsyncResult {
-		asyncResults = append(asyncResults, CreateAsyncResult(signature, backend))
+		asyncResults = append(asyncResults, NewAsyncResult(signature, backend))
 	}
 	return &GroupCallbackAsyncResult{
 		groupAsyncResult:    asyncResults,
-		callbackAsyncResult: CreateAsyncResult(callbackAsyncResult, backend),
+		callbackAsyncResult: NewAsyncResult(callbackAsyncResult, backend),
 		backend:             backend,
 	}
 }

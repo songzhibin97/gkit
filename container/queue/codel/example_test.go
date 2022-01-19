@@ -10,7 +10,7 @@ var queue *Queue
 
 func ExampleNew() {
 	// 默认配置
-	// queue = New()
+	// queue = NewQueue()
 
 	// 可供选择配置选项
 
@@ -20,7 +20,7 @@ func ExampleNew() {
 	// 设置滑动窗口最小时间宽度
 	// SetInternal(1000)
 
-	queue = New(SetTarget(40), SetInternal(1000))
+	queue = NewQueue(SetTarget(40), SetInternal(1000))
 }
 
 func ExampleQueue_Stat() {
