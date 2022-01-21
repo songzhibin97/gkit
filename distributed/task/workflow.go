@@ -29,8 +29,8 @@ func (g *Group) GetTaskIDs() []string {
 	return ids
 }
 
-// CreateChain 创建链式调用任务
-func CreateChain(name string, signatures ...*Signature) (*Chain, error) {
+// NewChain 创建链式调用任务
+func NewChain(name string, signatures ...*Signature) (*Chain, error) {
 	for i := len(signatures) - 1; i > 0; i-- {
 		if i > 0 {
 			signatures[i-1].CallbackOnSuccess = []*Signature{signatures[i]}
@@ -39,8 +39,8 @@ func CreateChain(name string, signatures ...*Signature) (*Chain, error) {
 	return &Chain{Name: name, Tasks: signatures}, nil
 }
 
-// CreateGroup 创建并行执行的任务组
-func CreateGroup(groupID string, name string, signatures ...*Signature) (*Group, error) {
+// NewGroup 创建并行执行的任务组
+func NewGroup(groupID string, name string, signatures ...*Signature) (*Group, error) {
 	ln := len(signatures)
 	for i := range signatures {
 		signatures[i].GroupID = groupID
@@ -53,8 +53,11 @@ func CreateGroup(groupID string, name string, signatures ...*Signature) (*Group,
 	}, nil
 }
 
-// CreateGroupCallback 创建具有回调任务的个任务组
-func CreateGroupCallback(group *Group, name string, callback *Signature) (*GroupCallback, error) {
+// NewGroupCallback 创建具有回调任务的个任务组
+func NewGroupCallback(group *Group, name string, callback *Signature) (*GroupCallback, error) {
+	for _, task := range group.Tasks {
+		task.CallbackChord = callback
+	}
 	return &GroupCallback{
 		Group:    group,
 		Name:     name,

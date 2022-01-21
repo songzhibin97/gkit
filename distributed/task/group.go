@@ -27,8 +27,8 @@ func (s StringSlice) Value() (driver.Value, error) {
 	return strings.Join(s, ","), nil
 }
 
-// Group 组详情
-type Group struct {
+// GroupMeta 组详情
+type GroupMeta struct {
 	ID uint `json:"-" bson:"-" gorm:"column:_id;primarykey;comment:_id"`
 	// GroupID 组的唯一标识
 	GroupID string `json:"group_id" bson:"_id" gorm:"column:id;index;comment:id"`
@@ -47,8 +47,8 @@ type Group struct {
 	DeletedAt gorm.DeletedAt `json:"-" bson:"-" gorm:"index"`
 }
 
-func InitGroup(groupID string, name string, ttl int64, taskIDs ...string) *Group {
-	return &Group{
+func InitGroupMeta(groupID string, name string, ttl int64, taskIDs ...string) *GroupMeta {
+	return &GroupMeta{
 		GroupID:  groupID,
 		Name:     name,
 		TaskIDs:  taskIDs,
