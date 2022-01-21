@@ -3,314 +3,236 @@ package task
 import (
 	"reflect"
 	"testing"
+
+	json "github.com/json-iterator/go"
 )
+
+var reflectValuesTestCases = []struct {
+	name          string
+	value         interface{}
+	expectedType  string
+	expectedValue interface{}
+}{
+	// basic types
+	{
+		name:         "bool",
+		value:        false,
+		expectedType: "bool",
+	},
+	{
+		name:          "int",
+		value:         json.Number("123"),
+		expectedType:  "int",
+		expectedValue: int(123),
+	},
+	{
+		name:          "int8",
+		value:         json.Number("123"),
+		expectedType:  "int8",
+		expectedValue: int8(123),
+	},
+	{
+		name:          "int16",
+		value:         json.Number("123"),
+		expectedType:  "int16",
+		expectedValue: int16(123),
+	},
+	{
+		name:          "int32",
+		value:         json.Number("123"),
+		expectedType:  "int32",
+		expectedValue: int32(123),
+	},
+	{
+		name:          "int64",
+		value:         json.Number("185135722552891243"),
+		expectedType:  "int64",
+		expectedValue: int64(185135722552891243),
+	},
+	{
+		name:          "uint",
+		value:         json.Number("123"),
+		expectedType:  "uint",
+		expectedValue: uint(123),
+	},
+	{
+		name:          "uint8",
+		value:         json.Number("123"),
+		expectedType:  "uint8",
+		expectedValue: uint8(123),
+	},
+	{
+		name:          "uint16",
+		value:         json.Number("123"),
+		expectedType:  "uint16",
+		expectedValue: uint16(123),
+	},
+	{
+		name:          "uint32",
+		value:         json.Number("123"),
+		expectedType:  "uint32",
+		expectedValue: uint32(123),
+	},
+	{
+		name:          "uint64",
+		value:         json.Number("185135722552891243"),
+		expectedType:  "uint64",
+		expectedValue: uint64(185135722552891243),
+	},
+	{
+		name:          "float32",
+		value:         json.Number("0.5"),
+		expectedType:  "float32",
+		expectedValue: float32(0.5),
+	},
+	{
+		name:          "float64",
+		value:         json.Number("0.5"),
+		expectedType:  "float64",
+		expectedValue: float64(0.5),
+	},
+	{
+		name:          "string",
+		value:         "123",
+		expectedType:  "string",
+		expectedValue: "123",
+	},
+	// slices
+	{
+		name:          "[]bool",
+		value:         []interface{}{false, true},
+		expectedType:  "[]bool",
+		expectedValue: []bool{false, true},
+	},
+	{
+		name:          "[]int",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]int",
+		expectedValue: []int{1, 2},
+	},
+	{
+		name:          "[]int8",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]int8",
+		expectedValue: []int8{1, 2},
+	},
+	{
+		name:          "[]int16",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]int16",
+		expectedValue: []int16{1, 2},
+	},
+	{
+		name:          "[]int32",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]int32",
+		expectedValue: []int32{1, 2},
+	},
+	{
+		name:          "[]int64",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]int64",
+		expectedValue: []int64{1, 2},
+	},
+	{
+		name:          "[]uint",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]uint",
+		expectedValue: []uint{1, 2},
+	},
+	{
+		name:          "[]uint8",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]uint8",
+		expectedValue: []uint8{1, 2},
+	},
+	{
+		name:          "[]uint16",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]uint16",
+		expectedValue: []uint16{1, 2},
+	},
+	{
+		name:          "[]uint32",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]uint32",
+		expectedValue: []uint32{1, 2},
+	},
+	{
+		name:          "[]uint64",
+		value:         []interface{}{json.Number("1"), json.Number("2")},
+		expectedType:  "[]uint64",
+		expectedValue: []uint64{1, 2},
+	},
+	{
+		name:          "[]float32",
+		value:         []interface{}{json.Number("0.5"), json.Number("1.28")},
+		expectedType:  "[]float32",
+		expectedValue: []float32{0.5, 1.28},
+	},
+	{
+		name:          "[]float64",
+		value:         []interface{}{json.Number("0.5"), json.Number("1.28")},
+		expectedType:  "[]float64",
+		expectedValue: []float64{0.5, 1.28},
+	},
+	{
+		name:          "[]string",
+		value:         []interface{}{"foo", "bar"},
+		expectedType:  "[]string",
+		expectedValue: []string{"foo", "bar"},
+	},
+	// empty slices from NULL
+	{
+		name:          "[]bool",
+		value:         nil,
+		expectedType:  "[]bool",
+		expectedValue: []bool{},
+	},
+	{
+		name:          "[]int64",
+		value:         nil,
+		expectedType:  "[]int64",
+		expectedValue: []int64{},
+	},
+	{
+		name:          "[]uint64",
+		value:         nil,
+		expectedType:  "[]uint64",
+		expectedValue: []uint64{},
+	},
+	{
+		name:          "[]float64",
+		value:         nil,
+		expectedType:  "[]float64",
+		expectedValue: []float64{},
+	},
+	{
+		name:          "[]string",
+		value:         nil,
+		expectedType:  "[]string",
+		expectedValue: []string{},
+	},
+}
 
 func TestReflectValue(t *testing.T) {
 	t.Parallel()
-	type args struct {
-		valueType string
-		value     interface{}
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    reflect.Value
-		wantErr bool
-	}{
-		{
-			name: "bool",
-			args: args{
-				valueType: "bool",
-				value:     true,
-			},
-			want:    reflect.ValueOf(true),
-			wantErr: false,
-		},
-		{
-			name: "int",
-			args: args{
-				valueType: "int",
-				value:     int(0),
-			},
-			want:    reflect.ValueOf(int(0)),
-			wantErr: false,
-		},
-		{
-			name: "int8",
-			args: args{
-				valueType: "int8",
-				value:     int8(0),
-			},
-			want:    reflect.ValueOf(int8(0)),
-			wantErr: false,
-		},
-		{
-			name: "int16",
-			args: args{
-				valueType: "int16",
-				value:     int16(0),
-			},
-			want:    reflect.ValueOf(int16(0)),
-			wantErr: false,
-		},
-		{
-			name: "int32",
-			args: args{
-				valueType: "int32",
-				value:     int32(0),
-			},
-			want:    reflect.ValueOf(int32(0)),
-			wantErr: false,
-		},
-		{
-			name: "int64",
-			args: args{
-				valueType: "int64",
-				value:     int64(0),
-			},
-			want:    reflect.ValueOf(int64(0)),
-			wantErr: false,
-		},
 
-		{
-			name: "uint",
-			args: args{
-				valueType: "uint",
-				value:     uint(0),
-			},
-			want:    reflect.ValueOf(uint(0)),
-			wantErr: false,
-		},
-		{
-			name: "uint8",
-			args: args{
-				valueType: "uint8",
-				value:     uint8(0),
-			},
-			want:    reflect.ValueOf(uint8(0)),
-			wantErr: false,
-		},
-		{
-			name: "uint16",
-			args: args{
-				valueType: "uint16",
-				value:     uint16(0),
-			},
-			want:    reflect.ValueOf(uint16(0)),
-			wantErr: false,
-		},
-		{
-			name: "uint32",
-			args: args{
-				valueType: "uint32",
-				value:     uint32(0),
-			},
-			want:    reflect.ValueOf(uint32(0)),
-			wantErr: false,
-		},
-		{
-			name: "uint64",
-			args: args{
-				valueType: "uint64",
-				value:     uint64(0),
-			},
-			want:    reflect.ValueOf(uint64(0)),
-			wantErr: false,
-		},
-
-		{
-			name: "float32",
-			args: args{
-				valueType: "float32",
-				value:     float32(0),
-			},
-			want:    reflect.ValueOf(float32(0)),
-			wantErr: false,
-		},
-		{
-			name: "float64",
-			args: args{
-				valueType: "float64",
-				value:     float64(0),
-			},
-			want:    reflect.ValueOf(float64(0)),
-			wantErr: false,
-		},
-
-		{
-			name: "string",
-			args: args{
-				valueType: "string",
-				value:     string(""),
-			},
-			want:    reflect.ValueOf(string("")),
-			wantErr: false,
-		},
-
-		{
-			name: "[]bool",
-			args: args{
-				valueType: "[]bool",
-				value:     make([]bool, 0),
-			},
-			want:    reflect.ValueOf(make([]bool, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]byte",
-			args: args{
-				valueType: "[]bool",
-				value:     make([]bool, 0),
-			},
-			want:    reflect.ValueOf(make([]bool, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]rune",
-			args: args{
-				valueType: "[]bool",
-				value:     make([]bool, 0),
-			},
-			want:    reflect.ValueOf(make([]bool, 0)),
-			wantErr: false,
-		},
-
-		{
-			name: "[]int",
-			args: args{
-				valueType: "[]int",
-				value:     make([]int, 0),
-			},
-			want:    reflect.ValueOf(make([]int, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]int8",
-			args: args{
-				valueType: "[]int8",
-				value:     make([]int8, 0),
-			},
-			want:    reflect.ValueOf(make([]int8, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]int16",
-			args: args{
-				valueType: "[]int16",
-				value:     make([]int16, 0),
-			},
-			want:    reflect.ValueOf(make([]int16, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]int32",
-			args: args{
-				valueType: "[]int32",
-				value:     make([]int32, 0),
-			},
-			want:    reflect.ValueOf(make([]int32, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]int64",
-			args: args{
-				valueType: "[]int64",
-				value:     make([]int64, 0),
-			},
-			want:    reflect.ValueOf(make([]int64, 0)),
-			wantErr: false,
-		},
-
-		{
-			name: "[]uint",
-			args: args{
-				valueType: "[]uint",
-				value:     make([]uint, 0),
-			},
-			want:    reflect.ValueOf(make([]uint, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]uint8",
-			args: args{
-				valueType: "[]uint8",
-				value:     make([]uint8, 0),
-			},
-			want:    reflect.ValueOf(make([]uint8, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]uint16",
-			args: args{
-				valueType: "[]uint16",
-				value:     make([]uint16, 0),
-			},
-			want:    reflect.ValueOf(make([]uint16, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]uint32",
-			args: args{
-				valueType: "[]uint32",
-				value:     make([]uint32, 0),
-			},
-			want:    reflect.ValueOf(make([]uint32, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]uint64",
-			args: args{
-				valueType: "[]uint64",
-				value:     make([]uint64, 0),
-			},
-			want:    reflect.ValueOf(make([]uint64, 0)),
-			wantErr: false,
-		},
-
-		{
-			name: "[]float32",
-			args: args{
-				valueType: "[]float32",
-				value:     make([]float32, 0),
-			},
-			want:    reflect.ValueOf(make([]float32, 0)),
-			wantErr: false,
-		},
-		{
-			name: "[]float64",
-			args: args{
-				valueType: "[]float64",
-				value:     make([]float64, 0),
-			},
-			want:    reflect.ValueOf(make([]float64, 0)),
-			wantErr: false,
-		},
-
-		{
-			name: "[]string",
-			args: args{
-				valueType: "[]string",
-				value:     make([]string, 0),
-			},
-			want:    reflect.ValueOf(make([]string, 0)),
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range reflectValuesTestCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := ReflectValue(tt.args.valueType, tt.args.value)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ReflectValue() error = %v, wantErr %v", err, tt.wantErr)
-				return
+
+			value, err := ReflectValue(tc.name, tc.value)
+			if err != nil {
+				t.Error(err)
 			}
-			if got.Type().String() != tt.args.valueType {
-				t.Errorf("type is %v, want %s", got.Type().String(), tt.args.valueType)
-				return
+			if value.Type().String() != tc.expectedType {
+				t.Errorf("type is %v, want %s", value.Type().String(), tc.expectedType)
 			}
-			if tt.args.value != nil {
-				if !reflect.DeepEqual(got.Interface(), tt.args.value) {
-					t.Errorf("value is %v, want %v", got.Interface(), tt.args.value)
+			if tc.expectedValue != nil {
+				if !reflect.DeepEqual(value.Interface(), tc.expectedValue) {
+					t.Errorf("value is %v, want %v", value.Interface(), tc.expectedValue)
 				}
 			}
 		})
