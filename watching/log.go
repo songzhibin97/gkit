@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"time"
+	"unsafe"
 )
 
 // log write content to log file.
@@ -73,7 +74,9 @@ func (w *Watching) writeString(content string) {
 			return
 		}
 
-		w.config.Logger, newLogger = newLogger, w.config.Logger
-		_ = newLogger.Close()
+		old := w.config.Logger
+		if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&w.config.Logger)), unsafe.Pointer(w.config.Logger), unsafe.Pointer(newLogger)) {
+			_ = old.Close()
+		}
 	}
 }
