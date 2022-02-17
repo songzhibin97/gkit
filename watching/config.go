@@ -9,6 +9,9 @@ type configs struct {
 	// whether use the cgroup to calc memory or not
 	UseCGroup bool
 
+	// overwrite the system level memory limitation when > 0.
+	memoryLimit uint64
+
 	// full path to put the profile files, default /tmp
 	DumpPath string
 	// default dump to binary profile, set to true if you want a text profile
@@ -35,6 +38,7 @@ type configs struct {
 	logConfigs    *logConfigs
 	GroupConfigs  *groupConfigs
 	MemConfigs    *memConfigs
+	GCHeapConfigs *gcHeapConfigs
 	CpuConfigs    *cpuConfigs
 	ThreadConfigs *threadConfigs
 }
@@ -43,6 +47,16 @@ type logConfigs struct {
 	RotateEnable    bool
 	SplitLoggerSize int64 // SplitLoggerSize The size of the log split
 	Changelog       int32
+}
+
+type gcHeapConfigs struct {
+	// enable the heap dumper, should dump if one of the following requirements is matched
+	//   1. GC heap usage > GCHeapTriggerPercentMin && GC heap usage diff > GCHeapTriggerPercentDiff
+	//   2. GC heap usage > GCHeapTriggerPercentAbs
+	Enable                   bool
+	GCHeapTriggerPercentMin  int // GC heap trigger minimum in percent
+	GCHeapTriggerPercentDiff int // GC heap trigger diff in percent
+	GCHeapTriggerPercentAbs  int // GC heap trigger absolute in percent
 }
 
 type groupConfigs struct {
@@ -99,6 +113,15 @@ func defaultGroupConfigs() *groupConfigs {
 	}
 }
 
+func defaultGCHeapOptions() *gcHeapConfigs {
+	return &gcHeapConfigs{
+		Enable:                   false,
+		GCHeapTriggerPercentAbs:  defaultGCHeapTriggerAbs,
+		GCHeapTriggerPercentDiff: defaultGCHeapTriggerDiff,
+		GCHeapTriggerPercentMin:  defaultGCHeapTriggerMin,
+	}
+}
+
 func defaultMemConfigs() *memConfigs {
 	return &memConfigs{
 		Enable:                false,
@@ -131,6 +154,7 @@ func defaultConfig() *configs {
 		logConfigs:      defaultLogConfigs(),
 		GroupConfigs:    defaultGroupConfigs(),
 		MemConfigs:      defaultMemConfigs(),
+		GCHeapConfigs:   defaultGCHeapOptions(),
 		CpuConfigs:      defaultCPUConfigs(),
 		ThreadConfigs:   defaultThreadConfig(),
 		LogLevel:        LogLevelDebug,

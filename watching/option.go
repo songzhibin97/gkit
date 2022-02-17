@@ -14,9 +14,9 @@ import (
 // eg. "ns", "us" (or "µs"), "ms", "s", "m", "h".
 func WithCollectInterval(interval string) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
+		opts := o.(*Watching)
 		var err error
-		opts.CollectInterval, err = time.ParseDuration(interval)
+		opts.config.CollectInterval, err = time.ParseDuration(interval)
 		if err != nil {
 			panic(err)
 		}
@@ -28,9 +28,9 @@ func WithCollectInterval(interval string) options.Option {
 // eg. "ns", "us" (or "µs"), "ms", "s", "m", "h".
 func WithCoolDown(coolDown string) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
+		opts := o.(*Watching)
 		var err error
-		opts.CoolDown, err = time.ParseDuration(coolDown)
+		opts.config.CoolDown, err = time.ParseDuration(coolDown)
 		if err != nil {
 			panic(err)
 		}
@@ -41,19 +41,19 @@ func WithCoolDown(coolDown string) options.Option {
 // WithDumpPath set the dump path for holmes.
 func WithDumpPath(dumpPath string, loginfo ...string) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
+		opts := o.(*Watching)
 		var err error
 		f := path.Join(dumpPath, defaultLoggerName)
 		if len(loginfo) > 0 {
 			f = dumpPath + "/" + path.Join(loginfo...)
 		}
-		opts.DumpPath = filepath.Dir(f)
-		opts.Logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
+		opts.config.DumpPath = filepath.Dir(f)
+		opts.config.Logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
 		if err != nil && os.IsNotExist(err) {
-			if err = os.MkdirAll(opts.DumpPath, 0o755); err != nil {
+			if err = os.MkdirAll(opts.config.DumpPath, 0o755); err != nil {
 				return
 			}
-			opts.Logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
+			opts.config.Logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
 			if err != nil {
 				return
 			}
@@ -74,8 +74,8 @@ func WithTextDump() options.Option {
 
 func withDumpProfileType(profileType dumpProfileType) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.DumpProfileType = profileType
+		opts := o.(*Watching)
+		opts.config.DumpProfileType = profileType
 		return
 	}
 }
@@ -84,8 +84,8 @@ func withDumpProfileType(profileType dumpProfileType) options.Option {
 // eg. "b/B", "k/K" "kb/Kb" "mb/Mb", "gb/Gb" "tb/Tb" "pb/Pb".
 func WithLoggerSplit(enable bool, shardLoggerSize string) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.logConfigs.RotateEnable = enable
+		opts := o.(*Watching)
+		opts.config.logConfigs.RotateEnable = enable
 		if !enable {
 			return
 		}
@@ -95,10 +95,10 @@ func WithLoggerSplit(enable bool, shardLoggerSize string) options.Option {
 			panic(err)
 		}
 		if parseShardLoggerSize <= 0 {
-			opts.logConfigs.SplitLoggerSize = defaultShardLoggerSize
+			opts.config.logConfigs.SplitLoggerSize = defaultShardLoggerSize
 			return
 		}
-		opts.logConfigs.SplitLoggerSize = parseShardLoggerSize
+		opts.config.logConfigs.SplitLoggerSize = parseShardLoggerSize
 		return
 	}
 }
@@ -106,11 +106,11 @@ func WithLoggerSplit(enable bool, shardLoggerSize string) options.Option {
 // WithGoroutineDump set the goroutine dump options.
 func WithGoroutineDump(min int, diff int, abs int, max int) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.GroupConfigs.GoroutineTriggerNumMin = min
-		opts.GroupConfigs.GoroutineTriggerPercentDiff = diff
-		opts.GroupConfigs.GoroutineTriggerNumAbs = abs
-		opts.GroupConfigs.GoroutineTriggerNumMax = max
+		opts := o.(*Watching)
+		opts.config.GroupConfigs.GoroutineTriggerNumMin = min
+		opts.config.GroupConfigs.GoroutineTriggerPercentDiff = diff
+		opts.config.GroupConfigs.GoroutineTriggerNumAbs = abs
+		opts.config.GroupConfigs.GoroutineTriggerNumMax = max
 		return
 	}
 }
@@ -118,20 +118,20 @@ func WithGoroutineDump(min int, diff int, abs int, max int) options.Option {
 // WithMemDump set the memory dump options.
 func WithMemDump(min int, diff int, abs int) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.MemConfigs.MemTriggerPercentMin = min
-		opts.MemConfigs.MemTriggerPercentDiff = diff
-		opts.MemConfigs.MemTriggerPercentAbs = abs
+		opts := o.(*Watching)
+		opts.config.MemConfigs.MemTriggerPercentMin = min
+		opts.config.MemConfigs.MemTriggerPercentDiff = diff
+		opts.config.MemConfigs.MemTriggerPercentAbs = abs
 	}
 }
 
 // WithCPUDump set the cpu dump options.
 func WithCPUDump(min int, diff int, abs int) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.CpuConfigs.CPUTriggerPercentMin = min
-		opts.CpuConfigs.CPUTriggerPercentDiff = diff
-		opts.CpuConfigs.CPUTriggerPercentAbs = abs
+		opts := o.(*Watching)
+		opts.config.CpuConfigs.CPUTriggerPercentMin = min
+		opts.config.CpuConfigs.CPUTriggerPercentDiff = diff
+		opts.config.CpuConfigs.CPUTriggerPercentAbs = abs
 		return
 	}
 }
@@ -139,10 +139,10 @@ func WithCPUDump(min int, diff int, abs int) options.Option {
 // WithThreadDump set the thread dump options.
 func WithThreadDump(min, diff, abs int) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.ThreadConfigs.ThreadTriggerPercentMin = min
-		opts.ThreadConfigs.ThreadTriggerPercentDiff = diff
-		opts.ThreadConfigs.ThreadTriggerPercentAbs = abs
+		opts := o.(*Watching)
+		opts.config.ThreadConfigs.ThreadTriggerPercentMin = min
+		opts.config.ThreadConfigs.ThreadTriggerPercentDiff = diff
+		opts.config.ThreadConfigs.ThreadTriggerPercentAbs = abs
 		return
 	}
 }
@@ -150,8 +150,8 @@ func WithThreadDump(min, diff, abs int) options.Option {
 // WithLoggerLevel set logger level
 func WithLoggerLevel(level int) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.LogLevel = level
+		opts := o.(*Watching)
+		opts.config.LogLevel = level
 		return
 	}
 }
@@ -159,8 +159,28 @@ func WithLoggerLevel(level int) options.Option {
 // WithCGroup set holmes use cgroup or not.
 func WithCGroup(useCGroup bool) options.Option {
 	return func(o interface{}) {
-		opts := o.(*configs)
-		opts.UseCGroup = useCGroup
+		opts := o.(*Watching)
+		opts.config.UseCGroup = useCGroup
+		return
+	}
+}
+
+// WithGCHeapDump set the GC heap dump options.
+func WithGCHeapDump(min int, diff int, abs int) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.GCHeapConfigs.GCHeapTriggerPercentMin = min
+		opts.config.GCHeapConfigs.GCHeapTriggerPercentDiff = diff
+		opts.config.GCHeapConfigs.GCHeapTriggerPercentAbs = abs
+		return
+	}
+}
+
+// WithMemoryLimit overwrite the system level memory limit when it > 0.
+func WithMemoryLimit(limit uint64) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.memoryLimit = limit
 		return
 	}
 }

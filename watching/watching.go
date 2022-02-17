@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"sync/atomic"
 	"time"
@@ -16,22 +17,31 @@ type Watching struct {
 
 	// stats
 	collectCount       int
+	gcCycleCount       int
 	threadTriggerCount int
 	cpuTriggerCount    int
 	memTriggerCount    int
 	grTriggerCount     int
+	gcHeapTriggerCount int
+	// channel for GC sweep finalizer event
+	finCh chan time.Time
 
 	// cooldown
 	threadCoolDownTime time.Time
 	cpuCoolDownTime    time.Time
 	memCoolDownTime    time.Time
+	gcHeapCoolDownTime time.Time
 	grCoolDownTime     time.Time
+
+	// GC heap triggered, need to dump next time.
+	gcHeapTriggered bool
 
 	// stats ring
 	memStats    ring
 	cpuStats    ring
 	grNumStats  ring
 	threadStats ring
+	gcHeapStats ring
 
 	// switch
 	stopped int64
@@ -73,6 +83,12 @@ func (w *Watching) DisableCPUDump() *Watching {
 	return w
 }
 
+// EnableGCHeapDump enables the GC heap dump.
+func (w *Watching) EnableGCHeapDump() *Watching {
+	w.config.GCHeapConfigs.Enable = true
+	return w
+}
+
 // EnableMemDump enables the mem dump.
 func (w *Watching) EnableMemDump() *Watching {
 	w.config.MemConfigs.Enable = true
@@ -85,11 +101,31 @@ func (w *Watching) DisableMemDump() *Watching {
 	return w
 }
 
+func finalizerCallback(w *Watching) {
+	// register the finalizer again
+	runtime.SetFinalizer(w, finalizerCallback)
+
+	select {
+	case w.finCh <- time.Time{}:
+	default:
+		w.logf("can not send event to finalizer channel immediately, may be analyzer blocked?")
+	}
+}
+
+func (w *Watching) startGCCycleLoop() {
+	w.gcHeapStats = newRing(minCollectCyclesBeforeDumpStart)
+
+	runtime.SetFinalizer(w, finalizerCallback)
+
+	go w.gcHeapCheckLoop()
+}
+
 // Start starts the dump loop of holmes.
 func (w *Watching) Start() {
 	atomic.StoreInt64(&w.stopped, 0)
 	w.initEnvironment()
 	go w.startDumpLoop()
+	w.startGCCycleLoop()
 }
 
 func (w *Watching) startDumpLoop() {
@@ -302,6 +338,85 @@ func (w *Watching) cpuProfile(curCPUUsage int) bool {
 	return true
 }
 
+func (w *Watching) gcHeapCheckLoop() {
+	for {
+		// wait for the finalizer event
+		<-w.finCh
+
+		if !w.config.GCHeapConfigs.Enable {
+			return
+		}
+
+		w.gcHeapCheckAndDump()
+	}
+}
+
+func (w *Watching) gcHeapCheckAndDump() {
+	memStats := new(runtime.MemStats)
+	runtime.ReadMemStats(memStats)
+
+	// TODO: we can only use NextGC for now since runtime haven't expose heapmarked yet
+	// and we hard code the gcPercent is 100 here.
+	// may introduce a new API debug.GCHeapMarked? it can also has better performance(no STW).
+	nextGC := memStats.NextGC
+	prevGC := nextGC / 2 //nolint:gomnd
+
+	memoryLimit, err := w.getMemoryLimit()
+	if memoryLimit == 0 || err != nil {
+		w.logf("[Holmes] get memory limit failed, memory limit: %v, error: %v", memoryLimit, err)
+		return
+	}
+
+	ratio := int(100 * float64(prevGC) / float64(memoryLimit))
+	w.gcHeapStats.push(ratio)
+
+	w.gcCycleCount++
+	if w.gcCycleCount < minCollectCyclesBeforeDumpStart {
+		// at least collect some cycles
+		// before start to judge and dump
+		w.logf("[Holmes] GC cycle warming up : %d", w.gcCycleCount)
+		return
+	}
+
+	if w.gcHeapCoolDownTime.After(time.Now()) {
+		w.logf("[Holmes] GC heap dump is in cooldown")
+		return
+	}
+
+	if triggered := w.gcHeapProfile(ratio, w.gcHeapTriggered); triggered {
+		if w.gcHeapTriggered {
+			// already dump twice, mark it false
+			w.gcHeapTriggered = false
+			w.gcHeapCoolDownTime = time.Now().Add(w.config.CoolDown)
+			w.gcHeapTriggerCount++
+		} else {
+			// force dump next time
+			w.gcHeapTriggered = true
+		}
+	}
+}
+
+// gcHeapProfile will dump profile twice when triggered once.
+// since the current memory profile will be merged after next GC cycle.
+// And we assume the finalizer will be called before next GC cycle(it will be usually).
+func (w *Watching) gcHeapProfile(gc int, force bool) bool {
+	c := w.config.GCHeapConfigs
+	if !force && !matchRule(w.gcHeapStats, gc, c.GCHeapTriggerPercentMin, c.GCHeapTriggerPercentAbs, c.GCHeapTriggerPercentDiff, NotSupportTypeMaxConfig) {
+		// let user know why this should not dump
+		w.debugf(UniformLogFormat, "NODUMP", type2name[gcHeap],
+			c.GCHeapTriggerPercentMin, c.GCHeapTriggerPercentDiff, c.GCHeapTriggerPercentAbs, NotSupportTypeMaxConfig,
+			w.gcHeapStats.data, gc)
+
+		return false
+	}
+
+	var buf bytes.Buffer
+	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
+	w.writeProfileDataToFile(buf, gcHeap, gc)
+
+	return true
+}
+
 func (w *Watching) initEnvironment() {
 	// choose whether the max memory is limited by cgroup
 	if w.config.UseCGroup {
@@ -339,6 +454,11 @@ func (w *Watching) writeProfileDataToFile(data bytes.Buffer, dumpType configureT
 		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
 			opts.MemTriggerPercentMin, opts.MemTriggerPercentDiff, opts.MemTriggerPercentAbs, NotSupportTypeMaxConfig,
 			w.memStats.data, currentStat)
+	case gcHeap:
+		opts := w.config.GCHeapConfigs
+		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
+			opts.GCHeapTriggerPercentMin, opts.GCHeapTriggerPercentDiff, opts.GCHeapTriggerPercentAbs, NotSupportTypeMaxConfig,
+			w.gcHeapStats.data, currentStat)
 	case goroutine:
 		opts := w.config.GroupConfigs
 		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
@@ -370,6 +490,17 @@ func (w *Watching) writeProfileDataToFile(data bytes.Buffer, dumpType configureT
 			w.logf("[Watching] pprof %v write to file failed : %v", type2name[dumpType], err.Error())
 		}
 	}
+}
+
+func (w *Watching) getMemoryLimit() (uint64, error) {
+	if w.config.memoryLimit > 0 {
+		return w.config.memoryLimit, nil
+	}
+
+	if w.config.UseCGroup {
+		return getCGroupMemoryLimit()
+	}
+	return getNormalMemoryLimit()
 }
 
 func NewWatching(opts ...options.Option) *Watching {

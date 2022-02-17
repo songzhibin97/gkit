@@ -189,3 +189,11 @@ func getBinaryFileName(filePath string, dumpType configureType) string {
 
 	return path.Join(filePath, type2name[dumpType]+"."+binarySuffix)
 }
+
+func getNormalMemoryLimit() (uint64, error) {
+	machineMemory, err := mem_util.VirtualMemory()
+	if err != nil {
+		return 0, err
+	}
+	return machineMemory.Total, nil
+}
