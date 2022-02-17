@@ -30,9 +30,9 @@ gc 28 @11.666s 0%: 0.17+0.19+0.017 ms clock, 2.0+0.085/0.19/0.13+0.20 ms cpu, 20
 gc 29 @12.121s 0%: 0.065+0.21+0.015 ms clock, 0.78+0.11/0.23/0.13+0.18 ms cpu, 20->20->10 MB, 21 MB goal, 12 P
 ```
 
-Also, we can see the following holmes log from /tmp/holmes.log:
+Also, we can see the following Watching log from /tmp/Watching.log:
 ```
-[Holmes] NODUMP GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 10], current: 10
+[Watching] NODUMP GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 10], current: 10
 ```
 
 Everything works well now.
@@ -50,16 +50,16 @@ gc 432 @191.430s 0%: 0.14+0.40+0.004 ms clock, 1.7+0.26/0.41/0.52+0.051 ms cpu, 
 gc 433 @192.079s 0%: 0.042+0.22+0.002 ms clock, 0.51+0.097/0.38/0.21+0.024 ms cpu, 37->37->10 MB, 38 MB goal, 12 P
 ```
 
-And we see that we got two profiles from holmes log:
+And we see that we got two profiles from Watching log:
 ```
-[2022-02-09 14:48:23.103][Holmes] pprof GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 19
-[2022-02-09 14:48:23.751][Holmes] pprof GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 10
+[2022-02-09 14:48:23.103][Watching] pprof GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 19
+[2022-02-09 14:48:23.751][Watching] pprof GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 10
 ```
 
 6. generate flamegraph
 
 we will know what cause the GC goal increased exactly by using the following command.
-(we got the profile name by timestamp that from holmes log)
+(we got the profile name by timestamp that from Watching log)
 ```
 go tool pprof -http=:8000 -base GCHeap.20220209144823.103.bin GCHeap.20220209144823.751.bin
 ```
