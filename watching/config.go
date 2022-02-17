@@ -31,7 +31,7 @@ type configs struct {
 	CoolDown time.Duration
 
 	// if current cpu usage percent is greater than CPUMaxPercent,
-	// holmes would not dump all types profile, cuz this
+	// Watching would not dump all types profile, cuz this
 	// move may result of the system crash.
 	CPUMaxPercent int
 

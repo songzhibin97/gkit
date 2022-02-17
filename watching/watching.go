@@ -120,7 +120,7 @@ func (w *Watching) startGCCycleLoop() {
 	go w.gcHeapCheckLoop()
 }
 
-// Start starts the dump loop of holmes.
+// Start starts the dump loop of Watching.
 func (w *Watching) Start() {
 	atomic.StoreInt64(&w.stopped, 0)
 	w.initEnvironment()
@@ -363,7 +363,7 @@ func (w *Watching) gcHeapCheckAndDump() {
 
 	memoryLimit, err := w.getMemoryLimit()
 	if memoryLimit == 0 || err != nil {
-		w.logf("[Holmes] get memory limit failed, memory limit: %v, error: %v", memoryLimit, err)
+		w.logf("[Watching] get memory limit failed, memory limit: %v, error: %v", memoryLimit, err)
 		return
 	}
 
@@ -374,12 +374,12 @@ func (w *Watching) gcHeapCheckAndDump() {
 	if w.gcCycleCount < minCollectCyclesBeforeDumpStart {
 		// at least collect some cycles
 		// before start to judge and dump
-		w.logf("[Holmes] GC cycle warming up : %d", w.gcCycleCount)
+		w.logf("[Watching] GC cycle warming up : %d", w.gcCycleCount)
 		return
 	}
 
 	if w.gcHeapCoolDownTime.After(time.Now()) {
-		w.logf("[Holmes] GC heap dump is in cooldown")
+		w.logf("[Watching] GC heap dump is in cooldown")
 		return
 	}
 

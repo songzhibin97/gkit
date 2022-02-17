@@ -166,7 +166,7 @@ func TestBig(t *testing.T) {
     "friends": [
       {
         "id": 0,
-        "name": "Holmes Hurley"
+        "name": "Watching Hurley"
       },
       {
         "id": 1,

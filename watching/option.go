@@ -38,7 +38,7 @@ func WithCoolDown(coolDown string) options.Option {
 	}
 }
 
-// WithDumpPath set the dump path for holmes.
+// WithDumpPath set the dump path for Watching.
 func WithDumpPath(dumpPath string, loginfo ...string) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
@@ -156,7 +156,7 @@ func WithLoggerLevel(level int) options.Option {
 	}
 }
 
-// WithCGroup set holmes use cgroup or not.
+// WithCGroup set Watching use cgroup or not.
 func WithCGroup(useCGroup bool) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
