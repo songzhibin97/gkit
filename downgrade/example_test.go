@@ -8,30 +8,30 @@ import (
 
 var fuse Fuse
 
-// type runFunc = func() error
-// type fallbackFunc = func(error) error
-// type runFuncC = func(context.Context) error
-// type fallbackFuncC = func(context.Context, error) error
+// type RunFunc = func() error
+// type FallbackFunc = func(error) error
+// type RunFuncC = func(context.Context) error
+// type FallbackFuncC = func(context.Context, error) error
 
-func mockRunFunc() runFunc {
+func mockRunFunc() RunFunc {
 	return func() error {
 		return nil
 	}
 }
 
-func mockFallbackFunc() fallbackFunc {
+func mockFallbackFunc() FallbackFunc {
 	return func(err error) error {
 		return nil
 	}
 }
 
-func mockRunFuncC() runFuncC {
+func mockRunFuncC() RunFuncC {
 	return func(ctx context.Context) error {
 		return nil
 	}
 }
 
-func mockFallbackFuncC() fallbackFuncC {
+func mockFallbackFuncC() FallbackFuncC {
 	return func(ctx context.Context, err error) error {
 		return nil
 	}
@@ -50,7 +50,7 @@ func ExampleHystrix_ConfigureCommand() {
 
 func ExampleHystrix_Do() {
 	// Do: 同步执行 func() error, 没有超时控制 直到等到返回,
-	// 如果返回 error != nil 则触发 fallbackFunc 进行降级
+	// 如果返回 error != nil 则触发 FallbackFunc 进行降级
 	err := fuse.Do("do", mockRunFunc(), mockFallbackFunc())
 	if err != nil {
 		// 处理 error
