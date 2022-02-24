@@ -86,6 +86,7 @@ func (w *Watching) DisableCPUDump() *Watching {
 // EnableGCHeapDump enables the GC heap dump.
 func (w *Watching) EnableGCHeapDump() *Watching {
 	w.config.GCHeapConfigs.Enable = true
+	w.finCh = make(chan time.Time)
 	return w
 }
 
@@ -101,23 +102,31 @@ func (w *Watching) DisableMemDump() *Watching {
 	return w
 }
 
-func finalizerCallback(w *Watching) {
+func finalizerCallback(gc *gcHeapFinalizer) {
 	// register the finalizer again
-	runtime.SetFinalizer(w, finalizerCallback)
+	runtime.SetFinalizer(gc, finalizerCallback)
 
 	select {
-	case w.finCh <- time.Time{}:
+	case gc.w.finCh <- time.Time{}:
 	default:
-		w.logf("can not send event to finalizer channel immediately, may be analyzer blocked?")
+		gc.w.logf("can not send event to finalizer channel immediately, may be analyzer blocked?")
 	}
+}
+
+type gcHeapFinalizer struct {
+	w *Watching
 }
 
 func (w *Watching) startGCCycleLoop() {
 	w.gcHeapStats = newRing(minCollectCyclesBeforeDumpStart)
 
+	gc := &gcHeapFinalizer{
+		w,
+	}
+
 	runtime.SetFinalizer(w, finalizerCallback)
 
-	go w.gcHeapCheckLoop()
+	go gc.w.gcHeapCheckLoop()
 }
 
 // Start starts the dump loop of Watching.
