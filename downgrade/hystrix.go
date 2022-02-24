@@ -8,15 +8,15 @@ import (
 
 type Hystrix struct{}
 
-func (h *Hystrix) Do(name string, run runFunc, fallback fallbackFunc) error {
+func (h *Hystrix) Do(name string, run RunFunc, fallback FallbackFunc) error {
 	return hystrix.Do(name, run, fallback)
 }
 
-func (h *Hystrix) Go(name string, run runFunc, fallback fallbackFunc) chan error {
+func (h *Hystrix) Go(name string, run RunFunc, fallback FallbackFunc) chan error {
 	return hystrix.Go(name, run, fallback)
 }
 
-func (h *Hystrix) GoC(ctx context.Context, name string, run runFuncC, fallback fallbackFuncC) chan error {
+func (h *Hystrix) GoC(ctx context.Context, name string, run RunFuncC, fallback FallbackFuncC) chan error {
 	return hystrix.GoC(ctx, name, run, fallback)
 }
 
