@@ -22,7 +22,7 @@ type Fuse interface {
 	// 如果返回错误,执行 FallbackFunc 函数
 	Do(name string, run RunFunc, fallback FallbackFunc) error
 
-	// DoC
+	// DoC 同步方式处理
 	DoC(ctx context.Context, name string, run RunFuncC, fallback FallbackFuncC) error
 
 	// Go 异步调用返回 channel
