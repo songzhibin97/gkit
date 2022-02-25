@@ -12,6 +12,10 @@ func (h *Hystrix) Do(name string, run RunFunc, fallback FallbackFunc) error {
 	return hystrix.Do(name, run, fallback)
 }
 
+func (h *Hystrix) DoC(ctx context.Context, name string, run RunFuncC, fallback FallbackFuncC) error {
+	return hystrix.DoC(ctx, name, run, fallback)
+}
+
 func (h *Hystrix) Go(name string, run RunFunc, fallback FallbackFunc) chan error {
 	return hystrix.Go(name, run, fallback)
 }
