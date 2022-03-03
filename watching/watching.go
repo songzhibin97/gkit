@@ -131,7 +131,9 @@ func (w *Watching) startGCCycleLoop() {
 
 // Start starts the dump loop of Watching.
 func (w *Watching) Start() {
-	atomic.StoreInt64(&w.stopped, 0)
+	if !atomic.CompareAndSwapInt64(&w.stopped, 1, 0) {
+		return
+	}
 	w.initEnvironment()
 	go w.startDumpLoop()
 	w.startGCCycleLoop()
@@ -513,7 +515,7 @@ func (w *Watching) getMemoryLimit() (uint64, error) {
 }
 
 func NewWatching(opts ...options.Option) *Watching {
-	watching := &Watching{config: defaultConfig()}
+	watching := &Watching{config: defaultConfig(), stopped: 1}
 	for _, opt := range opts {
 		opt(watching)
 	}
