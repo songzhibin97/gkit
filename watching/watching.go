@@ -240,7 +240,7 @@ func (w *Watching) goroutineCheckAndDump(gNum int) {
 	// get a copy instead of locking it
 	grConfigs := w.config.GetGroupConfigs()
 
-	if grConfigs != nil || !grConfigs.Enable {
+	if grConfigs == nil || !grConfigs.Enable {
 		return
 	}
 
@@ -274,7 +274,7 @@ func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
 func (w *Watching) memCheckAndDump(mem int) {
 	memConfig := w.config.GetMemConfigs()
 
-	if memConfig != nil || !memConfig.Enable {
+	if memConfig == nil || !memConfig.Enable {
 		return
 	}
 
@@ -308,7 +308,7 @@ func (w *Watching) memProfile(rss int, c typeConfig) bool {
 func (w *Watching) threadCheckAndShrink(threadNum int) {
 	shrink := w.config.ShrinkThrConfigs
 
-	if shrink != nil || !shrink.Enable {
+	if shrink == nil || !shrink.Enable {
 		return
 	}
 
@@ -358,7 +358,7 @@ func (w *Watching) startShrinkThread(c *ShrinkThrConfigs) {
 func (w *Watching) threadCheckAndDump(threadNum int) {
 	threadConfig := w.config.GetThreadConfigs()
 
-	if threadConfig != nil || !threadConfig.Enable {
+	if threadConfig == nil || !threadConfig.Enable {
 		return
 	}
 
@@ -399,7 +399,7 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 // cpu start.
 func (w *Watching) cpuCheckAndDump(cpu int) {
 	cpuConfig := w.config.GetCPUConfigs()
-	if cpuConfig != nil || !cpuConfig.Enable {
+	if cpuConfig == nil || !cpuConfig.Enable {
 		return
 	}
 
@@ -460,7 +460,7 @@ func (w *Watching) gcHeapCheckLoop() {
 
 func (w *Watching) gcHeapCheckAndDump() {
 	gcHeapConfig := w.config.GetGcHeapConfigs()
-	if gcHeapConfig != nil || !gcHeapConfig.Enable || atomic.LoadInt64(&w.stopped) == 1 {
+	if gcHeapConfig == nil || !gcHeapConfig.Enable || atomic.LoadInt64(&w.stopped) == 1 {
 		return
 	}
 
