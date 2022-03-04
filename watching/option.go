@@ -4,7 +4,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/docker/go-units"
 	"github.com/songzhibin97/gkit/options"
@@ -16,10 +18,14 @@ func WithCollectInterval(interval string) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
 		var err error
-		opts.config.CollectInterval, err = time.ParseDuration(interval)
-		if err != nil {
-			panic(err)
+		// CollectInterval wouldn't be zero value, because it
+		// will be initialized as defaultInterval at newOptions()
+		newInterval, err := time.ParseDuration(interval)
+		if err != nil || opts.config.CollectInterval.Seconds() == newInterval.Seconds() {
+			return
 		}
+		opts.config.CollectInterval = newInterval
+		opts.config.intervalResetting <- struct{}{}
 		return
 	}
 }
@@ -38,25 +44,38 @@ func WithCoolDown(coolDown string) options.Option {
 	}
 }
 
+// WithCPUMax : set the CPUMaxPercent parameter as max
+func WithCPUMax(max int) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.CPUMaxPercent = max
+	}
+}
+
 // WithDumpPath set the dump path for Watching.
 func WithDumpPath(dumpPath string, loginfo ...string) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
 		var err error
+		var logger *os.File
 		f := path.Join(dumpPath, defaultLoggerName)
 		if len(loginfo) > 0 {
 			f = dumpPath + "/" + path.Join(loginfo...)
 		}
 		opts.config.DumpPath = filepath.Dir(f)
-		opts.config.Logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
+		logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
 		if err != nil && os.IsNotExist(err) {
 			if err = os.MkdirAll(opts.config.DumpPath, 0o755); err != nil {
 				return
 			}
-			opts.config.Logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
+			logger, err = os.OpenFile(f, defaultLoggerFlags, defaultLoggerPerm)
 			if err != nil {
 				return
 			}
+		}
+		old := opts.config.Logger
+		if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&opts.config.Logger)), unsafe.Pointer(opts.config.Logger), unsafe.Pointer(logger)) {
+			_ = old.Close()
 		}
 		return
 	}
@@ -70,6 +89,15 @@ func WithBinaryDump() options.Option {
 // WithTextDump set dump mode to text.
 func WithTextDump() options.Option {
 	return withDumpProfileType(textDump)
+}
+
+// WithFullStack set to dump full stack or top 10 stack, when dump in text mode.
+func WithFullStack(isFull bool) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.DumpFullStack = isFull
+		return
+	}
 }
 
 func withDumpProfileType(profileType dumpProfileType) options.Option {
@@ -107,9 +135,9 @@ func WithLoggerSplit(enable bool, shardLoggerSize string) options.Option {
 func WithGoroutineDump(min int, diff int, abs int, max int) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
-		opts.config.GroupConfigs.GoroutineTriggerNumMin = min
-		opts.config.GroupConfigs.GoroutineTriggerPercentDiff = diff
-		opts.config.GroupConfigs.GoroutineTriggerNumAbs = abs
+		opts.config.GroupConfigs.TriggerMin = min
+		opts.config.GroupConfigs.TriggerDiff = diff
+		opts.config.GroupConfigs.TriggerAbs = abs
 		opts.config.GroupConfigs.GoroutineTriggerNumMax = max
 		return
 	}
@@ -119,9 +147,9 @@ func WithGoroutineDump(min int, diff int, abs int, max int) options.Option {
 func WithMemDump(min int, diff int, abs int) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
-		opts.config.MemConfigs.MemTriggerPercentMin = min
-		opts.config.MemConfigs.MemTriggerPercentDiff = diff
-		opts.config.MemConfigs.MemTriggerPercentAbs = abs
+		opts.config.MemConfigs.TriggerMin = min
+		opts.config.MemConfigs.TriggerDiff = diff
+		opts.config.MemConfigs.TriggerAbs = abs
 	}
 }
 
@@ -129,9 +157,18 @@ func WithMemDump(min int, diff int, abs int) options.Option {
 func WithCPUDump(min int, diff int, abs int) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
-		opts.config.CpuConfigs.CPUTriggerPercentMin = min
-		opts.config.CpuConfigs.CPUTriggerPercentDiff = diff
-		opts.config.CpuConfigs.CPUTriggerPercentAbs = abs
+		opts.config.CpuConfigs.TriggerMin = min
+		opts.config.CpuConfigs.TriggerDiff = diff
+		opts.config.CpuConfigs.TriggerAbs = abs
+		return
+	}
+}
+
+// WithGoProcAsCPUCore set holmes use cgroup or not.
+func WithGoProcAsCPUCore(enabled bool) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.UseGoProcAsCPUCore = enabled
 		return
 	}
 }
@@ -140,9 +177,9 @@ func WithCPUDump(min int, diff int, abs int) options.Option {
 func WithThreadDump(min, diff, abs int) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
-		opts.config.ThreadConfigs.ThreadTriggerPercentMin = min
-		opts.config.ThreadConfigs.ThreadTriggerPercentDiff = diff
-		opts.config.ThreadConfigs.ThreadTriggerPercentAbs = abs
+		opts.config.ThreadConfigs.TriggerMin = min
+		opts.config.ThreadConfigs.TriggerDiff = diff
+		opts.config.ThreadConfigs.TriggerAbs = abs
 		return
 	}
 }
@@ -169,9 +206,19 @@ func WithCGroup(useCGroup bool) options.Option {
 func WithGCHeapDump(min int, diff int, abs int) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
-		opts.config.GCHeapConfigs.GCHeapTriggerPercentMin = min
-		opts.config.GCHeapConfigs.GCHeapTriggerPercentDiff = diff
-		opts.config.GCHeapConfigs.GCHeapTriggerPercentAbs = abs
+		opts.config.GCHeapConfigs.TriggerMin = min
+		opts.config.GCHeapConfigs.TriggerDiff = diff
+		opts.config.GCHeapConfigs.TriggerAbs = abs
+		return
+	}
+}
+
+// WithCPUCore overwrite the system level CPU core number when it > 0.
+// it's not a good idea to modify it on fly since it affects the CPU percent caculation.
+func WithCPUCore(cpuCore float64) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.cpuCore = cpuCore
 		return
 	}
 }
@@ -181,6 +228,19 @@ func WithMemoryLimit(limit uint64) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
 		opts.config.memoryLimit = limit
+		return
+	}
+}
+
+// WithShrinkThread enable/disable shrink thread when the thread number exceed the max threshold.
+func WithShrinkThread(enable bool, threshold int, delay time.Duration) options.Option {
+	return func(o interface{}) {
+		opts := o.(*Watching)
+		opts.config.ShrinkThrConfigs.Enable = enable
+		if threshold > 0 {
+			opts.config.ShrinkThrConfigs.Threshold = threshold
+		}
+		opts.config.ShrinkThrConfigs.Delay = delay
 		return
 	}
 }
