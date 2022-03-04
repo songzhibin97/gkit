@@ -42,8 +42,8 @@ func (w *Watching) writeString(content string) {
 		return
 	}
 
-	if state.Size() > w.config.logConfigs.SplitLoggerSize && atomic.CompareAndSwapInt32(&w.config.logConfigs.Changelog, 0, 1) {
-		defer atomic.StoreInt32(&w.config.logConfigs.Changelog, 0)
+	if state.Size() > w.config.logConfigs.SplitLoggerSize && atomic.CompareAndSwapInt32(&w.changeLog, 0, 1) {
+		defer atomic.StoreInt32(&w.changeLog, 0)
 
 		var (
 			newLogger *os.File

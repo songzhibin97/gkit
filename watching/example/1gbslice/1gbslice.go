@@ -16,9 +16,9 @@ func main() {
 	w := watching.NewWatching(
 		watching.WithCollectInterval("2s"),
 		watching.WithCoolDown("1m"),
-		watching.WithDumpPath("/tmp"),
+		// watching.WithDumpPath("./tmp"),
 		watching.WithTextDump(),
-		watching.WithMemDump(3, 25, 80),
+		watching.WithMemDump(1, 5, 10),
 	)
 	w.EnableMemDump().Start()
 	time.Sleep(time.Hour)

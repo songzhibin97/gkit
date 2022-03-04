@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,22 +17,25 @@ type Watching struct {
 	config *configs
 
 	// stats
-	collectCount       int
-	gcCycleCount       int
-	threadTriggerCount int
-	cpuTriggerCount    int
-	memTriggerCount    int
-	grTriggerCount     int
-	gcHeapTriggerCount int
+	changeLog                int32
+	collectCount             int
+	gcCycleCount             int
+	threadTriggerCount       int
+	cpuTriggerCount          int
+	memTriggerCount          int
+	grTriggerCount           int
+	gcHeapTriggerCount       int
+	shrinkThreadTriggerCount int
 	// channel for GC sweep finalizer event
-	finCh chan time.Time
+	finCh chan struct{}
 
 	// cooldown
-	threadCoolDownTime time.Time
-	cpuCoolDownTime    time.Time
-	memCoolDownTime    time.Time
-	gcHeapCoolDownTime time.Time
-	grCoolDownTime     time.Time
+	threadCoolDownTime    time.Time
+	cpuCoolDownTime       time.Time
+	memCoolDownTime       time.Time
+	gcHeapCoolDownTime    time.Time
+	grCoolDownTime        time.Time
+	shrinkThrCoolDownTime time.Time
 
 	// GC heap triggered, need to dump next time.
 	gcHeapTriggered bool
@@ -83,13 +87,6 @@ func (w *Watching) DisableCPUDump() *Watching {
 	return w
 }
 
-// EnableGCHeapDump enables the GC heap dump.
-func (w *Watching) EnableGCHeapDump() *Watching {
-	w.config.GCHeapConfigs.Enable = true
-	w.finCh = make(chan time.Time)
-	return w
-}
-
 // EnableMemDump enables the mem dump.
 func (w *Watching) EnableMemDump() *Watching {
 	w.config.MemConfigs.Enable = true
@@ -102,12 +99,29 @@ func (w *Watching) DisableMemDump() *Watching {
 	return w
 }
 
+// EnableGCHeapDump enables the GC heap dump.
+func (w *Watching) EnableGCHeapDump() *Watching {
+	w.config.GCHeapConfigs.Enable = true
+	return w
+}
+
+// DisableGCHeapDump disables the GC heap dump.
+func (w *Watching) DisableGCHeapDump() *Watching {
+	w.config.GCHeapConfigs.Enable = false
+	return w
+}
+
 func finalizerCallback(gc *gcHeapFinalizer) {
+	// disable or stop gc clean up normally
+	if atomic.LoadInt64(&gc.w.stopped) == 1 {
+		return
+	}
+
 	// register the finalizer again
 	runtime.SetFinalizer(gc, finalizerCallback)
 
 	select {
-	case gc.w.finCh <- time.Time{}:
+	case gc.w.finCh <- struct{}{}:
 	default:
 		gc.w.logf("can not send event to finalizer channel immediately, may be analyzer blocked?")
 	}
@@ -124,7 +138,7 @@ func (w *Watching) startGCCycleLoop() {
 		w,
 	}
 
-	runtime.SetFinalizer(w, finalizerCallback)
+	runtime.SetFinalizer(gc, finalizerCallback)
 
 	go gc.w.gcHeapCheckLoop()
 }
@@ -137,6 +151,11 @@ func (w *Watching) Start() {
 	w.initEnvironment()
 	go w.startDumpLoop()
 	w.startGCCycleLoop()
+}
+
+// Stop the dump loop.
+func (w *Watching) Stop() {
+	atomic.StoreInt64(&w.stopped, 1)
 }
 
 func (w *Watching) startDumpLoop() {
@@ -155,46 +174,73 @@ func (w *Watching) startDumpLoop() {
 	// dump loop
 	ticker := time.NewTicker(w.config.CollectInterval)
 	defer ticker.Stop()
-	for range ticker.C {
-		if atomic.LoadInt64(&w.stopped) == 1 {
-			fmt.Println("[Watching] dump loop stopped")
-			return
+
+	for {
+		select {
+		case <-w.config.intervalResetting:
+			// wait for go version update to 1.15
+			// can use Reset API directly here. pkg.go.dev/time#Ticker.Reset
+			// we can't use the `for-range` here, because the range loop
+			// caches the variable to be lopped and then it can't be overwritten
+			itv := w.config.CollectInterval
+			fmt.Printf("[Holmes] collect interval is resetting to [%v]\n", itv) //nolint:forbidigo
+			ticker = time.NewTicker(itv)
+		default:
+			<-ticker.C
+			if atomic.LoadInt64(&w.stopped) == 1 {
+				fmt.Println("[Watching] dump loop stopped")
+				return
+			}
+			cpuCore, err := w.getCPUCore()
+			if cpuCore == 0 || err != nil {
+				w.logf("[Watching] get CPU core failed, CPU core: %v, error: %v", cpuCore, err)
+				return
+			}
+			memoryLimit, err := w.getMemoryLimit()
+			if memoryLimit == 0 || err != nil {
+				w.logf("[Watching] get memory limit failed, memory limit: %v, error: %v", memoryLimit, err)
+				return
+			}
+			cpu, mem, gNum, tNum, err := collect(cpuCore, memoryLimit)
+			if err != nil {
+				w.logf(err.Error())
+
+				continue
+			}
+
+			w.cpuStats.push(cpu)
+			w.memStats.push(mem)
+			w.grNumStats.push(gNum)
+			w.threadStats.push(tNum)
+
+			w.collectCount++
+
+			if w.collectCount < minCollectCyclesBeforeDumpStart {
+				// at least collect some cycles
+				// before start to judge and dump
+				w.logf("[Watching] warming up cycle : %d", w.collectCount)
+				continue
+			}
+			if err := w.EnableDump(cpu); err != nil {
+				w.logf("[Watching] unable to dump: %v", err)
+				continue
+			}
+
+			w.goroutineCheckAndDump(gNum)
+			w.memCheckAndDump(mem)
+			w.cpuCheckAndDump(cpu)
+			w.threadCheckAndDump(tNum)
+			w.threadCheckAndShrink(tNum)
 		}
-
-		cpu, mem, gNum, tNum, err := collect()
-		if err != nil {
-			w.logf(err.Error())
-			continue
-		}
-
-		w.cpuStats.push(cpu)
-		w.memStats.push(mem)
-		w.grNumStats.push(gNum)
-		w.threadStats.push(tNum)
-
-		w.collectCount++
-		if w.collectCount < minCollectCyclesBeforeDumpStart {
-			// at least collect some cycles
-			// before start to judge and dump
-			w.logf("[Watching] warming up cycle : %d", w.collectCount)
-			continue
-		}
-
-		if err := w.EnableDump(cpu); err != nil {
-			w.logf("[Watching] unable to dump: %v", err)
-			continue
-		}
-
-		w.goroutineCheckAndDump(gNum)
-		w.memCheckAndDump(mem)
-		w.cpuCheckAndDump(cpu)
-		w.threadCheckAndDump(tNum)
 	}
 }
 
 // goroutine start.
 func (w *Watching) goroutineCheckAndDump(gNum int) {
-	if !w.config.GroupConfigs.Enable {
+	// get a copy instead of locking it
+	grConfigs := w.config.GetGroupConfigs()
+
+	if grConfigs != nil || !grConfigs.Enable {
 		return
 	}
 
@@ -203,31 +249,32 @@ func (w *Watching) goroutineCheckAndDump(gNum int) {
 		return
 	}
 
-	if triggered := w.goroutineProfile(gNum); triggered {
+	if triggered := w.goroutineProfile(gNum, *grConfigs); triggered {
 		w.grCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.grTriggerCount++
 	}
 }
 
-func (w *Watching) goroutineProfile(gNum int) bool {
-	c := w.config.GroupConfigs
-	if !matchRule(w.grNumStats, gNum, c.GoroutineTriggerNumMin, c.GoroutineTriggerNumAbs, c.GoroutineTriggerPercentDiff, c.GoroutineTriggerNumMax) {
+func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
+	if !matchRule(w.grNumStats, gNum, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, c.GoroutineTriggerNumMax) {
 		w.debugf(UniformLogFormat, "NODUMP", type2name[goroutine],
-			c.GoroutineTriggerNumMin, c.GoroutineTriggerPercentDiff, c.GoroutineTriggerNumAbs,
+			c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
 			c.GoroutineTriggerNumMax, w.grNumStats.data, gNum)
 		return false
 	}
 
 	var buf bytes.Buffer
 	_ = pprof.Lookup("goroutine").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
-	w.writeProfileDataToFile(buf, goroutine, gNum)
+	w.writeGrProfileDataToFile(buf, c, goroutine, gNum)
 
 	return true
 }
 
 // memory start.
 func (w *Watching) memCheckAndDump(mem int) {
-	if !w.config.MemConfigs.Enable {
+	memConfig := w.config.GetMemConfigs()
+
+	if memConfig != nil || !memConfig.Enable {
 		return
 	}
 
@@ -236,18 +283,17 @@ func (w *Watching) memCheckAndDump(mem int) {
 		return
 	}
 
-	if triggered := w.memProfile(mem); triggered {
+	if triggered := w.memProfile(mem, *memConfig); triggered {
 		w.memCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.memTriggerCount++
 	}
 }
 
-func (w *Watching) memProfile(rss int) bool {
-	c := w.config.MemConfigs
-	if !matchRule(w.memStats, rss, c.MemTriggerPercentMin, c.MemTriggerPercentAbs, c.MemTriggerPercentDiff, NotSupportTypeMaxConfig) {
+func (w *Watching) memProfile(rss int, c typeConfig) bool {
+	if !matchRule(w.memStats, rss, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[mem],
-			c.MemTriggerPercentMin, c.MemTriggerPercentDiff, c.MemTriggerPercentAbs, NotSupportTypeMaxConfig,
+			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 			w.memStats.data, rss)
 
 		return false
@@ -255,13 +301,64 @@ func (w *Watching) memProfile(rss int) bool {
 
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
-	w.writeProfileDataToFile(buf, mem, rss)
+	w.writeProfileDataToFile(buf, c, mem, rss, w.memStats, "")
 	return true
+}
+
+func (w *Watching) threadCheckAndShrink(threadNum int) {
+	shrink := w.config.ShrinkThrConfigs
+
+	if shrink != nil || !shrink.Enable {
+		return
+	}
+
+	if w.shrinkThrCoolDownTime.After(time.Now()) {
+		return
+	}
+
+	if threadNum > shrink.Threshold {
+		// 100x Delay time a cooldown time
+		w.shrinkThrCoolDownTime = time.Now().Add(shrink.Delay * 100)
+
+		w.logf("current thread number(%v) larger than threshold(%v), will start to shrink thread after %v", threadNum, shrink.Threshold, shrink.Delay)
+		time.AfterFunc(shrink.Delay, func() {
+			w.startShrinkThread(shrink)
+		})
+	}
+}
+
+// TODO: better only shrink the threads that are idle.
+func (w *Watching) startShrinkThread(c *ShrinkThrConfigs) {
+	curThreadNum := getThreadNum()
+	n := curThreadNum - c.Threshold
+
+	// check again after the timer triggered
+	if c.Enable && n > 0 {
+		w.shrinkThreadTriggerCount++
+		w.logf("start to shrink %v threads, now: %v", n, curThreadNum)
+
+		var wg sync.WaitGroup
+		wg.Add(n)
+		for i := 0; i < n; i++ {
+			// avoid close too much thread in batch.
+			time.Sleep(time.Millisecond * 100)
+
+			go func() {
+				defer wg.Done()
+				runtime.LockOSThread()
+			}()
+		}
+		wg.Wait()
+
+		w.logf("finished shrink threads, now: %v", getThreadNum())
+	}
 }
 
 // thread start.
 func (w *Watching) threadCheckAndDump(threadNum int) {
-	if !w.config.ThreadConfigs.Enable {
+	threadConfig := w.config.GetThreadConfigs()
+
+	if threadConfig != nil || !threadConfig.Enable {
 		return
 	}
 
@@ -270,35 +367,39 @@ func (w *Watching) threadCheckAndDump(threadNum int) {
 		return
 	}
 
-	if triggered := w.threadProfile(threadNum); triggered {
+	if triggered := w.threadProfile(threadNum, *threadConfig); triggered {
 		w.threadCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.threadTriggerCount++
 	}
 }
 
-func (w *Watching) threadProfile(curThreadNum int) bool {
-	c := w.config.ThreadConfigs
-	if !matchRule(w.threadStats, curThreadNum, c.ThreadTriggerPercentMin, c.ThreadTriggerPercentAbs, c.ThreadTriggerPercentDiff, NotSupportTypeMaxConfig) {
+func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
+	if !matchRule(w.threadStats, curThreadNum, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[thread],
-			c.ThreadTriggerPercentMin, c.ThreadTriggerPercentDiff, c.ThreadTriggerPercentAbs, NotSupportTypeMaxConfig,
+			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 			w.threadStats.data, curThreadNum)
 
 		return false
 	}
 
+	eventID := fmt.Sprintf("thr-%d", w.threadTriggerCount)
+
 	var buf bytes.Buffer
 	_ = pprof.Lookup("threadcreate").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
-	_ = pprof.Lookup("goroutine").WriteTo(&buf, int(w.config.DumpProfileType))    // nolint: errcheck
+	w.writeProfileDataToFile(buf, c, thread, curThreadNum, w.threadStats, eventID)
 
-	w.writeProfileDataToFile(buf, thread, curThreadNum)
+	buf.Reset()
+	_ = pprof.Lookup("goroutine").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
+	w.writeProfileDataToFile(buf, c, goroutine, curThreadNum, w.threadStats, eventID)
 
 	return true
 }
 
 // cpu start.
 func (w *Watching) cpuCheckAndDump(cpu int) {
-	if !w.config.CpuConfigs.Enable {
+	cpuConfig := w.config.GetCPUConfigs()
+	if cpuConfig != nil || !cpuConfig.Enable {
 		return
 	}
 
@@ -307,24 +408,23 @@ func (w *Watching) cpuCheckAndDump(cpu int) {
 		return
 	}
 
-	if triggered := w.cpuProfile(cpu); triggered {
+	if triggered := w.cpuProfile(cpu, *cpuConfig); triggered {
 		w.cpuCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.cpuTriggerCount++
 	}
 }
 
-func (w *Watching) cpuProfile(curCPUUsage int) bool {
-	c := w.config.CpuConfigs
-	if !matchRule(w.cpuStats, curCPUUsage, c.CPUTriggerPercentMin, c.CPUTriggerPercentAbs, c.CPUTriggerPercentDiff, NotSupportTypeMaxConfig) {
+func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
+	if !matchRule(w.cpuStats, curCPUUsage, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[cpu],
-			c.CPUTriggerPercentMin, c.CPUTriggerPercentDiff, c.CPUTriggerPercentAbs, NotSupportTypeMaxConfig,
+			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 			w.cpuStats.data, curCPUUsage)
 
 		return false
 	}
 
-	binFileName := getBinaryFileName(w.config.DumpPath, cpu)
+	binFileName := getBinaryFileName(w.config.DumpPath, cpu, "")
 
 	bf, err := os.OpenFile(binFileName, defaultLoggerFlags, defaultLoggerPerm)
 	if err != nil {
@@ -343,7 +443,7 @@ func (w *Watching) cpuProfile(curCPUUsage int) bool {
 	pprof.StopCPUProfile()
 
 	w.logf(UniformLogFormat, "pprof dump to log dir", type2name[cpu],
-		c.CPUTriggerPercentMin, c.CPUTriggerPercentDiff, c.CPUTriggerPercentAbs, NotSupportTypeMaxConfig,
+		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 		w.cpuStats.data, curCPUUsage)
 
 	return true
@@ -354,15 +454,16 @@ func (w *Watching) gcHeapCheckLoop() {
 		// wait for the finalizer event
 		<-w.finCh
 
-		if !w.config.GCHeapConfigs.Enable {
-			return
-		}
-
 		w.gcHeapCheckAndDump()
 	}
 }
 
 func (w *Watching) gcHeapCheckAndDump() {
+	gcHeapConfig := w.config.GetGcHeapConfigs()
+	if gcHeapConfig != nil || !gcHeapConfig.Enable || atomic.LoadInt64(&w.stopped) == 1 {
+		return
+	}
+
 	memStats := new(runtime.MemStats)
 	runtime.ReadMemStats(memStats)
 
@@ -394,7 +495,7 @@ func (w *Watching) gcHeapCheckAndDump() {
 		return
 	}
 
-	if triggered := w.gcHeapProfile(ratio, w.gcHeapTriggered); triggered {
+	if triggered := w.gcHeapProfile(ratio, w.gcHeapTriggered, *gcHeapConfig); triggered {
 		if w.gcHeapTriggered {
 			// already dump twice, mark it false
 			w.gcHeapTriggered = false
@@ -407,23 +508,41 @@ func (w *Watching) gcHeapCheckAndDump() {
 	}
 }
 
+func (w *Watching) getCPUCore() (float64, error) {
+	if w.config.cpuCore > 0 {
+		return w.config.cpuCore, nil
+	}
+
+	if w.config.UseGoProcAsCPUCore {
+		return float64(runtime.GOMAXPROCS(-1)), nil
+	}
+
+	if w.config.UseCGroup {
+		return getCGroupCPUCore()
+	}
+
+	return float64(runtime.NumCPU()), nil
+}
+
 // gcHeapProfile will dump profile twice when triggered once.
 // since the current memory profile will be merged after next GC cycle.
 // And we assume the finalizer will be called before next GC cycle(it will be usually).
-func (w *Watching) gcHeapProfile(gc int, force bool) bool {
-	c := w.config.GCHeapConfigs
-	if !force && !matchRule(w.gcHeapStats, gc, c.GCHeapTriggerPercentMin, c.GCHeapTriggerPercentAbs, c.GCHeapTriggerPercentDiff, NotSupportTypeMaxConfig) {
+func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
+	if !force && !matchRule(w.gcHeapStats, gc, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[gcHeap],
-			c.GCHeapTriggerPercentMin, c.GCHeapTriggerPercentDiff, c.GCHeapTriggerPercentAbs, NotSupportTypeMaxConfig,
+			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 			w.gcHeapStats.data, gc)
 
 		return false
 	}
 
+	// gcTriggerCount only increased after got both two profiles
+	eventID := fmt.Sprintf("heap-%d", w.grTriggerCount)
+
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
-	w.writeProfileDataToFile(buf, gcHeap, gc)
+	w.writeProfileDataToFile(buf, c, gcHeap, gc, w.gcHeapStats, eventID)
 
 	return true
 }
@@ -431,12 +550,8 @@ func (w *Watching) gcHeapProfile(gc int, force bool) bool {
 func (w *Watching) initEnvironment() {
 	// choose whether the max memory is limited by cgroup
 	if w.config.UseCGroup {
-		// use cgroup
-		getUsage = getUsageCGroup
 		w.logf("[Watching] use cgroup to limit memory")
 	} else {
-		// not use cgroup
-		getUsage = getUsageNormal
 		w.logf("[Watching] use the default memory percent calculated by gopsutil")
 	}
 	if w.config.Logger == os.Stdout && w.config.logConfigs.RotateEnable {
@@ -451,55 +566,24 @@ func (w *Watching) EnableDump(curCPU int) (err error) {
 	return nil
 }
 
-// Stop the dump loop.
-func (w *Watching) Stop() {
-	atomic.StoreInt64(&w.stopped, 1)
+func (w *Watching) writeGrProfileDataToFile(data bytes.Buffer, config groupConfigs, dumpType configureType, currentStat int) {
+	w.logf(UniformLogFormat, "pprof", type2name[dumpType],
+		config.TriggerMin, config.TriggerDiff, config.TriggerAbs,
+		config.GoroutineTriggerNumMax,
+		w.grNumStats.data, currentStat)
+
+	if err := writeFile(data, dumpType, w.config.DumpConfigs, ""); err != nil {
+		w.logf("%s", err.Error())
+	}
 }
 
-func (w *Watching) writeProfileDataToFile(data bytes.Buffer, dumpType configureType, currentStat int) {
-	binFileName := getBinaryFileName(w.config.DumpPath, dumpType)
+func (w *Watching) writeProfileDataToFile(data bytes.Buffer, opts typeConfig, dumpType configureType, currentStat int, ringStats ring, eventID string) {
+	w.logf(UniformLogFormat, "pprof", type2name[dumpType],
+		opts.TriggerMin, opts.TriggerDiff, opts.TriggerAbs,
+		NotSupportTypeMaxConfig, ringStats, currentStat)
 
-	switch dumpType {
-	case mem:
-		opts := w.config.MemConfigs
-		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
-			opts.MemTriggerPercentMin, opts.MemTriggerPercentDiff, opts.MemTriggerPercentAbs, NotSupportTypeMaxConfig,
-			w.memStats.data, currentStat)
-	case gcHeap:
-		opts := w.config.GCHeapConfigs
-		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
-			opts.GCHeapTriggerPercentMin, opts.GCHeapTriggerPercentDiff, opts.GCHeapTriggerPercentAbs, NotSupportTypeMaxConfig,
-			w.gcHeapStats.data, currentStat)
-	case goroutine:
-		opts := w.config.GroupConfigs
-		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
-			opts.GoroutineTriggerNumMin, opts.GoroutineTriggerPercentDiff, opts.GoroutineTriggerNumAbs, opts.GoroutineTriggerNumMax,
-			w.grNumStats.data, currentStat)
-	case thread:
-		opts := w.config.ThreadConfigs
-		w.logf(UniformLogFormat, "pprof", type2name[dumpType],
-			opts.ThreadTriggerPercentMin, opts.ThreadTriggerPercentDiff, opts.ThreadTriggerPercentAbs, NotSupportTypeMaxConfig,
-			w.threadStats.data, currentStat)
-	}
-
-	if w.config.DumpProfileType == textDump {
-		// write to log
-		res := data.String()
-		if !w.config.DumpFullStack {
-			res = trimResult(data)
-		}
-		w.logf(res)
-	} else {
-		bf, err := os.OpenFile(binFileName, defaultLoggerFlags, defaultLoggerPerm)
-		if err != nil {
-			w.logf("[Watching] pprof %v write to file failed : %v", type2name[dumpType], err.Error())
-			return
-		}
-		defer bf.Close()
-
-		if _, err = bf.Write(data.Bytes()); err != nil {
-			w.logf("[Watching] pprof %v write to file failed : %v", type2name[dumpType], err.Error())
-		}
+	if err := writeFile(data, dumpType, w.config.DumpConfigs, eventID); err != nil {
+		w.logf("%s", err.Error())
 	}
 }
 
@@ -515,7 +599,7 @@ func (w *Watching) getMemoryLimit() (uint64, error) {
 }
 
 func NewWatching(opts ...options.Option) *Watching {
-	watching := &Watching{config: defaultConfig(), stopped: 1}
+	watching := &Watching{config: defaultConfig(), finCh: make(chan struct{}), stopped: 1}
 	for _, opt := range opts {
 		opt(watching)
 	}
