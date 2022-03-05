@@ -1,0 +1,152 @@
+package watching
+
+import (
+	"log"
+	"runtime"
+	"testing"
+	"time"
+)
+
+var w *Watching
+
+func TestMain(m *testing.M) {
+	log.Println("holmes initialing")
+	w = NewWatching(
+		WithCollectInterval("1s"),
+		WithCoolDown("1s"),
+		WithDumpPath("./"),
+		WithTextDump(),
+		WithGoroutineDump(10, 25, 80, 90),
+	)
+	log.Println("holmes initial success")
+	w.EnableGoroutineDump().Start()
+	time.Sleep(10 * time.Second)
+	log.Println("on running")
+	m.Run()
+}
+
+// -gcflags=all=-l
+func TestResetCollectInterval(t *testing.T) {
+	before := w.collectCount
+	go func() {
+		w.Set(WithCollectInterval("2s"))
+		defer w.Set(WithCollectInterval("1s"))
+		time.Sleep(6 * time.Second)
+		// if collect interval not change, collectCount would increase 5 at least
+		if w.collectCount-before >= 5 {
+			log.Fatalf("fail, before %v, now %v", before, w.collectCount)
+		}
+	}()
+	time.Sleep(8 * time.Second)
+}
+
+func TestSetDumpPath(t *testing.T) {
+	w.Set(WithDumpPath("./test_case_gen"))
+	defer w.Set(WithDumpPath("./"))
+
+	if w.config.Logger.Name()[:13] != "test_case_gen" {
+		log.Fatalf("fail")
+	}
+}
+
+func TestSetGrOpts(t *testing.T) {
+	// decrease min trigger, if our set api is effective,
+	// gr profile would be trigger and grCoolDown increase.
+	min, diff, abs := 3, 10, 1
+	before := w.grCoolDownTime
+
+	err := w.Set(
+		WithGoroutineDump(min, diff, abs, 90))
+	if err != nil {
+		log.Fatalf("fail to set opts on running time.")
+	}
+
+	time.Sleep(5 * time.Second)
+	if before.Equal(w.grCoolDownTime) {
+		log.Fatalf("fail")
+	}
+}
+
+func TestCpuCore(t *testing.T) {
+	w.Set(
+		WithCGroup(false),
+		WithGoProcAsCPUCore(false),
+	)
+	cpuCore1, _ := w.getCPUCore()
+	goProc1 := runtime.GOMAXPROCS(-1)
+
+	// system cpu core matches go procs
+	if cpuCore1 != float64(goProc1) {
+		log.Fatalf("cpuCore1 %v not equal goProc1 %v", cpuCore1, goProc1)
+	}
+
+	// go proc = system cpu core + 1
+	runtime.GOMAXPROCS(goProc1 + 1)
+
+	cpuCore2, _ := w.getCPUCore()
+	goProc2 := runtime.GOMAXPROCS(-1)
+	if cpuCore2 != float64(goProc2)-1 {
+		log.Fatalf("cpuCore2 %v not equal goProc2-1 %v", cpuCore2, goProc2)
+	}
+
+	// set cpu core directly
+	w.Set(
+		WithCPUCore(cpuCore1 + 5),
+	)
+
+	cpuCore3, _ := w.getCPUCore()
+	if cpuCore3 != cpuCore1+5 {
+		log.Fatalf("cpuCore3 %v not equal cpuCore1+5 %v", cpuCore3, cpuCore1+5)
+	}
+}
+
+func createThread(n int, blockTime time.Duration) {
+	for i := 0; i < n; i++ {
+		go func() {
+			runtime.LockOSThread()
+			time.Sleep(blockTime)
+
+			runtime.UnlockOSThread()
+		}()
+	}
+}
+
+func TestWithShrinkThread(t *testing.T) {
+	before := w.shrinkThreadTriggerCount
+
+	err := w.Set(
+		// delay 5 seconds, after the 50 threads unlocked
+		WithShrinkThread(true, 20, time.Second*5),
+		WithThreadDump(10, 10, 10),
+		WithCollectInterval("1s"),
+	)
+	if err != nil {
+		log.Fatalf("fail to set opts on running time.")
+	}
+
+	threadNum1 := getThreadNum()
+	// 50 threads exists 3 seconds
+	createThread(50, time.Second*3)
+
+	time.Sleep(time.Second)
+	threadNum2 := getThreadNum()
+	if threadNum2-threadNum1 < 40 {
+		log.Fatalf("create thread failed, before: %v, now: %v", threadNum1, threadNum2)
+	}
+	log.Printf("created 50 threads, before: %v, now: %v", threadNum1, threadNum2)
+
+	time.Sleep(10 * time.Second)
+
+	if before+1 != w.shrinkThreadTriggerCount {
+		log.Fatalf("shrink thread not triggered, before: %v, now: %v", before, w.shrinkThreadTriggerCount)
+	}
+
+	threadNum3 := getThreadNum()
+	if threadNum2-threadNum3 < 30 {
+		log.Fatalf("shrink thread failed, before: %v, now: %v", threadNum2, threadNum3)
+	}
+
+	w.Set(
+		WithShrinkThread(false, 20, time.Second*5),
+	)
+}

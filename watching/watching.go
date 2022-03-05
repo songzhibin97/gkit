@@ -191,17 +191,8 @@ func (w *Watching) startDumpLoop() {
 				fmt.Println("[Watching] dump loop stopped")
 				return
 			}
-			cpuCore, err := w.getCPUCore()
-			if cpuCore == 0 || err != nil {
-				w.logf("[Watching] get CPU core failed, CPU core: %v, error: %v", cpuCore, err)
-				return
-			}
-			memoryLimit, err := w.getMemoryLimit()
-			if memoryLimit == 0 || err != nil {
-				w.logf("[Watching] get memory limit failed, memory limit: %v, error: %v", memoryLimit, err)
-				return
-			}
-			cpu, mem, gNum, tNum, err := collect(cpuCore, memoryLimit)
+
+			cpu, mem, gNum, tNum, err := collect()
 			if err != nil {
 				w.logf(err.Error())
 
@@ -550,8 +541,10 @@ func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
 func (w *Watching) initEnvironment() {
 	// choose whether the max memory is limited by cgroup
 	if w.config.UseCGroup {
+		getUsage = getUsageCGroup
 		w.logf("[Watching] use cgroup to limit memory")
 	} else {
+		getUsage = getUsageNormal
 		w.logf("[Watching] use the default memory percent calculated by gopsutil")
 	}
 	if w.config.Logger == os.Stdout && w.config.logConfigs.RotateEnable {
@@ -596,6 +589,17 @@ func (w *Watching) getMemoryLimit() (uint64, error) {
 		return getCGroupMemoryLimit()
 	}
 	return getNormalMemoryLimit()
+}
+
+// Set sets holmes's optional after initialing.
+func (w *Watching) Set(opts ...options.Option) error {
+	w.config.L.Lock()
+	defer w.config.L.Unlock()
+
+	for _, opt := range opts {
+		opt(w)
+	}
+	return nil
 }
 
 func NewWatching(opts ...options.Option) *Watching {
