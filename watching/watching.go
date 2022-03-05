@@ -240,7 +240,7 @@ func (w *Watching) goroutineCheckAndDump(gNum int) {
 	// get a copy instead of locking it
 	grConfigs := w.config.GetGroupConfigs()
 
-	if grConfigs == nil || !grConfigs.Enable {
+	if !grConfigs.Enable {
 		return
 	}
 
@@ -249,7 +249,7 @@ func (w *Watching) goroutineCheckAndDump(gNum int) {
 		return
 	}
 
-	if triggered := w.goroutineProfile(gNum, *grConfigs); triggered {
+	if triggered := w.goroutineProfile(gNum, grConfigs); triggered {
 		w.grCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.grTriggerCount++
 	}
@@ -274,7 +274,7 @@ func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
 func (w *Watching) memCheckAndDump(mem int) {
 	memConfig := w.config.GetMemConfigs()
 
-	if memConfig == nil || !memConfig.Enable {
+	if !memConfig.Enable {
 		return
 	}
 
@@ -283,7 +283,7 @@ func (w *Watching) memCheckAndDump(mem int) {
 		return
 	}
 
-	if triggered := w.memProfile(mem, *memConfig); triggered {
+	if triggered := w.memProfile(mem, memConfig); triggered {
 		w.memCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.memTriggerCount++
 	}
@@ -358,7 +358,7 @@ func (w *Watching) startShrinkThread(c *ShrinkThrConfigs) {
 func (w *Watching) threadCheckAndDump(threadNum int) {
 	threadConfig := w.config.GetThreadConfigs()
 
-	if threadConfig == nil || !threadConfig.Enable {
+	if !threadConfig.Enable {
 		return
 	}
 
@@ -367,7 +367,7 @@ func (w *Watching) threadCheckAndDump(threadNum int) {
 		return
 	}
 
-	if triggered := w.threadProfile(threadNum, *threadConfig); triggered {
+	if triggered := w.threadProfile(threadNum, threadConfig); triggered {
 		w.threadCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.threadTriggerCount++
 	}
@@ -399,7 +399,7 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 // cpu start.
 func (w *Watching) cpuCheckAndDump(cpu int) {
 	cpuConfig := w.config.GetCPUConfigs()
-	if cpuConfig == nil || !cpuConfig.Enable {
+	if !cpuConfig.Enable {
 		return
 	}
 
@@ -408,7 +408,7 @@ func (w *Watching) cpuCheckAndDump(cpu int) {
 		return
 	}
 
-	if triggered := w.cpuProfile(cpu, *cpuConfig); triggered {
+	if triggered := w.cpuProfile(cpu, cpuConfig); triggered {
 		w.cpuCoolDownTime = time.Now().Add(w.config.CoolDown)
 		w.cpuTriggerCount++
 	}
@@ -460,7 +460,7 @@ func (w *Watching) gcHeapCheckLoop() {
 
 func (w *Watching) gcHeapCheckAndDump() {
 	gcHeapConfig := w.config.GetGcHeapConfigs()
-	if gcHeapConfig == nil || !gcHeapConfig.Enable || atomic.LoadInt64(&w.stopped) == 1 {
+	if !gcHeapConfig.Enable || atomic.LoadInt64(&w.stopped) == 1 {
 		return
 	}
 
@@ -495,7 +495,7 @@ func (w *Watching) gcHeapCheckAndDump() {
 		return
 	}
 
-	if triggered := w.gcHeapProfile(ratio, w.gcHeapTriggered, *gcHeapConfig); triggered {
+	if triggered := w.gcHeapProfile(ratio, w.gcHeapTriggered, gcHeapConfig); triggered {
 		if w.gcHeapTriggered {
 			// already dump twice, mark it false
 			w.gcHeapTriggered = false

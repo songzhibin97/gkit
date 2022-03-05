@@ -209,43 +209,43 @@ func defaultConfig() *configs {
 }
 
 // GetShrinkThreadConfigs return a copy of ShrinkThrConfigs.
-func (c *configs) GetShrinkThreadConfigs() *ShrinkThrConfigs {
+func (c *configs) GetShrinkThreadConfigs() ShrinkThrConfigs {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return c.ShrinkThrConfigs
+	return *c.ShrinkThrConfigs
 }
 
 // GetMemConfigs return a copy of memConfigs.
-func (c *configs) GetMemConfigs() *typeConfig {
+func (c *configs) GetMemConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return c.MemConfigs
+	return *c.MemConfigs
 }
 
 // GetCPUConfigs return a copy of cpuConfigs
-func (c *configs) GetCPUConfigs() *typeConfig {
+func (c *configs) GetCPUConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return c.CpuConfigs
+	return *c.CpuConfigs
 }
 
 // GetGroupConfigs return a copy of grOptions
-func (c *configs) GetGroupConfigs() *groupConfigs {
+func (c *configs) GetGroupConfigs() groupConfigs {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return c.GroupConfigs
+	return *c.GroupConfigs
 }
 
 // GetThreadConfigs return a copy of threadConfigs
-func (c *configs) GetThreadConfigs() *typeConfig {
+func (c *configs) GetThreadConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return c.ThreadConfigs
+	return *c.ThreadConfigs
 }
 
 // GetGcHeapConfigs return a copy of gcHeapConfigs
-func (c *configs) GetGcHeapConfigs() *typeConfig {
+func (c *configs) GetGcHeapConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return c.GCHeapConfigs
+	return *c.GCHeapConfigs
 }
