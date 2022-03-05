@@ -13,9 +13,12 @@ import (
 	"strings"
 	"time"
 
-	mem_util "github.com/shirou/gopsutil/mem"
 	"github.com/shirou/gopsutil/process"
+
+	mem_util "github.com/shirou/gopsutil/mem"
 )
+
+var getUsage func() (float64, float64, int, int, error)
 
 // copied from https://github.com/containerd/cgroups/blob/318312a373405e5e91134d8063d04d59768a1bff/utils.go#L251
 func parseUint(s string, base, bitSize int) (uint64, error) {
@@ -56,31 +59,80 @@ func trimResult(buffer bytes.Buffer) string {
 	return strings.Join(arr[:index], "\n\n")
 }
 
-// return values:
-// 1. cpu percent, not division cpu cores yet,
-// 2. RSS mem in bytes,
-// 3. goroutine num,
-// 4. thread num
-func getUsage() (float64, uint64, int, int, error) {
+// return cpu percent, mem in MB, goroutine num, thread num
+// cgroup ver.
+func getUsageCGroup() (float64, float64, int, int, error) {
 	p, err := process.NewProcess(int32(os.Getpid()))
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
+
 	cpuPercent, err := p.Percent(time.Second)
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
 
+	cpuPeriod, err := readUint(cgroupCpuPeriodPath)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	cpuQuota, err := readUint(cgroupCpuQuotaPath)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	cpuCore := float64(cpuQuota) / float64(cpuPeriod)
+
+	// the same with physical machine
+	// need to divide by core number
+	cpuPercent = cpuPercent / cpuCore
 	mem, err := p.MemoryInfo()
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
 
-	rss := mem.RSS
+	memLimit, err := getCGroupMemoryLimit()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	// mem.RSS / cgroup limit in bytes
+	memPercent := float64(mem.RSS) * 100 / float64(memLimit)
+
 	gNum := runtime.NumGoroutine()
+
 	tNum := getThreadNum()
 
-	return cpuPercent, rss, gNum, tNum, nil
+	return cpuPercent, memPercent, gNum, tNum, nil
+}
+
+// return cpu percent, mem in MB, goroutine num
+// not use cgroup ver.
+func getUsageNormal() (float64, float64, int, int, error) {
+	p, err := process.NewProcess(int32(os.Getpid()))
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	cpuPercent, err := p.Percent(time.Second)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	// The default percent is from all cores, multiply by runtime.NumCPU()
+	// but it's inconvenient to calculate the proper percent
+	// here we divide by core number, so we can set a percent bar more intuitively
+	cpuPercent = cpuPercent / float64(runtime.NumCPU())
+
+	mem, err := p.MemoryPercent()
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+
+	gNum := runtime.NumGoroutine()
+
+	tNum := getThreadNum()
+
+	return cpuPercent, float64(mem), gNum, tNum, nil
 }
 
 // get cpu core number limited by CGroup.
@@ -125,20 +177,13 @@ func getThreadNum() int {
 }
 
 // cpu mem goroutine thread err.
-func collect(cpuCore float64, memoryLimit uint64) (int, int, int, int, error) {
+func collect() (int, int, int, int, error) {
 	cpu, mem, gNum, tNum, err := getUsage()
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
 
-	// The default percent is from all cores, multiply by cpu core
-	// but it's inconvenient to calculate the proper percent
-	// here we divide by core number, so we can set a percent bar more intuitively
-	cpuPercent := cpu / cpuCore
-
-	memPercent := float64(mem) / float64(memoryLimit)
-
-	return int(cpuPercent), int(memPercent), gNum, tNum, nil
+	return int(cpu), int(mem), gNum, tNum, nil
 }
 
 func matchRule(history ring, curVal, ruleMin, ruleAbs, ruleDiff, ruleMax int) bool {
