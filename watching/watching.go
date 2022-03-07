@@ -114,6 +114,7 @@ func (w *Watching) DisableGCHeapDump() *Watching {
 func finalizerCallback(gc *gcHeapFinalizer) {
 	// disable or stop gc clean up normally
 	if atomic.LoadInt64(&gc.w.stopped) == 1 {
+		close(gc.w.finCh)
 		return
 	}
 
@@ -322,13 +323,14 @@ func (w *Watching) threadCheckAndShrink(threadNum int) {
 
 		w.logf("current thread number(%v) larger than threshold(%v), will start to shrink thread after %v", threadNum, shrink.Threshold, shrink.Delay)
 		time.AfterFunc(shrink.Delay, func() {
-			w.startShrinkThread(shrink)
+			w.startShrinkThread()
 		})
 	}
 }
 
 // TODO: better only shrink the threads that are idle.
-func (w *Watching) startShrinkThread(c *ShrinkThrConfigs) {
+func (w *Watching) startShrinkThread() {
+	c := w.config.ShrinkThrConfigs
 	curThreadNum := getThreadNum()
 	n := curThreadNum - c.Threshold
 
@@ -452,7 +454,10 @@ func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
 func (w *Watching) gcHeapCheckLoop() {
 	for {
 		// wait for the finalizer event
-		<-w.finCh
+		_, ok := <-w.finCh
+		if !ok {
+			return
+		}
 
 		w.gcHeapCheckAndDump()
 	}
