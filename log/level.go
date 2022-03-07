@@ -11,7 +11,7 @@ const (
 )
 
 var m = map[Lever]string{
-	LevelDebug: "[debug]",
+	LevelDebug: "[Debug]",
 	LevelInfo:  "[Info]",
 	LevelWarn:  "[Warn]",
 	LevelError: "[Error]",
