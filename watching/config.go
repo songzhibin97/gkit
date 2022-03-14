@@ -46,6 +46,9 @@ type configs struct {
 	GCHeapConfigs *typeConfig
 	CpuConfigs    *typeConfig
 	ThreadConfigs *typeConfig
+
+	// profile reporter
+	rptConfigs *ReporterConfigs
 }
 
 // DumpConfigs contains configuration about dump file.
@@ -128,6 +131,19 @@ type threadConfigs struct {
 	ThreadTriggerPercentAbs  int // thread trigger abs in number
 }
 
+type ReporterConfigs struct {
+	reporter        ProfileReporter
+	allowDiscarding bool  // Allow discarding when the channel cache is full
+	active          int32 // switch
+}
+
+// defaultReporterConfigs returns  ReporterConfigs。
+func defaultReporterConfigs() *ReporterConfigs {
+	opts := &ReporterConfigs{}
+
+	return opts
+}
+
 func defaultLogConfigs() *logConfigs {
 	return &logConfigs{
 		RotateEnable:    true,
@@ -204,7 +220,8 @@ func defaultConfig() *configs {
 		ShrinkThrConfigs: &ShrinkThrConfigs{
 			Enable: false,
 		},
-		L: &sync.RWMutex{},
+		L:          &sync.RWMutex{},
+		rptConfigs: defaultReporterConfigs(),
 	}
 }
 
@@ -248,4 +265,11 @@ func (c *configs) GetGcHeapConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
 	return *c.GCHeapConfigs
+}
+
+// GetReporterConfigs returns a copy of ReporterConfigs.
+func (c *configs) GetReporterConfigs() ReporterConfigs {
+	c.L.RLock()
+	defer c.L.RUnlock()
+	return *c.rptConfigs
 }

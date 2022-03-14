@@ -3,6 +3,7 @@ package watching
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"runtime/pprof"
@@ -26,8 +27,6 @@ type Watching struct {
 	grTriggerCount           int
 	gcHeapTriggerCount       int
 	shrinkThreadTriggerCount int
-	// channel for GC sweep finalizer event
-	finCh chan struct{}
 
 	// cooldown
 	threadCoolDownTime    time.Time
@@ -49,6 +48,21 @@ type Watching struct {
 
 	// switch
 	stopped int64
+
+	// lock Protect the following
+	sync.Mutex
+	// channel for GC sweep finalizer event
+	finCh chan struct{}
+	// profiler reporter channels
+	rptEventsCh chan rptEvent
+}
+
+// rptEvent stands of the args of report event
+type rptEvent struct {
+	PType   string
+	Buf     []byte
+	Reason  string
+	EventID string
 }
 
 // EnableThreadDump enables the goroutine dump.
@@ -111,10 +125,26 @@ func (w *Watching) DisableGCHeapDump() *Watching {
 	return w
 }
 
+func (w *Watching) EnableProfileReporter() {
+	if w.config.rptConfigs.reporter == nil {
+		w.logf("enable profile reporter fault, reporter is empty")
+		return
+	}
+	atomic.StoreInt32(&w.config.rptConfigs.active, 1)
+}
+
+func (w *Watching) DisableProfileReporter() {
+	atomic.StoreInt32(&w.config.rptConfigs.active, 0)
+}
+
 func finalizerCallback(gc *gcHeapFinalizer) {
 	// disable or stop gc clean up normally
 	if atomic.LoadInt64(&gc.w.stopped) == 1 {
-		close(gc.w.finCh)
+		gc.w.Lock()
+		if gc.w.finCh != nil {
+			close(gc.w.finCh)
+		}
+		gc.w.Unlock()
 		return
 	}
 
@@ -133,6 +163,10 @@ type gcHeapFinalizer struct {
 }
 
 func (w *Watching) startGCCycleLoop() {
+	w.Lock()
+	w.finCh = make(chan struct{}, 1)
+	w.Unlock()
+
 	w.gcHeapStats = newRing(minCollectCyclesBeforeDumpStart)
 
 	gc := &gcHeapFinalizer{
@@ -236,6 +270,30 @@ func (w *Watching) startDumpLoop() {
 	}
 }
 
+// startReporter starts a background goroutine to consume event channel,
+// and finish it at after receive from cancel channel.
+func (w *Watching) startReporter() {
+	w.Lock()
+	w.rptEventsCh = make(chan rptEvent, 32)
+	w.Unlock()
+	go func() {
+		for event := range w.rptEventsCh {
+			config := w.config.GetReporterConfigs()
+			if config.reporter == nil {
+				w.logf("reporter is nil, please initial it before startReporter")
+				// drop the event
+				continue
+			}
+
+			_ = w.config.rptConfigs.reporter.Report(event.PType, event.Buf, event.Reason, event.EventID)
+		}
+		// rptEventsCh is close
+		w.Lock()
+		w.rptEventsCh = nil
+		w.Unlock()
+	}()
+}
+
 // goroutine start.
 func (w *Watching) goroutineCheckAndDump(gNum int) {
 	// get a copy instead of locking it
@@ -257,7 +315,8 @@ func (w *Watching) goroutineCheckAndDump(gNum int) {
 }
 
 func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
-	if !matchRule(w.grNumStats, gNum, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, c.GoroutineTriggerNumMax) {
+	match, reason := matchRule(w.grNumStats, gNum, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, c.GoroutineTriggerNumMax)
+	if !match {
 		w.debugf(UniformLogFormat, "NODUMP", type2name[goroutine],
 			c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
 			c.GoroutineTriggerNumMax, w.grNumStats.data, gNum)
@@ -268,6 +327,7 @@ func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
 	_ = pprof.Lookup("goroutine").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
 	w.writeGrProfileDataToFile(buf, c, goroutine, gNum)
 
+	w.reportProfile(type2name[goroutine], buf.Bytes(), reason, "")
 	return true
 }
 
@@ -291,7 +351,8 @@ func (w *Watching) memCheckAndDump(mem int) {
 }
 
 func (w *Watching) memProfile(rss int, c typeConfig) bool {
-	if !matchRule(w.memStats, rss, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
+	match, reason := matchRule(w.memStats, rss, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig)
+	if !match {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[mem],
 			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
@@ -303,6 +364,8 @@ func (w *Watching) memProfile(rss int, c typeConfig) bool {
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
 	w.writeProfileDataToFile(buf, c, mem, rss, w.memStats, "")
+
+	w.reportProfile(type2name[mem], buf.Bytes(), reason, "")
 	return true
 }
 
@@ -376,7 +439,8 @@ func (w *Watching) threadCheckAndDump(threadNum int) {
 }
 
 func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
-	if !matchRule(w.threadStats, curThreadNum, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
+	match, reason := matchRule(w.threadStats, curThreadNum, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig)
+	if !match {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[thread],
 			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
@@ -391,11 +455,49 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 	_ = pprof.Lookup("threadcreate").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
 	w.writeProfileDataToFile(buf, c, thread, curThreadNum, w.threadStats, eventID)
 
+	w.reportProfile(type2name[thread], buf.Bytes(), reason, eventID)
+
 	buf.Reset()
 	_ = pprof.Lookup("goroutine").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
 	w.writeProfileDataToFile(buf, c, goroutine, curThreadNum, w.threadStats, eventID)
 
+	w.reportProfile("goroutine", buf.Bytes(), reason, eventID)
 	return true
+}
+
+func (w *Watching) reportProfile(pType string, buf []byte, reason string, eventID string) {
+	if atomic.LoadInt64(&w.stopped) == 1 {
+		w.Lock()
+		if w.rptEventsCh != nil {
+			close(w.rptEventsCh)
+		}
+		w.Unlock()
+		return
+	}
+	conf := w.config.GetReporterConfigs()
+	if conf.active == 0 {
+		return
+	}
+	if w.config.rptConfigs.allowDiscarding {
+		select {
+		// Attempt to send
+		case w.rptEventsCh <- rptEvent{
+			pType,
+			buf,
+			reason,
+			eventID,
+		}:
+		default:
+		}
+		return
+	}
+	// Waiting to be sent
+	w.rptEventsCh <- rptEvent{
+		pType,
+		buf,
+		reason,
+		eventID,
+	}
 }
 
 // cpu start.
@@ -417,7 +519,8 @@ func (w *Watching) cpuCheckAndDump(cpu int) {
 }
 
 func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
-	if !matchRule(w.cpuStats, curCPUUsage, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
+	match, reason := matchRule(w.cpuStats, curCPUUsage, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig)
+	if !match {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[cpu],
 			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
@@ -448,6 +551,14 @@ func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
 		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 		w.cpuStats.data, curCPUUsage)
 
+	if conf := w.config.GetReporterConfigs(); conf.active == 1 {
+		bfCpy, err := ioutil.ReadFile(binFileName)
+		if err != nil {
+			w.logf("fail to build copy of bf, err %v", err)
+			return true
+		}
+		w.reportProfile(type2name[cpu], bfCpy, reason, "")
+	}
 	return true
 }
 
@@ -456,6 +567,9 @@ func (w *Watching) gcHeapCheckLoop() {
 		// wait for the finalizer event
 		_, ok := <-w.finCh
 		if !ok {
+			w.Lock()
+			w.finCh = nil
+			w.Unlock()
 			return
 		}
 
@@ -533,7 +647,8 @@ func (w *Watching) getCPUCore() (float64, error) {
 // since the current memory profile will be merged after next GC cycle.
 // And we assume the finalizer will be called before next GC cycle(it will be usually).
 func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
-	if !force && !matchRule(w.gcHeapStats, gc, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig) {
+	match, reason := matchRule(w.gcHeapStats, gc, c.TriggerMin, c.TriggerAbs, c.TriggerDiff, NotSupportTypeMaxConfig)
+	if !force && !match {
 		// let user know why this should not dump
 		w.debugf(UniformLogFormat, "NODUMP", type2name[gcHeap],
 			c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
@@ -548,6 +663,8 @@ func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
 	w.writeProfileDataToFile(buf, c, gcHeap, gc, w.gcHeapStats, eventID)
+
+	w.reportProfile(type2name[gcHeap], buf.Bytes(), reason, eventID)
 
 	return true
 }
@@ -604,7 +721,7 @@ func (w *Watching) getMemoryLimit() (uint64, error) {
 }
 
 func NewWatching(opts ...options.Option) *Watching {
-	watching := &Watching{config: defaultConfig(), finCh: make(chan struct{}), stopped: 1}
+	watching := &Watching{config: defaultConfig(), stopped: 1}
 	for _, opt := range opts {
 		opt(watching)
 	}
