@@ -132,9 +132,8 @@ type threadConfigs struct {
 }
 
 type ReporterConfigs struct {
-	reporter        ProfileReporter
-	allowDiscarding bool  // Allow discarding when the channel cache is full
-	active          int32 // switch
+	reporter ProfileReporter
+	active   int32 // switch
 }
 
 // defaultReporterConfigs returns  ReporterConfigs。

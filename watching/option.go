@@ -247,7 +247,7 @@ func WithShrinkThread(enable bool, threshold int, delay time.Duration) options.O
 
 // WithProfileReporter will enable reporter
 // reopens profile reporter through WithProfileReporter(h.opts.rptOpts.reporter)
-func WithProfileReporter(r ProfileReporter, allowDiscarding bool) options.Option {
+func WithProfileReporter(r ProfileReporter) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
 		if r == nil {
@@ -255,7 +255,6 @@ func WithProfileReporter(r ProfileReporter, allowDiscarding bool) options.Option
 		}
 
 		opts.config.rptConfigs.reporter = r
-		opts.config.rptConfigs.allowDiscarding = allowDiscarding
 		atomic.StoreInt32(&opts.config.rptConfigs.active, 1)
 		return
 	}

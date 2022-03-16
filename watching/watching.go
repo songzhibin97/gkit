@@ -52,7 +52,7 @@ type Watching struct {
 	// lock Protect the following
 	sync.Mutex
 	// channel for GC sweep finalizer event
-	finCh chan struct{}
+	gcEventsCh chan struct{}
 	// profiler reporter channels
 	rptEventsCh chan rptEvent
 }
@@ -138,21 +138,26 @@ func (w *Watching) DisableProfileReporter() {
 }
 
 func finalizerCallback(gc *gcHeapFinalizer) {
+	defer func() {
+		if r := recover(); r != nil {
+			gc.w.logf("Panic in finalizer callback: %v", r)
+		}
+	}()
 	// disable or stop gc clean up normally
 	if atomic.LoadInt64(&gc.w.stopped) == 1 {
-		gc.w.Lock()
-		if gc.w.finCh != nil {
-			close(gc.w.finCh)
-		}
-		gc.w.Unlock()
 		return
 	}
 
 	// register the finalizer again
 	runtime.SetFinalizer(gc, finalizerCallback)
 
+	ch := gc.w.gcEventsCh
+	if ch == nil {
+		return
+	}
+
 	select {
-	case gc.w.finCh <- struct{}{}:
+	case ch <- struct{}{}:
 	default:
 		gc.w.logf("can not send event to finalizer channel immediately, may be analyzer blocked?")
 	}
@@ -162,11 +167,7 @@ type gcHeapFinalizer struct {
 	w *Watching
 }
 
-func (w *Watching) startGCCycleLoop() {
-	w.Lock()
-	w.finCh = make(chan struct{}, 1)
-	w.Unlock()
-
+func (w *Watching) startGCCycleLoop(ch chan struct{}) {
 	w.gcHeapStats = newRing(minCollectCyclesBeforeDumpStart)
 
 	gc := &gcHeapFinalizer{
@@ -175,22 +176,49 @@ func (w *Watching) startGCCycleLoop() {
 
 	runtime.SetFinalizer(gc, finalizerCallback)
 
-	go gc.w.gcHeapCheckLoop()
+	go gc.w.gcHeapCheckLoop(ch)
 }
 
 // Start starts the dump loop of Watching.
 func (w *Watching) Start() {
 	if !atomic.CompareAndSwapInt64(&w.stopped, 1, 0) {
+		w.logf("Watching has started, please don't start it again.")
 		return
 	}
+
+	w.Lock()
+	defer w.Unlock()
+
+	gcEventsCh := make(chan struct{}, 1)
+	rptCh := make(chan rptEvent, 32)
+	w.gcEventsCh = gcEventsCh
+	w.rptEventsCh = rptCh
+
 	w.initEnvironment()
 	go w.startDumpLoop()
-	w.startGCCycleLoop()
+	go w.startReporter(rptCh)
+	w.startGCCycleLoop(gcEventsCh)
 }
 
 // Stop the dump loop.
 func (w *Watching) Stop() {
-	atomic.StoreInt64(&w.stopped, 1)
+	if !atomic.CompareAndSwapInt64(&w.stopped, 0, 1) {
+		//nolint
+		fmt.Println("Holmes has stop, please don't start it again.")
+		return
+	}
+
+	w.Lock()
+	defer w.Unlock()
+
+	if gcEventsCh := w.gcEventsCh; gcEventsCh != nil {
+		w.gcEventsCh = nil
+		close(gcEventsCh)
+	}
+	if rptEventsCh := w.rptEventsCh; rptEventsCh != nil {
+		w.rptEventsCh = nil
+		close(rptEventsCh)
+	}
 }
 
 func (w *Watching) startDumpLoop() {
@@ -218,7 +246,7 @@ func (w *Watching) startDumpLoop() {
 			// we can't use the `for-range` here, because the range loop
 			// caches the variable to be lopped and then it can't be overwritten
 			itv := w.config.CollectInterval
-			fmt.Printf("[Holmes] collect interval is resetting to [%v]\n", itv) //nolint:forbidigo
+			fmt.Printf("[Watching] collect interval is resetting to [%v]\n", itv) //nolint:forbidigo
 			ticker = time.NewTicker(itv)
 		default:
 			<-ticker.C
@@ -272,12 +300,9 @@ func (w *Watching) startDumpLoop() {
 
 // startReporter starts a background goroutine to consume event channel,
 // and finish it at after receive from cancel channel.
-func (w *Watching) startReporter() {
-	w.Lock()
-	w.rptEventsCh = make(chan rptEvent, 32)
-	w.Unlock()
+func (w *Watching) startReporter(ch chan rptEvent) {
 	go func() {
-		for event := range w.rptEventsCh {
+		for event := range ch {
 			config := w.config.GetReporterConfigs()
 			if config.reporter == nil {
 				w.logf("reporter is nil, please initial it before startReporter")
@@ -285,12 +310,11 @@ func (w *Watching) startReporter() {
 				continue
 			}
 
-			_ = w.config.rptConfigs.reporter.Report(event.PType, event.Buf, event.Reason, event.EventID)
+			err := w.config.rptConfigs.reporter.Report(event.PType, event.Buf, event.Reason, event.EventID)
+			if err != nil {
+				w.logf("reporter err:", err)
+			}
 		}
-		// rptEventsCh is close
-		w.Lock()
-		w.rptEventsCh = nil
-		w.Unlock()
 	}()
 }
 
@@ -322,6 +346,9 @@ func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
 			c.GoroutineTriggerNumMax, w.grNumStats.data, gNum)
 		return false
 	}
+	w.logf("watching.goroutine", UniformLogFormat, "pprof", type2name[goroutine],
+		c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+		c.GoroutineTriggerNumMax, w.grNumStats.data, gNum)
 
 	var buf bytes.Buffer
 	_ = pprof.Lookup("goroutine").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
@@ -361,6 +388,10 @@ func (w *Watching) memProfile(rss int, c typeConfig) bool {
 		return false
 	}
 
+	w.logf("watching.memory", UniformLogFormat, "pprof", type2name[mem],
+		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
+		w.memStats.data, rss)
+
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
 	w.writeProfileDataToFile(buf, c, mem, rss, w.memStats, "")
@@ -381,8 +412,18 @@ func (w *Watching) threadCheckAndShrink(threadNum int) {
 	}
 
 	if threadNum > shrink.Threshold {
+		// 100x Delay time a cooldown time as default
+		delay := shrink.Delay * 100
+		// one hour at least
+		if delay < time.Hour {
+			delay = time.Hour
+		}
+		if delay > time.Hour*24 {
+			delay = time.Hour * 24
+		}
+
 		// 100x Delay time a cooldown time
-		w.shrinkThrCoolDownTime = time.Now().Add(shrink.Delay * 100)
+		w.shrinkThrCoolDownTime = time.Now().Add(delay)
 
 		w.logf("current thread number(%v) larger than threshold(%v), will start to shrink thread after %v", threadNum, shrink.Threshold, shrink.Delay)
 		time.AfterFunc(shrink.Delay, func() {
@@ -393,7 +434,7 @@ func (w *Watching) threadCheckAndShrink(threadNum int) {
 
 // TODO: better only shrink the threads that are idle.
 func (w *Watching) startShrinkThread() {
-	c := w.config.ShrinkThrConfigs
+	c := w.config.GetShrinkThreadConfigs()
 	curThreadNum := getThreadNum()
 	n := curThreadNum - c.Threshold
 
@@ -449,6 +490,10 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 		return false
 	}
 
+	w.logf("watching.thread", UniformLogFormat, "pprof", type2name[thread],
+		c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+		NotSupportTypeMaxConfig, w.threadStats, curThreadNum)
+
 	eventID := fmt.Sprintf("thr-%d", w.threadTriggerCount)
 
 	var buf bytes.Buffer
@@ -466,38 +511,32 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 }
 
 func (w *Watching) reportProfile(pType string, buf []byte, reason string, eventID string) {
-	if atomic.LoadInt64(&w.stopped) == 1 {
-		w.Lock()
-		if w.rptEventsCh != nil {
-			close(w.rptEventsCh)
+	defer func() {
+		if r := recover(); r != nil {
+			w.logf("Panic during report profile: %v", r)
 		}
-		w.Unlock()
+	}()
+
+	if atomic.LoadInt64(&w.stopped) == 1 {
 		return
 	}
 	conf := w.config.GetReporterConfigs()
 	if conf.active == 0 {
 		return
 	}
-	if w.config.rptConfigs.allowDiscarding {
-		select {
-		// Attempt to send
-		case w.rptEventsCh <- rptEvent{
-			pType,
-			buf,
-			reason,
-			eventID,
-		}:
-		default:
-		}
-		return
-	}
-	// Waiting to be sent
-	w.rptEventsCh <- rptEvent{
+	ch := w.rptEventsCh
+	select {
+	// Attempt to send
+	case ch <- rptEvent{
 		pType,
 		buf,
 		reason,
 		eventID,
+	}:
+	default:
+		w.logf("reporter channel is full, will ignore it")
 	}
+	return
 }
 
 // cpu start.
@@ -528,6 +567,10 @@ func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
 
 		return false
 	}
+
+	w.logf("watching.cpu", UniformLogFormat, "pprof dump", type2name[cpu],
+		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
+		w.cpuStats.data, curCPUUsage)
 
 	binFileName := getBinaryFileName(w.config.DumpPath, cpu, "")
 
@@ -562,17 +605,8 @@ func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
 	return true
 }
 
-func (w *Watching) gcHeapCheckLoop() {
-	for {
-		// wait for the finalizer event
-		_, ok := <-w.finCh
-		if !ok {
-			w.Lock()
-			w.finCh = nil
-			w.Unlock()
-			return
-		}
-
+func (w *Watching) gcHeapCheckLoop(ch chan struct{}) {
+	for range ch {
 		w.gcHeapCheckAndDump()
 	}
 }
@@ -657,6 +691,9 @@ func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
 		return false
 	}
 
+	w.logf("watching.gcheap", UniformLogFormat, "pprof", type2name[gcHeap],
+		c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+		NotSupportTypeMaxConfig, w.gcHeapStats, gc)
 	// gcTriggerCount only increased after got both two profiles
 	eventID := fmt.Sprintf("heap-%d", w.grTriggerCount)
 
