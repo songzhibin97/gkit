@@ -35,7 +35,7 @@ type configs struct {
 	// move may result of the system crash.
 	CPUMaxPercent int
 
-	// if write lock is held mean holmes's
+	// if write lock is held mean Watching's
 	// configuration is being modified.
 	L *sync.RWMutex
 

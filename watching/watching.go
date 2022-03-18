@@ -204,7 +204,7 @@ func (w *Watching) Start() {
 func (w *Watching) Stop() {
 	if !atomic.CompareAndSwapInt64(&w.stopped, 0, 1) {
 		//nolint
-		fmt.Println("Holmes has stop, please don't start it again.")
+		fmt.Println("Watching has stop, please don't start it again.")
 		return
 	}
 
