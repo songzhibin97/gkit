@@ -164,7 +164,7 @@ func WithCPUDump(min int, diff int, abs int) options.Option {
 	}
 }
 
-// WithGoProcAsCPUCore set holmes use cgroup or not.
+// WithGoProcAsCPUCore set Watching use cgroup or not.
 func WithGoProcAsCPUCore(enabled bool) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)

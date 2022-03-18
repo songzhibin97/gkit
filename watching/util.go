@@ -185,12 +185,12 @@ func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfi
 
 	bf, err := os.OpenFile(binFileName, defaultLoggerFlags, defaultLoggerPerm) // nolint:gosec
 	if err != nil {
-		return fmt.Errorf("[Holmes] pprof %v write to file failed : %w", type2name[dumpType], err)
+		return fmt.Errorf("[Watching] pprof %v write to file failed : %w", type2name[dumpType], err)
 	}
 	defer bf.Close() //nolint:errcheck,gosec
 
 	if _, err = bf.Write(data.Bytes()); err != nil {
-		return fmt.Errorf("[Holmes] pprof %v write to file failed : %w", type2name[dumpType], err)
+		return fmt.Errorf("[Watching] pprof %v write to file failed : %w", type2name[dumpType], err)
 	}
 	return nil
 }
