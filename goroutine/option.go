@@ -18,6 +18,12 @@ type config struct {
 	// max 最大goroutine以及初始化channel大小,channel长度不可更改
 	max int64
 
+	// idle 闲置goroutine大小
+	idle int64
+
+	// checkTime 检查时间
+	checkTime time.Duration
+
 	// logger 日志输出对象
 	logger log.Logger
 }
@@ -30,6 +36,11 @@ func SetStopTimeout(d time.Duration) options.Option {
 // SetMax 设置pool最大容量
 func SetMax(max int64) options.Option {
 	return func(c interface{}) { c.(*config).max = max }
+}
+
+// SetIdle 这是pool闲置goroutine数量
+func SetIdle(idle int64) options.Option {
+	return func(c interface{}) { c.(*config).idle = idle }
 }
 
 // SetLogger 设置日志对象

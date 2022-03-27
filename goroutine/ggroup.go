@@ -15,6 +15,6 @@ type GGroup interface {
 	// Shutdown 回收资源
 	Shutdown() error
 
-	// trick debug
-	trick()
+	// Trick debug
+	Trick() string
 }
