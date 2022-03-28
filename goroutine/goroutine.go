@@ -57,7 +57,7 @@ func (g *Goroutine) _go() {
 			select {
 			case <-t.C:
 				// 检查是否闲置
-				if atomic.LoadInt64(&g.idle) > atomic.LoadInt64(&g.n) {
+				if atomic.LoadInt64(&g.idle) < atomic.LoadInt64(&g.n) {
 					// 闲置数超过预期
 					return
 				}
@@ -144,7 +144,7 @@ func (g *Goroutine) Shutdown() error {
 // Trick Debug使用
 func (g *Goroutine) Trick() string {
 	if g.logger != nil {
-		g.logger.Log(log.LevelDebug, atomic.LoadInt64(&g.max), atomic.LoadInt64(&g.n), len(g.task))
+		g.logger.Log(log.LevelDebug, "max:", atomic.LoadInt64(&g.max), "idle:", atomic.LoadInt64(&g.idle), "now goroutine", atomic.LoadInt64(&g.n), "task len:", len(g.task))
 	}
 	return fmt.Sprintln("max:", atomic.LoadInt64(&g.max), "idle:", atomic.LoadInt64(&g.idle), "now goroutine:", atomic.LoadInt64(&g.n), "task len:", len(g.task))
 }
@@ -194,6 +194,7 @@ func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 		stopTimeout: 10 * time.Second,
 		max:         1000,
 		idle:        1000,
+		checkTime:   10 * time.Minute,
 	}
 	for _, opt := range opts {
 		opt(&o)

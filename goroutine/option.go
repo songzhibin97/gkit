@@ -43,6 +43,11 @@ func SetIdle(idle int64) options.Option {
 	return func(c interface{}) { c.(*config).idle = idle }
 }
 
+// SetCheckTime 设置检查时间
+func SetCheckTime(d time.Duration) options.Option {
+	return func(c interface{}) { c.(*config).checkTime = d }
+}
+
 // SetLogger 设置日志对象
 func SetLogger(logger log.Logger) options.Option {
 	return func(c interface{}) { c.(*config).logger = logger }

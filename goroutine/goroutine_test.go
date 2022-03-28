@@ -21,10 +21,26 @@ func TestNewGoroutine(t *testing.T) {
 			time.Sleep(5 * time.Second)
 			fmt.Println("end:", i)
 		}))
-		g.trick()
+		g.Trick()
 		if i == 7 {
 			g.ChangeMax(5)
 		}
 	}
 	_ = g.Shutdown()
+}
+
+func TestSetIdle(t *testing.T) {
+	g := NewGoroutine(context.Background(), SetMax(1000), SetIdle(10), SetCheckTime(time.Second), SetLogger(log.DefaultLogger))
+	for i := 0; i < 10000; i++ {
+		g.AddTask(func() {
+			func(i int) {
+				time.Sleep(time.Second)
+				// t.Log("close", i)
+			}(i)
+		})
+	}
+	for i := 0; i < 20; i++ {
+		g.Trick()
+		time.Sleep(time.Second)
+	}
 }
