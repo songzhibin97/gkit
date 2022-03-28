@@ -199,10 +199,17 @@ func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 	for _, opt := range opts {
 		opt(&o)
 	}
-	return &Goroutine{
+	g := &Goroutine{
 		ctx:    ctx,
 		cancel: cancel,
-		task:   make(chan func(), o.max),
+		// 为什么设置0
+		// task buffer 理论上如果比较大,调度可能会延迟
+		task:   make(chan func(), 0),
 		config: o,
 	}
+	// 预加载出idle池,避免阻塞在buffer中
+	for i := int64(0); i < o.idle; i++ {
+		g._go()
+	}
+	return g
 }
