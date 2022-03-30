@@ -171,6 +171,22 @@ func getBinaryFileName(filePath string, dumpType configureType, eventID string) 
 	return path.Join(filePath, type2name[dumpType]+"."+eventID+"."+binarySuffix)
 }
 
+// getBinaryFileNameAndCreate 获取文件路径并创建
+func getBinaryFileNameAndCreate(dump string, dumpType configureType, eventID string) (*os.File, string, error) {
+	filepath := getBinaryFileName(dump, dumpType, eventID)
+	f, err := os.OpenFile(filepath, defaultLoggerFlags, defaultLoggerPerm)
+	if err != nil && os.IsNotExist(err) {
+		if err = os.MkdirAll(dump, 0o755); err != nil {
+			return nil, filepath, err
+		}
+		f, err = os.OpenFile(filepath, defaultLoggerFlags, defaultLoggerPerm)
+		if err != nil {
+			return nil, filepath, err
+		}
+	}
+	return f, filepath, err
+}
+
 func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfigs, eventID string) error {
 	if dumpConfigs.DumpProfileType == textDump {
 		// write to log
@@ -181,9 +197,7 @@ func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfi
 		return fmt.Errorf(data.String())
 	}
 
-	binFileName := getBinaryFileName(dumpConfigs.DumpPath, dumpType, eventID)
-
-	bf, err := os.OpenFile(binFileName, defaultLoggerFlags, defaultLoggerPerm) // nolint:gosec
+	bf, _, err := getBinaryFileNameAndCreate(dumpConfigs.DumpPath, dumpType, eventID) // nolint:gosec
 	if err != nil {
 		return fmt.Errorf("[Watching] pprof %v write to file failed : %w", type2name[dumpType], err)
 	}
