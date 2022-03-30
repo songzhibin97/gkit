@@ -572,9 +572,7 @@ func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
 		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
 		w.cpuStats.data, curCPUUsage)
 
-	binFileName := getBinaryFileName(w.config.DumpPath, cpu, "")
-
-	bf, err := os.OpenFile(binFileName, defaultLoggerFlags, defaultLoggerPerm)
+	bf, binFileName, err := getBinaryFileNameAndCreate(w.config.DumpPath, cpu, "")
 	if err != nil {
 		w.logf("[Watching] failed to create cpu profile file: %v", err.Error())
 		return false
