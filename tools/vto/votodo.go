@@ -2,8 +2,9 @@ package vto
 
 import (
 	"fmt"
-	"github.com/songzhibin97/gkit/tools"
 	"reflect"
+
+	"github.com/songzhibin97/gkit/tools"
 
 	"github.com/songzhibin97/gkit/tools/bind"
 )
@@ -27,37 +28,40 @@ func VoToDo(dst interface{}, src interface{}) error {
 	dstV, srcV := reflect.ValueOf(dst).Elem(), reflect.ValueOf(src).Elem()
 	for i := 0; i < dstT.NumField(); i++ {
 		field := dstT.Field(i)
-		defaultTag := field.Tag.Get("default")
 		if !field.IsExported() {
 			continue
 		}
-		if _, ok := srcT.FieldByName(field.Name); ok {
-			d := dstV.Field(i)
-			s := srcV.FieldByName(field.Name)
-			for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
-				s = s.Elem()
-			}
-			if d.Kind() == s.Kind() {
-				bindTag := true
-				if s.IsZero() && len(defaultTag) > 0 {
-					if d.Kind() == reflect.Ptr {
-						s = reflect.New(d.Type().Elem())
-						err := bindDefault(s.Elem(), defaultTag, field)
-						if err != nil {
-							return err
-						}
-					} else {
-						err := bindDefault(d, defaultTag, field)
-						if err != nil {
-							return err
-						}
-						bindTag = false
-					}
+		defaultTag := field.Tag.Get("default")
+		if _, ok := srcT.FieldByName(field.Name); !ok {
+			continue
+		}
+		d := dstV.Field(i)
+		s := srcV.FieldByName(field.Name)
+		for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
+			s = s.Elem()
+		}
+		if d.Kind() != s.Kind() {
+			continue
+		}
+
+		// 如果源位置的内容为空,并且默认值不为0
+		if s.IsZero() && len(defaultTag) > 0 {
+			if d.Kind() == reflect.Ptr {
+				s = reflect.New(d.Type().Elem())
+				err := bindDefault(s.Elem(), defaultTag, field)
+				if err != nil {
+					return err
 				}
-				if bindTag {
-					d.Set(s)
+			} else {
+				err := bindDefault(d, defaultTag, field)
+				if err != nil {
+					return err
 				}
 			}
+		}
+
+		if !s.IsZero() {
+			d.Set(s)
 		}
 	}
 	return nil
