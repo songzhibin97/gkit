@@ -75,7 +75,9 @@ func WithDumpPath(dumpPath string, loginfo ...string) options.Option {
 		}
 		old := opts.config.Logger
 		if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&opts.config.Logger)), unsafe.Pointer(opts.config.Logger), unsafe.Pointer(logger)) {
-			_ = old.Close()
+			if old != os.Stdout {
+				_ = old.Close()
+			}
 		}
 		return
 	}
