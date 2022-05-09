@@ -56,8 +56,8 @@ func (g *Goroutine) _go() {
 		for {
 			select {
 			case <-t.C:
-				// 检查是否闲置
-				if atomic.LoadInt64(&g.idle) < atomic.LoadInt64(&g.n) {
+				// 当前的g的个数大于设置的闲置值,则退出
+				if atomic.LoadInt64(&g.n) > atomic.LoadInt64(&g.idle) {
 					// 闲置数超过预期
 					return
 				}
@@ -68,7 +68,7 @@ func (g *Goroutine) _go() {
 				}
 				// 执行函数
 				f()
-				if atomic.LoadInt64(&g.max) < atomic.LoadInt64(&g.n) {
+				if atomic.LoadInt64(&g.n) > atomic.LoadInt64(&g.max) {
 					// 如果已经超出预定值,则该goroutine退出
 					return
 				}
@@ -93,7 +93,7 @@ func (g *Goroutine) AddTask(f func()) bool {
 	select {
 	case g.task <- f:
 	default:
-		if atomic.LoadInt64(&g.max) > atomic.LoadInt64(&g.n) {
+		if atomic.LoadInt64(&g.n) < atomic.LoadInt64(&g.max) {
 			g._go()
 		}
 		g.task <- f
