@@ -36,6 +36,8 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── pool (提供了pool的封装抽象,以及使用list对接口的实现)
   ├── queue
     ├── codel (对列实现可控制延时算法,对积压任务实现制裁)
+├── delayed (延时任务)
+├── distributed (分布式任务,提供了标准化接口以及redis、mysql、pgsql、mongodb对应的实现)
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
 ├── errors (grpc error处理)
@@ -45,8 +47,8 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── clock (获取时间戳)
   ├── metadata (元数据封装)
   ├── stat (metric进阶实现包括滑动窗)
-├── metrics (指标接口化)
 ├── log (接口化日志,使用日志组件接入)
+├── metrics (指标接口化)
 ├── middleware (中间件接口模型定义)
 ├── net (网络相关封装)
   ├── tcp
@@ -70,28 +72,32 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
     ├── queue (无锁队列)
     ├── safe_map (并发安全的map)
 ├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装实现)
-  ├── ctime.go (链路超时控制)
-  ├── c_json.go (适配数据库json类型)
-  ├── d_time.go (适配数据库 只存储时间)
-  ├── date.go (适配数据库 只存储日期)
-  ├── date_struct.go (适配数据库 只存储日期)
-  ├── datetime.go (适配数据库 存储datetime)
-  ├── datetime_struct.go (适配数据库 存储datetime)
-  ├── stamp.go (适配数据库 存储时间戳)
+  ├── ctime (链路超时控制)
+  ├── c_json (适配数据库json类型)
+  ├── d_time (适配数据库 只存储时间)
+  ├── date (适配数据库 只存储日期)
+  ├── date_struct (适配数据库 只存储日期)
+  ├── datetime (适配数据库 存储datetime)
+  ├── datetime_struct (适配数据库 存储datetime)
+  ├── stamp (适配数据库 存储时间戳)
+  ├── human (提供可视化时间间距)
 ├── tools 
   ├── bind (绑定工具,常用与gin框架中自定义绑定数据,例如同时绑定query和json)
+  ├── deepcopy (深拷贝)
   ├── float (浮点数截断工具)
   ├── match (基础匹配器,根据通配符匹配)
   ├── pretty (格式化json)
   ├── vto (具有相同类型的函数赋值,解放双手,通常用于vo->do对象转换)
+    ├── 新增plus 支持字段,tag以及默认值绑定
 ├── trace (链路追踪)
+├── watching (监控cpu、mum、gc、goroutine等指标信息,在波动的情况下自动dump pprof指标)
 └── window (滑动窗口,支持多数据类型指标窗口收集)
 
 ```
 
 # 下载使用
 ```shell
-# go get github.com/songzhibin97/gkit@v1.0.0
+# go get github.com/songzhibin97/gkit@master
 go get github.com/songzhibin97/gkit
 ```
 
@@ -503,6 +509,87 @@ func main() {
 	_ = p.Shutdown()
 }
 ```
+
+### queue
+codel实现
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/songzhibin97/gkit/container/queue/codel"
+	"github.com/songzhibin97/gkit/overload/bbr"
+)
+
+func main() {
+	queue := codel.NewQueue(codel.SetTarget(40), codel.SetInternal(1000))
+
+	// start 体现 CoDel 状态信息
+	start := queue.Stat()
+	fmt.Println(start)
+
+	go func() {
+		// 实际消费的地方
+		queue.Pop()
+	}()
+	if err := queue.Push(context.TODO()); err != nil {
+		if err == bbr.LimitExceed {
+			// todo 处理过载保护错误
+		} else {
+			// todo 处理其他错误
+		}
+	}
+}
+```
+
+## delayed
+
+延时任务(单机版)
+
+```go
+package main
+
+import "github.com/songzhibin97/gkit/delayed"
+
+type mockDelayed struct {
+	exec int64
+}
+
+func (m mockDelayed) Do() {
+}
+
+func (m mockDelayed) ExecTime() int64 {
+	return m.exec
+}
+
+func (m mockDelayed) Identify() string {
+	return "mock"
+}
+
+func main() {
+	// 创建延时对象
+	// delayed.SetSingle() 设置监控信号
+	// delayed.SetSingleCallback() 设置信号回调
+	// delayed.SetWorkerNumber() 设置工作协程
+	// delayed.SetCheckTime() 设置监控时间
+	n := delayed.NewDispatchingDelayed()
+
+	// 添加延时任务
+	n.AddDelayed(mockDelayed{exec: 1})
+	
+	// 强制刷新
+	n.Refresh()
+	
+	// 关闭
+	n.Close()
+}
+
+```
+
+## distributed 
+
+分布式任务
 
 
 ## downgrade
@@ -931,6 +1018,12 @@ func main()  {
 }
 ```
 
+
+## options
+
+选项模式接口
+
+
 ## overload
 
 过载保护
@@ -1006,6 +1099,8 @@ func main() {
 	_ = middle
 }
 ```
+
+
 
 ## registry
 
@@ -1377,6 +1472,10 @@ func main() {
 }
 ```
 
+### votodoPlus
+
+增加了字段&tag&默认值
+
 ### bind
 ```go
 
@@ -1453,3 +1552,7 @@ func main() {
 	defer tracer.End(ctx, span, "replay", nil)
 }
 ```
+
+## watching
+
+系统监控(包含cpu、mum、gc、goroutine等窗口监控,在预设波动值后dump pprof)
