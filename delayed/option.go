@@ -30,6 +30,6 @@ func SetSingle(signal ...os.Signal) options.Option {
 // SetSingleCallback 设置监控信号回调
 func SetSingleCallback(callback func(signal os.Signal, d *DispatchingDelayed)) options.Option {
 	return func(o interface{}) {
-		o.(*DispatchingDelayed).singleCallback = callback
+		o.(*DispatchingDelayed).signalCallback = callback
 	}
 }
