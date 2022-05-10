@@ -24,27 +24,6 @@ func nowMockDelayed(exec int64) Delayed {
 	return mockDelayed{exec: exec}
 }
 
-//func TestDispatchingDelayed_AddDelayed(t *testing.T) {
-//	expectation := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-//
-//	n := DispatchingDelayed{}
-//	{
-//		t1 := []int64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-//		for _, v := range t1 {
-//			n.AddDelayed(nowMockDelayed(v))
-//		}
-//		var cur []int64
-//		for range n.delays {
-//			cur = append(cur, n.delDelayedTop().ExecTime())
-//		}
-//		assert.Equal(t, expectation, cur)
-//	}
-//	{
-//
-//	}
-//
-//}
-
 func TestDispatchingDelayed_AddDelayed(t *testing.T) {
 
 	type fields struct {
