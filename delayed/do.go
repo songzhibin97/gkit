@@ -63,7 +63,7 @@ func (d *DispatchingDelayed) AddDelayed(delayed Delayed) {
 	siftupDelayed(d.delays, i)
 }
 
-func (d *DispatchingDelayed) DelDelayed(i int) Delayed {
+func (d *DispatchingDelayed) delDelayed(i int) Delayed {
 	d.Lock()
 	defer d.Unlock()
 
@@ -87,8 +87,8 @@ func (d *DispatchingDelayed) DelDelayed(i int) Delayed {
 	return d.delays[smallestChanged]
 }
 
-// DelDelayedTop pop最小时间
-func (d *DispatchingDelayed) DelDelayedTop() Delayed {
+// delDelayedTop pop最小时间
+func (d *DispatchingDelayed) delDelayedTop() Delayed {
 	d.Lock()
 	defer d.Unlock()
 
@@ -110,8 +110,8 @@ func (d *DispatchingDelayed) DelDelayedTop() Delayed {
 	return ret
 }
 
-// GetTopDelayed 获取下一个需要执行的任务
-func (d *DispatchingDelayed) GetTopDelayed() Delayed {
+// getTopDelayed 获取下一个需要执行的任务
+func (d *DispatchingDelayed) getTopDelayed() Delayed {
 	d.RLock()
 	d.RUnlock()
 	if len(d.delays) == 0 {
@@ -141,8 +141,8 @@ func (d *DispatchingDelayed) Refresh() {
 	}
 }
 
-// Sentinel 启动
-func (d *DispatchingDelayed) Sentinel() {
+// sentinel 启动
+func (d *DispatchingDelayed) sentinel() {
 	d.pool.AddTask(func() {
 		timer := time.NewTicker(d.checkTime)
 		for {
@@ -153,7 +153,7 @@ func (d *DispatchingDelayed) Sentinel() {
 				// 关闭流程
 				ln := len(d.delays)
 				for i := 0; i < ln; i++ {
-					pop := d.DelDelayedTop()
+					pop := d.delDelayedTop()
 					if d.IsInvalid(pop) {
 						continue
 					}
@@ -163,14 +163,14 @@ func (d *DispatchingDelayed) Sentinel() {
 			}
 			now := time.Now().Unix()
 			for i := 0; i < len(d.delays); i++ {
-				top := d.GetTopDelayed()
+				top := d.getTopDelayed()
 
 				// 还没到达执行时间
 				if top.ExecTime() > now {
 					break
 				}
 
-				d.DelDelayedTop()
+				d.delDelayedTop()
 				d.pool.AddTask(top.Do)
 			}
 		}
@@ -217,6 +217,6 @@ func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 	}
 
 	dispatchingDelayed.pool = goroutine.NewGoroutine(context.Background(), goroutine.SetMax(dispatchingDelayed.Worker+5))
-	dispatchingDelayed.Sentinel()
+	dispatchingDelayed.sentinel()
 	return dispatchingDelayed
 }
