@@ -3,7 +3,7 @@ package concurrent
 import "context"
 
 func Stream(ctx context.Context, values ...interface{}) <-chan interface{} {
-	out := make(chan interface{})
+	out := make(chan interface{}, 1)
 	go func() {
 		defer close(out)
 		for _, value := range values {
@@ -19,7 +19,7 @@ func Stream(ctx context.Context, values ...interface{}) <-chan interface{} {
 
 // TaskN 只取流中的前N个数据
 func TaskN(ctx context.Context, valueStream <-chan interface{}, num int) <-chan interface{} {
-	outStream := make(chan interface{})
+	outStream := make(chan interface{}, 1)
 	go func() {
 		defer close(outStream)
 		for i := 0; i < num; i++ {
@@ -44,7 +44,7 @@ func TaskN(ctx context.Context, valueStream <-chan interface{}, num int) <-chan 
 
 // TaskFn 筛选流中的数据,只保留满足条件的数据
 func TaskFn(ctx context.Context, valueStream <-chan interface{}, fn func(v interface{}) bool) <-chan interface{} {
-	outStream := make(chan interface{})
+	outStream := make(chan interface{}, 1)
 	go func() {
 		defer close(outStream)
 		for {
@@ -70,7 +70,7 @@ func TaskFn(ctx context.Context, valueStream <-chan interface{}, fn func(v inter
 
 // TaskWhile 只取满足条件的数据,一旦不满足就不再取
 func TaskWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v interface{}) bool) <-chan interface{} {
-	outStream := make(chan interface{})
+	outStream := make(chan interface{}, 1)
 	go func() {
 		defer close(outStream)
 		for {
@@ -97,7 +97,7 @@ func TaskWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v in
 
 // SkipN 跳过流中的前N个数据
 func SkipN(ctx context.Context, valueStream <-chan interface{}, num int) <-chan interface{} {
-	outStream := make(chan interface{})
+	outStream := make(chan interface{}, 1)
 	go func() {
 		defer close(outStream)
 		for i := 0; i < num; i++ {
@@ -131,7 +131,7 @@ func SkipN(ctx context.Context, valueStream <-chan interface{}, num int) <-chan 
 
 // SkipFn 跳过满足条件的数据
 func SkipFn(ctx context.Context, valueStream <-chan interface{}, fn func(v interface{}) bool) <-chan interface{} {
-	outStream := make(chan interface{})
+	outStream := make(chan interface{}, 1)
 	go func() {
 		defer close(outStream)
 		for {
@@ -157,7 +157,7 @@ func SkipFn(ctx context.Context, valueStream <-chan interface{}, fn func(v inter
 
 // SkipWhile 跳过满足条件的数据,一旦不满足,当前这个元素以后的元素都会输出
 func SkipWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v interface{}) bool) <-chan interface{} {
-	outStream := make(chan interface{})
+	outStream := make(chan interface{}, 1)
 	go func() {
 		defer close(outStream)
 		for {

@@ -207,6 +207,9 @@ func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 		task:   make(chan func(), 0),
 		config: o,
 	}
+	if o.idle > o.max {
+		o.idle = o.max
+	}
 	// 预加载出idle池,避免阻塞在buffer中
 	for i := int64(0); i < o.idle; i++ {
 		g._go()
