@@ -37,7 +37,7 @@ func TestMergeChannel(t *testing.T) {
 	for v := range out {
 		outSlice = append(outSlice, v)
 	}
-	assert.Len(t, outSlice, 10)
+	assert.Len(t, outSlice, 11)
 	sort.Slice(outSlice, func(i, j int) bool {
 		return outSlice[i].(int) < outSlice[j].(int)
 	})
