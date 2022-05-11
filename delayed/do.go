@@ -143,7 +143,7 @@ func (d *DispatchingDelayed) Refresh() {
 
 // sentinel 启动
 func (d *DispatchingDelayed) sentinel() {
-	d.pool.AddTask(func() {
+	go func() {
 		timer := time.NewTicker(d.checkTime)
 		for {
 			select {
@@ -174,20 +174,20 @@ func (d *DispatchingDelayed) sentinel() {
 				d.pool.AddTask(top.Do)
 			}
 		}
-	})
+	}()
 }
 
 // NewDispatchingDelayed 初始化调度实例
 func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 	dispatchingDelayed := &DispatchingDelayed{
 		checkTime: time.Second,
-		Worker:    10,
+		Worker:    1,
 		signal:    []os.Signal{syscall.SIGINT},
 		signalCallback: func(signal os.Signal, d *DispatchingDelayed) {
 			_ = d.Close()
 		},
 		close:   make(chan struct{}, 1),
-		pool:    goroutine.NewGoroutine(context.Background(), goroutine.SetMax(15)),
+		pool:    goroutine.NewGoroutine(context.Background(), goroutine.SetMax(1), goroutine.SetIdle(1)),
 		refresh: make(chan struct{}, 1),
 	}
 	for _, option := range o {
@@ -197,26 +197,25 @@ func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 		dispatchingDelayed.checkTime = time.Second
 	}
 	if dispatchingDelayed.Worker <= 0 {
-		dispatchingDelayed.Worker = 10
+		dispatchingDelayed.Worker = 1
 	}
-	if len(dispatchingDelayed.signal) != 0 {
+	if dispatchingDelayed.Worker != 1 {
+		dispatchingDelayed.pool = goroutine.NewGoroutine(context.Background(), goroutine.SetMax(dispatchingDelayed.Worker), goroutine.SetIdle(dispatchingDelayed.Worker))
+	}
+	if len(dispatchingDelayed.signal) != 0 && dispatchingDelayed.signalCallback != nil {
 		sign := make(chan os.Signal, 1)
 		signal.Notify(sign, dispatchingDelayed.signal...)
-		dispatchingDelayed.pool.AddTask(func() {
+		go func() {
 			for {
 				select {
 				case <-dispatchingDelayed.close:
 					return
 				case v := <-sign:
-					if dispatchingDelayed.signalCallback != nil {
-						dispatchingDelayed.signalCallback(v, dispatchingDelayed)
-					}
+					dispatchingDelayed.signalCallback(v, dispatchingDelayed)
 				}
 			}
-		})
+		}()
 	}
-
-	dispatchingDelayed.pool = goroutine.NewGoroutine(context.Background(), goroutine.SetMax(dispatchingDelayed.Worker+5))
 	dispatchingDelayed.sentinel()
 	return dispatchingDelayed
 }

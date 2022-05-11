@@ -1,15 +1,20 @@
 package delayed
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
+	"time"
 )
 
 type mockDelayed struct {
-	exec int64
+	exec  int64
+	index int
 }
 
 func (m mockDelayed) Do() {
+	fmt.Println(m.index)
 }
 
 func (m mockDelayed) ExecTime() int64 {
@@ -105,4 +110,25 @@ func TestDispatchingDelayed_AddDelayed(t *testing.T) {
 			assert.Equal(t, tt.fields.expectation, cur)
 		})
 	}
+}
+
+func TestDispatchingDelayed_AddDelayed2(t *testing.T) {
+
+	n := NewDispatchingDelayed()
+	for i := 0; i < 10; i++ {
+		n.AddDelayed(mockDelayed{exec: time.Now().Add(time.Duration(i) * time.Second).Unix(), index: i})
+	}
+	// print 0...9
+	time.Sleep(15 * time.Second)
+}
+
+func TestDispatchingDelayed_AddDelayed3(t *testing.T) {
+	n := NewDispatchingDelayed(SetSingleCallback(func(signal os.Signal, d *DispatchingDelayed) {
+		t.Log("signal")
+	}))
+	for i := 0; i < 10; i++ {
+		n.AddDelayed(mockDelayed{exec: time.Now().Add(time.Duration(i) * time.Second).Unix(), index: i})
+	}
+	// print 0...9
+	time.Sleep(time.Minute)
 }
