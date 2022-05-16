@@ -43,9 +43,11 @@ func (g *Goroutine) _go() {
 		defer func() {
 			if err := recover(); err != nil {
 				// recover panic
-				if g.logger != nil {
-					g.logger.Log(log.LevelError, "Panic", err)
+				if g.logger == nil {
+					fmt.Println("recover go func, error:", err)
+					return
 				}
+				g.logger.Log(log.LevelError, "Panic", err)
 				return
 			}
 		}()
