@@ -1,3 +1,4 @@
+// Package gctuner implements https://github.com/bytedance/gopkg
 package gctuner
 
 import (
