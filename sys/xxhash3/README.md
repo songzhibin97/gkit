@@ -90,7 +90,7 @@ Use Hash functions in your code:
 ```
 package main
 
-import "github.com/bytedance/gopkg/util/xxhash3"
+import "github.com/songzhibin97/gkit/sys/xxhash3"
 
 func main() {
 	println(xxhash3.HashString("hello world!"))
