@@ -20,6 +20,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ```shell
 ├── cache (构建缓存相关组件)
   ├── buffer (提供byte数组复用以及io buffer封装)
+  ├── mbuffer (buffer 类似实现) 
   ├── local_cache (提供本地key-value构建本地缓存的封装实现)
   ├── singlefight (提供高并发情况下防止重复任务,一般用于cache miss后填补cache场景)
 ├── coding (提供对象序列化/反序列化接口化, 提供json、proto、xml、yaml 实例方法)
@@ -41,12 +42,9 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
 ├── errors (grpc error处理)
+├── gctuner (go1.19前优化gc利器)
 ├── generator (发号器,snowflake)
 ├── goroutine (提供goroutine池,控制goroutine数量激增)
-├── internal (core)
-  ├── clock (获取时间戳)
-  ├── metadata (元数据封装)
-  ├── stat (metric进阶实现包括滑动窗)
 ├── log (接口化日志,使用日志组件接入)
 ├── metrics (指标接口化)
 ├── middleware (中间件接口模型定义)
@@ -63,14 +61,23 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── client_throttling (客户端节流)
   ├── rate 
   ├── ratelimite 
+├── structure (常用数据结构)
+  ├── hashset (哈希表)
+  ├── lscq (无锁无边界队列,支持arm)
+  ├── skipmap (跳表)
+  ├── skipset 
+  ├── zset 
 ├── sync
     ├── cpu (获取Linux平台下的系统信息,包括cpu主频、cpu使用率等)
+    ├── fastrand (随机数)
     ├── goid (获取goroutine id)
-    ├── hash 
     ├── mutex (提供trylock、重入锁和token重入锁)
+    ├── nanotime (时间戳优化)
     ├── once (once 更强大的实现,设置once函数增加返回error,失败后可重试)
     ├── queue (无锁队列)
-    ├── safe_map (并发安全的map)
+    ├── stringx (string 增强版)
+    ├── syncx (sync 增强版)
+    ├── xxhash3 
 ├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装实现)
   ├── ctime (链路超时控制)
   ├── c_json (适配数据库json类型)
@@ -87,6 +94,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── float (浮点数截断工具)
   ├── match (基础匹配器,根据通配符匹配)
   ├── pretty (格式化json)
+  ├── reflect2value (基础字段映射)
   ├── vto (具有相同类型的函数赋值,解放双手,通常用于vo->do对象转换)
     ├── 新增plus 支持字段,tag以及默认值绑定
 ├── trace (链路追踪)
