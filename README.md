@@ -121,7 +121,7 @@ go get github.com/songzhibin97/gkit
 package main
 
 import (
-	"github.com/songzhibin97/GKit/cache/singleflight"
+	"github.com/songzhibin97/gkit/cache/singleflight"
 )
 
 // getResources: 一般用于去数据库去获取数据
