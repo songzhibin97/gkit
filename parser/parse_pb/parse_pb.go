@@ -34,7 +34,7 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.Note = append(ret.Note, &Note{Comment: v})
 		case *proto.Message:
 			// message
-			ret.parseMessage(v)
+			ret.parseMessage(v, "")
 		case *proto.Service:
 			// service
 			ret.parseService(v)
