@@ -2,6 +2,7 @@ package parse_pb
 
 import (
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/emicklei/proto"
@@ -86,6 +87,10 @@ type File struct {
 
 // CreateFile 创建字段信息
 func CreateFile(name string, tGo string, tPb string) *File {
+	if name != "" {
+		name = strings.ToTitle(string(name[0])) + name[1:]
+	}
+
 	return &File{
 		Name:   name,
 		TypeGo: tGo,
@@ -113,8 +118,8 @@ func (p *PbParseGo) AddMessages(messages ...*Message) {
 	p.Message = append(p.Message, messages...)
 }
 
-func (p *PbParseGo) parseMessage(ms *proto.Message) {
-	ret := CreateMessage(ms.Name, ms.Position.Offset)
+func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
+	ret := CreateMessage(prefix+ms.Name, ms.Position.Offset)
 	// note
 	if ms.Comment != nil {
 		ret.Notes = append(ret.Notes, ms.Comment)
@@ -134,6 +139,8 @@ func (p *PbParseGo) parseMessage(ms *proto.Message) {
 			valueType := v.Field.Type
 			ret.AddFiles(CreateFile(v.Field.Name, fmt.Sprintf("map[%s]%s",
 				PbTypeToGo(keyType), PbTypeToGo(valueType)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
+		case *proto.Message:
+			p.parseMessage(v, ms.Name+prefix)
 		}
 	}
 	for _, f := range p.ParseMessages {
