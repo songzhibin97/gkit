@@ -22,6 +22,7 @@ type PbParseGo struct {
 	Server        []*Server         // Server: 解析出来function的信息
 	Message       []*Message        // Message: 解析出struct的信息
 	Note          []*Note           // Note: 其他注释
+	Enums         []*Enum           // Enum: 解析出enum的信息
 	Metas         map[string]string // Metas: 其他元信息
 	ParseMessages []ParseMessage
 	ParseServices []ParseService
@@ -118,6 +119,39 @@ func (p *PbParseGo) AddMessages(messages ...*Message) {
 	p.Message = append(p.Message, messages...)
 }
 
+type Enum struct {
+	Offset   int    // Offset: 函数起始位置
+	Name     string // Name: 类型名称
+	Elements []*EnumElement
+}
+
+// AddEnum 添加枚举类型
+func (p *PbParseGo) AddEnum(enum ...*Enum) {
+	p.Enums = append(p.Enums, enum...)
+}
+
+// CreateEnum 创建枚举类型
+func CreateEnum(name string, offset int) *Enum {
+	return &Enum{
+		Name:   name,
+		Offset: offset,
+	}
+}
+
+type EnumElement struct {
+	Offset int    // Offset: 函数起始位置
+	Name   string // Name: 类型名称
+	Index  int    // Index: 索引
+}
+
+func (e *Enum) AddElem(name string, offset int, index int) {
+	e.Elements = append(e.Elements, &EnumElement{
+		Name:   name,
+		Offset: offset,
+		Index:  index,
+	})
+}
+
 func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
 	ret := CreateMessage(prefix+ms.Name, ms.Position.Offset)
 	// note
@@ -141,6 +175,8 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
 				PbTypeToGo(keyType), PbTypeToGo(valueType)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
 		case *proto.Message:
 			p.parseMessage(v, ms.Name+prefix)
+		case *proto.Enum:
+			ret.AddFiles(CreateFile(v.Name, v.Name, "enum"))
 		}
 	}
 	for _, f := range p.ParseMessages {
@@ -177,7 +213,13 @@ func (p *PbParseGo) PackageName() string {
 
 func (p *PbParseGo) Generate() string {
 	temp := `package {{.PkgName}}
-
+// type{{range .Enums}}	
+type {{.Name}} int32
+{{ $Type := .Name}}const({{range $index, $Elem := .Elements}}
+{{$Elem.Name}} {{ $Type }} = {{$Elem.Index}}{{end}}
+)
+{{end}}	
+	
 // struct{{range .Message}}
 type {{.Name}} struct {
 {{range  $index, $Message :=.Files}}   {{$Message.Name}} {{$Message.TypeGo}}
@@ -200,6 +242,17 @@ func {{.Name }} ({{.InputParameter}}) {{.OutputParameter}} {
 		return ""
 	}
 	return b.String()
+}
+
+func (p *PbParseGo) parseEnum(sv *proto.Enum) {
+	enum := CreateEnum(sv.Name, sv.Position.Offset)
+	for _, element := range sv.Elements {
+		switch v := element.(type) {
+		case *proto.EnumField:
+			enum.AddElem(v.Name, v.Position.Offset, v.Integer)
+		}
+	}
+	p.AddEnum(enum)
 }
 
 // AddParseMessage 添加自定义解析message
