@@ -31,7 +31,7 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.PkgName = v.Name
 		case *proto.Comment:
 			// note
-			ret.Note = append(ret.Note, &Note{Comment: v})
+			ret.AddNode(&Note{Comment: v})
 		case *proto.Message:
 			// message
 			ret.parseMessage(v, "")
@@ -39,7 +39,7 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			// service
 			ret.parseService(v)
 		case *proto.Enum:
-			ret.parseEnum(v)
+			ret.parseEnum(v, "")
 		}
 	}
 	return ret, nil

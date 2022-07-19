@@ -2,6 +2,7 @@ package parse_pb
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -17,12 +18,16 @@ type (
 )
 
 type PbParseGo struct {
-	PkgName       string            // PkgName: 包名
-	FilePath      string            // FilePath: 文件的路径
-	Server        []*Server         // Server: 解析出来function的信息
-	Message       []*Message        // Message: 解析出struct的信息
-	Note          []*Note           // Note: 其他注释
-	Enums         []*Enum           // Enum: 解析出enum的信息
+	PkgName  string              // PkgName: 包名
+	FilePath string              // FilePath: 文件的路径
+	Server   map[string]*Server  // Server: 服务器信息
+	Message  map[string]*Message // Message: 消息信息
+	Note     map[string]*Note    // Note: 注释信息
+	Enums    map[string]*Enum    // Enums: 枚举类型
+	//Server        []*Server         // Server: 解析出来function的信息
+	//Message       []*Message        // Message: 解析出struct的信息
+	//Note          []*Note           // Note: 其他注释
+	//Enums         []*Enum           // Enum: 解析出enum的信息
 	Metas         map[string]string // Metas: 其他元信息
 	ParseMessages []ParseMessage
 	ParseServices []ParseService
@@ -111,23 +116,47 @@ func (p *PbParseGo) addParseService(parseService ...ParseService) {
 
 // AddServers 添加server信息
 func (p *PbParseGo) AddServers(servers ...*Server) {
-	p.Server = append(p.Server, servers...)
+	if p.Server == nil {
+		p.Server = make(map[string]*Server)
+	}
+	for _, server := range servers {
+		p.Server[server.Name] = server
+	}
 }
 
 // AddMessages 添加message信息
 func (p *PbParseGo) AddMessages(messages ...*Message) {
-	p.Message = append(p.Message, messages...)
+	if p.Message == nil {
+		p.Message = make(map[string]*Message)
+	}
+	for _, message := range messages {
+		p.Message[message.Name] = message
+	}
+}
+
+func (p *PbParseGo) AddNode(nodes ...*Note) {
+	if p.Note == nil {
+		p.Note = make(map[string]*Note)
+	}
+	for _, node := range nodes {
+		p.Note[strconv.Itoa(node.Position.Offset)] = node
+	}
+}
+
+// AddEnum 添加枚举类型
+func (p *PbParseGo) AddEnum(enums ...*Enum) {
+	if p.Enums == nil {
+		p.Enums = make(map[string]*Enum)
+	}
+	for _, e := range enums {
+		p.Enums[e.Name] = e
+	}
 }
 
 type Enum struct {
 	Offset   int    // Offset: 函数起始位置
 	Name     string // Name: 类型名称
-	Elements []*EnumElement
-}
-
-// AddEnum 添加枚举类型
-func (p *PbParseGo) AddEnum(enum ...*Enum) {
-	p.Enums = append(p.Enums, enum...)
+	Elements map[string]*EnumElement
 }
 
 // CreateEnum 创建枚举类型
@@ -145,11 +174,14 @@ type EnumElement struct {
 }
 
 func (e *Enum) AddElem(name string, offset int, index int) {
-	e.Elements = append(e.Elements, &EnumElement{
+	if e.Elements == nil {
+		e.Elements = make(map[string]*EnumElement)
+	}
+	e.Elements[name] = &EnumElement{
 		Name:   name,
 		Offset: offset,
 		Index:  index,
-	})
+	}
 }
 
 func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
@@ -177,6 +209,7 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
 			p.parseMessage(v, ms.Name+prefix)
 		case *proto.Enum:
 			ret.AddFiles(CreateFile(v.Name, v.Name, "enum"))
+			p.parseEnum(v, ms.Name+prefix)
 		}
 	}
 	for _, f := range p.ParseMessages {
@@ -244,8 +277,9 @@ func {{.Name }} ({{.InputParameter}}) {{.OutputParameter}} {
 	return b.String()
 }
 
-func (p *PbParseGo) parseEnum(sv *proto.Enum) {
-	enum := CreateEnum(sv.Name, sv.Position.Offset)
+func (p *PbParseGo) parseEnum(sv *proto.Enum, prefix string) {
+
+	enum := CreateEnum(prefix+sv.Name, sv.Position.Offset)
 	for _, element := range sv.Elements {
 		switch v := element.(type) {
 		case *proto.EnumField:
