@@ -103,7 +103,8 @@ func (asyncResult *AsyncResult) Monitor() ([]reflect.Value, error) {
 	if asyncResult.backend == nil {
 		return nil, ErrBackendEmpty
 	}
-	asyncResult.GetSate()
+
+	asyncResult.GetState()
 	if asyncResult.state.IsFailure() {
 		return nil, errors.New(asyncResult.state.Error)
 	}
@@ -113,8 +114,8 @@ func (asyncResult *AsyncResult) Monitor() ([]reflect.Value, error) {
 	return nil, nil
 }
 
-// GetSate 获取任务状态
-func (asyncResult *AsyncResult) GetSate() *task.Status {
+// GetState 获取任务状态
+func (asyncResult *AsyncResult) GetState() *task.Status {
 	if asyncResult.state.IsCompleted() {
 		return asyncResult.state
 	}
