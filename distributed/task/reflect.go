@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"reflect"
 	"strings"
 )
@@ -298,20 +299,32 @@ func getIntValue(theType string, value interface{}) (int64, error) {
 	// We use https://golang.org/pkg/encoding/json/#Decoder.UseNumber when unmarshaling signatures.
 	// This is because JSON only supports 64-bit floating point numbers and we could lose precision
 	// when converting from float64 to signed integer
-	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") {
-		n, ok := value.(json.Number)
-		if !ok {
+	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") || strings.HasPrefix(fmt.Sprintf("%T", value), "jsoniter.Number") {
+		switch n := value.(type) {
+		case json.Number:
+			return n.Int64()
+		case jsoniter.Number:
+			return n.Int64()
+		default:
 			return 0, typeConversionError(value, typeOfMap[theType].String())
 		}
-
-		return n.Int64()
 	}
 
-	n, ok := value.(int64)
-	if !ok {
+	var n int64
+	switch value := value.(type) {
+	case int64:
+		n = value
+	case int32:
+		n = int64(value)
+	case int16:
+		n = int64(value)
+	case int8:
+		n = int64(value)
+	case int:
+		n = int64(value)
+	default:
 		return 0, typeConversionError(value, typeOfMap[theType].String())
 	}
-
 	return n, nil
 }
 
@@ -319,25 +332,38 @@ func getUintValue(theType string, value interface{}) (uint64, error) {
 	// We use https://golang.org/pkg/encoding/json/#Decoder.UseNumber when unmarshaling signatures.
 	// This is because JSON only supports 64-bit floating point numbers and we could lose precision
 	// when converting from float64 to unsigned integer
-	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") {
-		n, ok := value.(json.Number)
-		if !ok {
+	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") || strings.HasPrefix(fmt.Sprintf("%T", value), "jsoniter.Number") {
+		switch n := value.(type) {
+		case json.Number:
+			intVal, err := n.Int64()
+			if err != nil {
+				return 0, err
+			}
+
+			return uint64(intVal), nil
+		case jsoniter.Number:
+			intVal, err := n.Int64()
+			if err != nil {
+				return 0, err
+			}
+
+			return uint64(intVal), nil
+		default:
 			return 0, typeConversionError(value, typeOfMap[theType].String())
 		}
-
-		intVal, err := n.Int64()
-		if err != nil {
-			return 0, err
-		}
-
-		return uint64(intVal), nil
 	}
 
 	var n uint64
 	switch value := value.(type) {
 	case uint64:
 		n = value
+	case uint32:
+		n = uint64(value)
+	case uint16:
+		n = uint64(value)
 	case uint8:
+		n = uint64(value)
+	case uint:
 		n = uint64(value)
 	default:
 		return 0, typeConversionError(value, typeOfMap[theType].String())
@@ -348,21 +374,27 @@ func getUintValue(theType string, value interface{}) (uint64, error) {
 func getFloatValue(theType string, value interface{}) (float64, error) {
 	// We use https://golang.org/pkg/encoding/json/#Decoder.UseNumber when unmarshaling signatures.
 	// This is because JSON only supports 64-bit floating point numbers and we could lose precision
-	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") {
-		n, ok := value.(json.Number)
-		if !ok {
+	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") || strings.HasPrefix(fmt.Sprintf("%T", value), "jsoniter.Number") {
+		switch n := value.(type) {
+		case json.Number:
+			return n.Float64()
+		case jsoniter.Number:
+			return n.Float64()
+		default:
 			return 0, typeConversionError(value, typeOfMap[theType].String())
 		}
-
-		return n.Float64()
 	}
 
-	f, ok := value.(float64)
-	if !ok {
+	var n float64
+	switch value := value.(type) {
+	case float64:
+		n = value
+	case float32:
+		n = float64(value)
+	default:
 		return 0, typeConversionError(value, typeOfMap[theType].String())
 	}
-
-	return f, nil
+	return n, nil
 }
 
 func getStringValue(theType string, value interface{}) (string, error) {

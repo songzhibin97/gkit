@@ -36,7 +36,7 @@ func TestConvertResult(t *testing.T) {
 				Type:  "[]string",
 				Value: []string{"6", "66", "666"},
 			}}},
-			want: []reflect.Value{reflect.ValueOf("gkit"), reflect.ValueOf(1), reflect.ValueOf([]string{"6", "66", "666"})},
+			want: []reflect.Value{reflect.ValueOf("gkit"), reflect.ValueOf(int(1)), reflect.ValueOf([]string{"6", "66", "666"})},
 		},
 	}
 	for _, tt := range tests {

@@ -15,7 +15,7 @@ type State int
 
 const (
 	// StatePending 任务初始状态
-	StatePending State = 1 << iota
+	StatePending State = iota
 	// StateReceived 收到任务
 	StateReceived
 	// StateStarted 开始执行任务
@@ -26,15 +26,6 @@ const (
 	StateSuccess
 	// StateFailure 任务失败
 	StateFailure
-)
-
-const (
-	StateModPending = iota
-	StateModReceived
-	StateModStarted
-	StateModRetry
-	StateModSuccess
-	StateModFailure
 )
 
 func (s State) String() string {
@@ -157,9 +148,9 @@ func (t *Status) IsCompleted() bool {
 }
 
 func (t *Status) IsSuccess() bool {
-	return t.Status>>StateModSuccess == 1
+	return t.Status == StateSuccess
 }
 
 func (t *Status) IsFailure() bool {
-	return t.Status>>StateModFailure == 1
+	return t.Status == StateFailure
 }
