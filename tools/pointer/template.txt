@@ -1,0 +1,27 @@
+package pointer
+
+// To{{upper}}Pointer 将{{lower}}类型的变量转换为对应的*{{lower}}指针类型
+func To{{upper}}Pointer(v {{lower}}) *{{lower}} {
+	return &v
+}
+
+// To{{upper}}PointerOrNilIfZero 将{{lower}}类型的变量转换为对应的*{{lower}}指针类型，如果变量的值为0的话则返回nil指针
+func To{{upper}}PointerOrNilIfZero(v {{lower}}) *{{lower}} {
+	if v == 0 {
+		return nil
+	}
+	return &v
+}
+
+// From{{upper}}Pointer 获取*{{lower}}类型的指针的实际值，如果指针为nil的话则返回0
+func From{{upper}}Pointer(p *{{lower}}) {{lower}} {
+	return From{{upper}}PointerOrDefaultIfNil(p, 0)
+}
+
+// From{{upper}}PointerOrDefaultIfNil 获取*{{lower}}类型的指针的实际值，如果指针为nil的话则返回defaultValue
+func From{{upper}}PointerOrDefaultIfNil(v *{{lower}}, defaultValue {{lower}}) {{lower}} {
+	if v == nil {
+		return defaultValue
+	}
+	return *v
+}
