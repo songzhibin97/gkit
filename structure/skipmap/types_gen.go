@@ -56,7 +56,7 @@ func main() {
 	// Step 2. Add imports and package statement
 	w.WriteString(string(filedata)[strings.Index(string(filedata), "package skipmap") : strings.Index(string(filedata), ")\n")+1])
 	// Step 3. Generate code for basic types
-	ts := []string{"Float32", "Float64", "Int32", "Int16", "Int", "Uint64", "Uint32", "Uint16", "Uint"} // all types need to be converted
+	ts := []string{"Byte", "Float32", "Float64", "Int", "Int8", "Int16", "Int32", "Rune", "Uint", "Uint8", "Uint16", "Uint32", "Uint64", "Uintptr"} // all types need to be converted
 	for _, upper := range ts {
 		data := string(filedata)
 		// Step 4-1. Remove all string before import
