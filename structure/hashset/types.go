@@ -16,6 +16,162 @@
 
 package hashset
 
+type ByteSet map[byte]struct{}
+
+// NewByte returns an empty byte set
+func NewByte() ByteSet {
+	return make(map[byte]struct{})
+}
+
+// NewByteWithSize returns an empty byte set initialized with specific size
+func NewByteWithSize(size int) ByteSet {
+	return make(map[byte]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s ByteSet) Add(value byte) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s ByteSet) Contains(value byte) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s ByteSet) Remove(value byte) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s ByteSet) Range(f func(value byte) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s ByteSet) Len() int {
+	return len(s)
+}
+
+type Complex64Set map[complex64]struct{}
+
+// NewComplex64 returns an empty complex64 set
+func NewComplex64() Complex64Set {
+	return make(map[complex64]struct{})
+}
+
+// NewComplex64WithSize returns an empty complex64 set initialized with specific size
+func NewComplex64WithSize(size int) Complex64Set {
+	return make(map[complex64]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Complex64Set) Add(value complex64) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s Complex64Set) Contains(value complex64) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Complex64Set) Remove(value complex64) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s Complex64Set) Range(f func(value complex64) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s Complex64Set) Len() int {
+	return len(s)
+}
+
+type Complex128Set map[complex128]struct{}
+
+// NewComplex128 returns an empty complex128 set
+func NewComplex128() Complex128Set {
+	return make(map[complex128]struct{})
+}
+
+// NewComplex128WithSize returns an empty complex128 set initialized with specific size
+func NewComplex128WithSize(size int) Complex128Set {
+	return make(map[complex128]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Complex128Set) Add(value complex128) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s Complex128Set) Contains(value complex128) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Complex128Set) Remove(value complex128) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s Complex128Set) Range(f func(value complex128) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s Complex128Set) Len() int {
+	return len(s)
+}
+
 type Float32Set map[float32]struct{}
 
 // NewFloat32 returns an empty float32 set
@@ -120,28 +276,28 @@ func (s Float64Set) Len() int {
 	return len(s)
 }
 
-type Int32Set map[int32]struct{}
+type IntSet map[int]struct{}
 
-// NewInt32 returns an empty int32 set
-func NewInt32() Int32Set {
-	return make(map[int32]struct{})
+// NewInt returns an empty int set
+func NewInt() IntSet {
+	return make(map[int]struct{})
 }
 
-// NewInt32WithSize returns an empty int32 set initialized with specific size
-func NewInt32WithSize(size int) Int32Set {
-	return make(map[int32]struct{}, size)
+// NewIntWithSize returns an empty int set initialized with specific size
+func NewIntWithSize(size int) IntSet {
+	return make(map[int]struct{}, size)
 }
 
 // Add adds the specified element to this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s Int32Set) Add(value int32) bool {
+func (s IntSet) Add(value int) bool {
 	s[value] = struct{}{}
 	return true
 }
 
 // Contains returns true if this set contains the specified element
-func (s Int32Set) Contains(value int32) bool {
+func (s IntSet) Contains(value int) bool {
 	if _, ok := s[value]; ok {
 		return true
 	}
@@ -151,14 +307,14 @@ func (s Int32Set) Contains(value int32) bool {
 // Remove removes the specified element from this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s Int32Set) Remove(value int32) bool {
+func (s IntSet) Remove(value int) bool {
 	delete(s, value)
 	return true
 }
 
 // Range calls f sequentially for each value present in the hashset.
 // If f returns false, range stops the iteration.
-func (s Int32Set) Range(f func(value int32) bool) {
+func (s IntSet) Range(f func(value int) bool) {
 	for k := range s {
 		if !f(k) {
 			break
@@ -168,7 +324,59 @@ func (s Int32Set) Range(f func(value int32) bool) {
 
 // Len returns the number of elements of this set
 
-func (s Int32Set) Len() int {
+func (s IntSet) Len() int {
+	return len(s)
+}
+
+type Int8Set map[int8]struct{}
+
+// NewInt8 returns an empty int8 set
+func NewInt8() Int8Set {
+	return make(map[int8]struct{})
+}
+
+// NewInt8WithSize returns an empty int8 set initialized with specific size
+func NewInt8WithSize(size int) Int8Set {
+	return make(map[int8]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Int8Set) Add(value int8) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s Int8Set) Contains(value int8) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Int8Set) Remove(value int8) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s Int8Set) Range(f func(value int8) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s Int8Set) Len() int {
 	return len(s)
 }
 
@@ -224,28 +432,28 @@ func (s Int16Set) Len() int {
 	return len(s)
 }
 
-type IntSet map[int]struct{}
+type Int32Set map[int32]struct{}
 
-// NewInt returns an empty int set
-func NewInt() IntSet {
-	return make(map[int]struct{})
+// NewInt32 returns an empty int32 set
+func NewInt32() Int32Set {
+	return make(map[int32]struct{})
 }
 
-// NewIntWithSize returns an empty int set initialized with specific size
-func NewIntWithSize(size int) IntSet {
-	return make(map[int]struct{}, size)
+// NewInt32WithSize returns an empty int32 set initialized with specific size
+func NewInt32WithSize(size int) Int32Set {
+	return make(map[int32]struct{}, size)
 }
 
 // Add adds the specified element to this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s IntSet) Add(value int) bool {
+func (s Int32Set) Add(value int32) bool {
 	s[value] = struct{}{}
 	return true
 }
 
 // Contains returns true if this set contains the specified element
-func (s IntSet) Contains(value int) bool {
+func (s Int32Set) Contains(value int32) bool {
 	if _, ok := s[value]; ok {
 		return true
 	}
@@ -255,14 +463,14 @@ func (s IntSet) Contains(value int) bool {
 // Remove removes the specified element from this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s IntSet) Remove(value int) bool {
+func (s Int32Set) Remove(value int32) bool {
 	delete(s, value)
 	return true
 }
 
 // Range calls f sequentially for each value present in the hashset.
 // If f returns false, range stops the iteration.
-func (s IntSet) Range(f func(value int) bool) {
+func (s Int32Set) Range(f func(value int32) bool) {
 	for k := range s {
 		if !f(k) {
 			break
@@ -272,32 +480,32 @@ func (s IntSet) Range(f func(value int) bool) {
 
 // Len returns the number of elements of this set
 
-func (s IntSet) Len() int {
+func (s Int32Set) Len() int {
 	return len(s)
 }
 
-type Uint64Set map[uint64]struct{}
+type RuneSet map[rune]struct{}
 
-// NewUint64 returns an empty uint64 set
-func NewUint64() Uint64Set {
-	return make(map[uint64]struct{})
+// NewRune returns an empty rune set
+func NewRune() RuneSet {
+	return make(map[rune]struct{})
 }
 
-// NewUint64WithSize returns an empty uint64 set initialized with specific size
-func NewUint64WithSize(size int) Uint64Set {
-	return make(map[uint64]struct{}, size)
+// NewRuneWithSize returns an empty rune set initialized with specific size
+func NewRuneWithSize(size int) RuneSet {
+	return make(map[rune]struct{}, size)
 }
 
 // Add adds the specified element to this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s Uint64Set) Add(value uint64) bool {
+func (s RuneSet) Add(value rune) bool {
 	s[value] = struct{}{}
 	return true
 }
 
 // Contains returns true if this set contains the specified element
-func (s Uint64Set) Contains(value uint64) bool {
+func (s RuneSet) Contains(value rune) bool {
 	if _, ok := s[value]; ok {
 		return true
 	}
@@ -307,14 +515,14 @@ func (s Uint64Set) Contains(value uint64) bool {
 // Remove removes the specified element from this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s Uint64Set) Remove(value uint64) bool {
+func (s RuneSet) Remove(value rune) bool {
 	delete(s, value)
 	return true
 }
 
 // Range calls f sequentially for each value present in the hashset.
 // If f returns false, range stops the iteration.
-func (s Uint64Set) Range(f func(value uint64) bool) {
+func (s RuneSet) Range(f func(value rune) bool) {
 	for k := range s {
 		if !f(k) {
 			break
@@ -324,32 +532,32 @@ func (s Uint64Set) Range(f func(value uint64) bool) {
 
 // Len returns the number of elements of this set
 
-func (s Uint64Set) Len() int {
+func (s RuneSet) Len() int {
 	return len(s)
 }
 
-type Uint32Set map[uint32]struct{}
+type StringSet map[string]struct{}
 
-// NewUint32 returns an empty uint32 set
-func NewUint32() Uint32Set {
-	return make(map[uint32]struct{})
+// NewString returns an empty string set
+func NewString() StringSet {
+	return make(map[string]struct{})
 }
 
-// NewUint32WithSize returns an empty uint32 set initialized with specific size
-func NewUint32WithSize(size int) Uint32Set {
-	return make(map[uint32]struct{}, size)
+// NewStringWithSize returns an empty string set initialized with specific size
+func NewStringWithSize(size int) StringSet {
+	return make(map[string]struct{}, size)
 }
 
 // Add adds the specified element to this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s Uint32Set) Add(value uint32) bool {
+func (s StringSet) Add(value string) bool {
 	s[value] = struct{}{}
 	return true
 }
 
 // Contains returns true if this set contains the specified element
-func (s Uint32Set) Contains(value uint32) bool {
+func (s StringSet) Contains(value string) bool {
 	if _, ok := s[value]; ok {
 		return true
 	}
@@ -359,14 +567,14 @@ func (s Uint32Set) Contains(value uint32) bool {
 // Remove removes the specified element from this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s Uint32Set) Remove(value uint32) bool {
+func (s StringSet) Remove(value string) bool {
 	delete(s, value)
 	return true
 }
 
 // Range calls f sequentially for each value present in the hashset.
 // If f returns false, range stops the iteration.
-func (s Uint32Set) Range(f func(value uint32) bool) {
+func (s StringSet) Range(f func(value string) bool) {
 	for k := range s {
 		if !f(k) {
 			break
@@ -376,7 +584,111 @@ func (s Uint32Set) Range(f func(value uint32) bool) {
 
 // Len returns the number of elements of this set
 
-func (s Uint32Set) Len() int {
+func (s StringSet) Len() int {
+	return len(s)
+}
+
+type UintSet map[uint]struct{}
+
+// NewUint returns an empty uint set
+func NewUint() UintSet {
+	return make(map[uint]struct{})
+}
+
+// NewUintWithSize returns an empty uint set initialized with specific size
+func NewUintWithSize(size int) UintSet {
+	return make(map[uint]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s UintSet) Add(value uint) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s UintSet) Contains(value uint) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s UintSet) Remove(value uint) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s UintSet) Range(f func(value uint) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s UintSet) Len() int {
+	return len(s)
+}
+
+type Uint8Set map[uint8]struct{}
+
+// NewUint8 returns an empty uint8 set
+func NewUint8() Uint8Set {
+	return make(map[uint8]struct{})
+}
+
+// NewUint8WithSize returns an empty uint8 set initialized with specific size
+func NewUint8WithSize(size int) Uint8Set {
+	return make(map[uint8]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Uint8Set) Add(value uint8) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s Uint8Set) Contains(value uint8) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Uint8Set) Remove(value uint8) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s Uint8Set) Range(f func(value uint8) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s Uint8Set) Len() int {
 	return len(s)
 }
 
@@ -432,28 +744,28 @@ func (s Uint16Set) Len() int {
 	return len(s)
 }
 
-type UintSet map[uint]struct{}
+type Uint32Set map[uint32]struct{}
 
-// NewUint returns an empty uint set
-func NewUint() UintSet {
-	return make(map[uint]struct{})
+// NewUint32 returns an empty uint32 set
+func NewUint32() Uint32Set {
+	return make(map[uint32]struct{})
 }
 
-// NewUintWithSize returns an empty uint set initialized with specific size
-func NewUintWithSize(size int) UintSet {
-	return make(map[uint]struct{}, size)
+// NewUint32WithSize returns an empty uint32 set initialized with specific size
+func NewUint32WithSize(size int) Uint32Set {
+	return make(map[uint32]struct{}, size)
 }
 
 // Add adds the specified element to this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s UintSet) Add(value uint) bool {
+func (s Uint32Set) Add(value uint32) bool {
 	s[value] = struct{}{}
 	return true
 }
 
 // Contains returns true if this set contains the specified element
-func (s UintSet) Contains(value uint) bool {
+func (s Uint32Set) Contains(value uint32) bool {
 	if _, ok := s[value]; ok {
 		return true
 	}
@@ -463,14 +775,14 @@ func (s UintSet) Contains(value uint) bool {
 // Remove removes the specified element from this set
 // Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
 // Reserves the return type for future extension
-func (s UintSet) Remove(value uint) bool {
+func (s Uint32Set) Remove(value uint32) bool {
 	delete(s, value)
 	return true
 }
 
 // Range calls f sequentially for each value present in the hashset.
 // If f returns false, range stops the iteration.
-func (s UintSet) Range(f func(value uint) bool) {
+func (s Uint32Set) Range(f func(value uint32) bool) {
 	for k := range s {
 		if !f(k) {
 			break
@@ -480,6 +792,110 @@ func (s UintSet) Range(f func(value uint) bool) {
 
 // Len returns the number of elements of this set
 
-func (s UintSet) Len() int {
+func (s Uint32Set) Len() int {
+	return len(s)
+}
+
+type Uint64Set map[uint64]struct{}
+
+// NewUint64 returns an empty uint64 set
+func NewUint64() Uint64Set {
+	return make(map[uint64]struct{})
+}
+
+// NewUint64WithSize returns an empty uint64 set initialized with specific size
+func NewUint64WithSize(size int) Uint64Set {
+	return make(map[uint64]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Uint64Set) Add(value uint64) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s Uint64Set) Contains(value uint64) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s Uint64Set) Remove(value uint64) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s Uint64Set) Range(f func(value uint64) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s Uint64Set) Len() int {
+	return len(s)
+}
+
+type UintptrSet map[uintptr]struct{}
+
+// NewUintptr returns an empty uintptr set
+func NewUintptr() UintptrSet {
+	return make(map[uintptr]struct{})
+}
+
+// NewUintptrWithSize returns an empty uintptr set initialized with specific size
+func NewUintptrWithSize(size int) UintptrSet {
+	return make(map[uintptr]struct{}, size)
+}
+
+// Add adds the specified element to this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s UintptrSet) Add(value uintptr) bool {
+	s[value] = struct{}{}
+	return true
+}
+
+// Contains returns true if this set contains the specified element
+func (s UintptrSet) Contains(value uintptr) bool {
+	if _, ok := s[value]; ok {
+		return true
+	}
+	return false
+}
+
+// Remove removes the specified element from this set
+// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
+// Reserves the return type for future extension
+func (s UintptrSet) Remove(value uintptr) bool {
+	delete(s, value)
+	return true
+}
+
+// Range calls f sequentially for each value present in the hashset.
+// If f returns false, range stops the iteration.
+func (s UintptrSet) Range(f func(value uintptr) bool) {
+	for k := range s {
+		if !f(k) {
+			break
+		}
+	}
+}
+
+// Len returns the number of elements of this set
+
+func (s UintptrSet) Len() int {
 	return len(s)
 }
