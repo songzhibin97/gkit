@@ -37,7 +37,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── pool (提供了pool的封装抽象,以及使用list对接口的实现)
   ├── queue
     ├── codel (对列实现可控制延时算法,对积压任务实现制裁)
-├── delayed (延时任务)
+├── delayed (延时任务-单机版)
 ├── distributed (分布式任务,提供了标准化接口以及redis、mysql、pgsql、mongodb对应的实现)
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
@@ -53,7 +53,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── options (选项模式接口化)
 ├── overload (服务器自适应保护,提供bbr接口,监控部署服务器状态选择流量放行,保护服务器可用性)
   ├── bbr (自适应限流)
-├── parse (文件解析,proto<->go相互解析)
+├── parser (文件解析,proto<->go相互解析)
   ├── parseGo (解析go生成pb)
   ├── parsePb (解析pb生成go)
 ├── registry (服务发现接口化、google sre subset实现)
@@ -78,6 +78,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
     ├── stringx (string 增强版)
     ├── syncx (sync 增强版)
     ├── xxhash3 
+├── ternary (三元表达式)    
 ├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装实现)
   ├── ctime (链路超时控制)
   ├── c_json (适配数据库json类型)
@@ -93,8 +94,10 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── deepcopy (深拷贝)
   ├── float (浮点数截断工具)
   ├── match (基础匹配器,根据通配符匹配)
+  ├── pointer (指针工具)
   ├── pretty (格式化json)
   ├── reflect2value (基础字段映射)
+  ├── rand_string (随机字符串)
   ├── vto (具有相同类型的函数赋值,解放双手,通常用于vo->do对象转换)
     ├── 新增plus 支持字段,tag以及默认值绑定
 ├── trace (链路追踪)
@@ -113,63 +116,6 @@ go get github.com/songzhibin97/gkit
 ## cache
 
 缓存相关组件
-
-### singleflight
-
-归并回源
-```go
-package main
-
-import (
-	"github.com/songzhibin97/gkit/cache/singleflight"
-)
-
-// getResources: 一般用于去数据库去获取数据
-func getResources() (interface{}, error) {
-	return "test", nil
-}
-
-// cache: 填充到 缓存中的数据
-func cache(v interface{}) {
-	return
-}
-
-func main() {
-	f := singleflight.NewSingleFlight()
-
-	// 同步:
-	v, err, _ := f.Do("test1", func() (interface{}, error) {
-		// 获取资源
-		return getResources()
-	})
-	if err != nil {
-		// 处理错误
-	}
-	// 存储到buffer
-	// v就是获取到的资源
-	cache(v)
-
-	// 异步
-	ch := f.DoChan("test2", func() (interface{}, error) {
-		// 获取资源
-		return getResources()
-	})
-
-	// 等待获取资源完成后,会将结果通过channel返回
-	result := <-ch
-	if result.Err != nil {
-		// 处理错误
-	}
-	
-	// 存储到buffer
-	// result.Val就是获取到的资源
-	cache(result.Val)
-	
-	// 尽力取消
-	f.Forget("test2")
-}
-```
-
 
 ### buffer pool
 ```go
@@ -205,7 +151,6 @@ func main() {
 	}
 }
 ```
-
 
 ### local_cache
 ```go
@@ -358,6 +303,63 @@ func ExampleShutdown()  {
 	ch.Shutdown()
 }
 ```
+
+### singleflight
+
+归并回源
+```go
+package main
+
+import (
+	"github.com/songzhibin97/gkit/cache/singleflight"
+)
+
+// getResources: 一般用于去数据库去获取数据
+func getResources() (interface{}, error) {
+	return "test", nil
+}
+
+// cache: 填充到 缓存中的数据
+func cache(v interface{}) {
+	return
+}
+
+func main() {
+	f := singleflight.NewSingleFlight()
+
+	// 同步:
+	v, err, _ := f.Do("test1", func() (interface{}, error) {
+		// 获取资源
+		return getResources()
+	})
+	if err != nil {
+		// 处理错误
+	}
+	// 存储到buffer
+	// v就是获取到的资源
+	cache(v)
+
+	// 异步
+	ch := f.DoChan("test2", func() (interface{}, error) {
+		// 获取资源
+		return getResources()
+	})
+
+	// 等待获取资源完成后,会将结果通过channel返回
+	result := <-ch
+	if result.Err != nil {
+		// 处理错误
+	}
+	
+	// 存储到buffer
+	// result.Val就是获取到的资源
+	cache(result.Val)
+	
+	// 尽力取消
+	f.Forget("test2")
+}
+```
+
 
 ## coding
 
@@ -597,8 +599,7 @@ func main() {
 
 ## distributed 
 
-分布式任务
-
+分布式任务(详细使用看测试用例)
 
 ## downgrade
 
@@ -677,6 +678,7 @@ func main() {
 	fuse.GoC(context.TODO(), "goc", mockRunFuncC(), mockFallbackFuncC())
 }
 ```
+
 ## egroup
 
 组件生命周期管理
@@ -813,6 +815,24 @@ func main() {
 	// 可以解析err2 来获取更多的信息
 	fmt.Println(err2.Metadata["time"]) // meta
 }
+```
+
+## gctuner
+
+```go
+
+// Get mem limit from the host machine or cgroup file.
+limit := 4 * 1024 * 1024 * 1024
+threshold := limit * 0.7
+
+gctuner.Tuning(threshold)
+
+// Friendly input
+gctuner.TuningWithFromHuman("1g")
+
+// Auto
+// There may be problems with multiple services in one pod.
+gctuner.TuningWithAuto(false) // Is it a container? Incoming Boolean
 ```
 
 ## generator
@@ -973,6 +993,7 @@ type Observer interface {
 	Observe(float64)
 }
 ```
+
 ## middleware
 
 中间件接口模型定义
@@ -1024,6 +1045,38 @@ func main()  {
 	// second post
 	// first post
 }
+```
+
+
+## net
+
+网络相关封装
+
+### tcp
+```go
+    // 发送数据至对端,有重试机制
+    Send(data []byte, retry *Retry) error
+
+    // 接受数据
+    // length == 0 从 Conn一次读取立即返回
+    // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
+    // length > 0 从 Conn 接收到对应的数据返回
+    Recv(length int, retry *Retry) ([]byte, error) 
+
+    // 读取一行 '\n'
+    RecvLine(retry *Retry) ([]byte, error) 
+
+    // 读取已经超时的链接
+    RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) 
+
+    // 写入数据给已经超时的链接
+    SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error
+
+    // 写入数据并读取返回
+    SendRecv(data []byte, length int, retry *Retry) ([]byte, error)
+
+    // 将数据写入并读出已经超时的链接
+    SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error)
 ```
 
 
@@ -1108,7 +1161,45 @@ func main() {
 }
 ```
 
+## parser
 
+提供 `.go`文件转`.pb` 以及 `.pb`转`.go`
+`.go`文件转`.pb` 功能更为丰富,例如提供定点打桩代码注入以及去重识别
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/songzhibin97/gkit/parse/parseGo"
+	"github.com/songzhibin97/gkit/parse/parsePb"
+)
+
+func main() {
+	pgo, err := parseGo.ParseGo("gkit/parse/demo/demo.api")
+	if err != nil {
+		panic(err)
+	}
+	r := pgo.(*parseGo.GoParsePB)
+	for _, note := range r.Note {
+		fmt.Println(note.Text, note.Pos(), note.End())
+	}
+	// 输出 字符串,如果需要自行导入文件
+	fmt.Println(r.Generate())
+
+	// 打桩注入
+	_ = r.PileDriving("", "start", "end", "var _ = 1")
+    
+	// 拆装
+	_ = r.PileDismantle("var _ = 1")
+	
+	ppb, err := parsePb.ParsePb("GKit/parse/demo/test.proto")
+	if err != nil {
+		panic(err)
+	}
+	// 输出 字符串,如果需要自行导入文件
+	fmt.Println(ppb.Generate())
+}
+```
 
 ## registry
 
@@ -1223,6 +1314,128 @@ func main() {
 	_ = wf.WaitN(context.TODO(), 5)
 }
 ```
+
+## structure (常用数据结构)
+
+### hashset
+
+```go
+    l := hashset.NewInt()
+
+	for _, v := range []int{10, 12, 15} {
+		l.Add(v)
+	}
+
+	if l.Contains(10) {
+		fmt.Println("hashset contains 10")
+	}
+
+	l.Range(func(value int) bool {
+		fmt.Println("hashset range found ", value)
+		return true
+	})
+
+	l.Remove(15)
+	fmt.Printf("hashset contains %d items\r\n", l.Len())
+```
+
+### lscq
+
+```go
+    l := lscq.NewUint64()
+	
+	ok := l.Enqueue(1)
+	if !ok {
+		panic("enqueue failed")
+    }   
+	v, err := l.Dequeue()
+	if err != nil {
+		panic("dequeue failed")
+    }
+	fmt.Println("lscq dequeue value:", v)}
+```
+
+### skipmap 
+
+```go
+    m := skipmap.NewInt()
+
+	// Correctness.
+	m.Store(123, "123")
+	m.Load(123)
+	m.Delete(123)
+	m.LoadOrStore(123)
+	m.LoadAndDelete(123)
+```
+
+### skipset 
+
+```go
+func Example() {
+	l := skipset.NewInt()
+
+	for _, v := range []int{10, 12, 15} {
+		if l.Add(v) {
+			fmt.Println("skipset add", v)
+		}
+	}
+
+	if l.Contains(10) {
+		fmt.Println("skipset contains 10")
+	}
+
+	l.Range(func(value int) bool {
+		fmt.Println("skipset range found ", value)
+		return true
+	})
+
+	l.Remove(15)
+	fmt.Printf("skipset contains %d items\r\n", l.Len())
+}
+```
+
+### zset 查看对应readme 
+
+## sys
+### mutex
+    锁相关封装（实现了trylock、重入锁等、重入token锁,还可以获取锁指标数据）
+```go
+    // 获取锁
+    lk := mutex.NewMutex()
+    // 尝试获取锁
+    if lk.TryLock() {
+    	// 获取到锁
+    	defer lk.Unlock()
+    }
+    // 获取失败执行其他逻辑
+    
+    lk.Count() // 获取等待锁的数量
+    
+    lk.IsLocked() // 锁是否被持有
+    
+    lk.IsWoken() // 内部是否有等待者被唤醒
+    
+    lk.IsStarving() // 是否处于饥饿模式
+    
+    // 重入锁
+    // 在同一个goroutine可以多次获取
+    rvlk := mutex.NewRecursiveMutex() 
+    rvlk.Lock()
+    defer rvlk.Unlock()
+    
+    // token重入锁
+    // 传入相同token 可以实现重入功能
+    tklk := mutex.NewTokenRecursiveMutex()
+    tklk.Lock(token)
+    defer tklk.Unlock(token)
+    
+```
+
+## ternary
+```go
+    ternary.ReturnInt(true, 1, 2) 
+```
+
 ## timeout
 
 各个服务间的超时控制(以及处理时间格式的结构体)
@@ -1303,186 +1516,8 @@ func main() {
 
 ```
 
-## window
-
-提供指标窗口
-```go
-package main
-
-import (
-	"fmt"
-	"github.com/songzhibin97/gkit/window"
-	"time"
-)
-func main() {
-	w := window.NewWindow()
-	slice := []window.Index{
-		{Name: "1", Score: 1}, {Name: "2", Score: 2},
-		{Name: "2", Score: 2}, {Name: "3", Score: 3},
-		{Name: "2", Score: 2}, {Name: "3", Score: 3},
-		{Name: "4", Score: 4}, {Name: "3", Score: 3},
-		{Name: "5", Score: 5}, {Name: "2", Score: 2},
-		{Name: "6", Score: 6}, {Name: "5", Score: 5},
-	}
-	/*
-			[{1 1} {2 2}]
-		    [{2 4} {3 3} {1 1}]
-		    [{1 1} {2 6} {3 6}]
-		    [{3 9} {4 4} {1 1} {2 6}]
-		    [{1 1} {2 8} {3 9} {4 4} {5 5}]
-		    [{5 10} {3 9} {2 6} {4 4} {6 6}]
-	*/
-	for i := 0; i < len(slice); i += 2 {
-		w.AddIndex(slice[i].Name, slice[i].Score)
-		w.AddIndex(slice[i+1].Name, slice[i+1].Score)
-		time.Sleep(time.Second)
-		fmt.Println(w.Show())
-	}
-}
-```
-
-## parser
-
-提供 `.go`文件转`.pb` 以及 `.pb`转`.go`
-`.go`文件转`.pb` 功能更为丰富,例如提供定点打桩代码注入以及去重识别
-```go
-package main
-
-import (
-	"fmt"
-	"github.com/songzhibin97/gkit/parse/parseGo"
-	"github.com/songzhibin97/gkit/parse/parsePb"
-)
-
-func main() {
-	pgo, err := parseGo.ParseGo("gkit/parse/demo/demo.api")
-	if err != nil {
-		panic(err)
-	}
-	r := pgo.(*parseGo.GoParsePB)
-	for _, note := range r.Note {
-		fmt.Println(note.Text, note.Pos(), note.End())
-	}
-	// 输出 字符串,如果需要自行导入文件
-	fmt.Println(r.Generate())
-
-	// 打桩注入
-	_ = r.PileDriving("", "start", "end", "var _ = 1")
-    
-	// 拆装
-	_ = r.PileDismantle("var _ = 1")
-	
-	ppb, err := parsePb.ParsePb("GKit/parse/demo/test.proto")
-	if err != nil {
-		panic(err)
-	}
-	// 输出 字符串,如果需要自行导入文件
-	fmt.Println(ppb.Generate())
-}
-```
-
-## mutex
-    锁相关封装（实现了trylock、重入锁等、重入token锁,还可以获取锁指标数据）
-```go
-    // 获取锁
-    lk := mutex.NewMutex()
-    // 尝试获取锁
-    if lk.TryLock() {
-    	// 获取到锁
-    	defer lk.Unlock()
-    }
-    // 获取失败执行其他逻辑
-    
-    lk.Count() // 获取等待锁的数量
-    
-    lk.IsLocked() // 锁是否被持有
-    
-    lk.IsWoken() // 内部是否有等待者被唤醒
-    
-    lk.IsStarving() // 是否处于饥饿模式
-    
-    // 重入锁
-    // 在同一个goroutine可以多次获取
-    rvlk := mutex.NewRecursiveMutex() 
-    rvlk.Lock()
-    defer rvlk.Unlock()
-    
-    // token重入锁
-    // 传入相同token 可以实现重入功能
-    tklk := mutex.NewTokenRecursiveMutex()
-    tklk.Lock(token)
-    defer tklk.Unlock(token)
-    
-```
-
-
-## net
-
-网络相关封装
-
-### tcp
-```go
-    // 发送数据至对端,有重试机制
-    Send(data []byte, retry *Retry) error
-
-    // 接受数据
-    // length == 0 从 Conn一次读取立即返回
-    // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
-    // length > 0 从 Conn 接收到对应的数据返回
-    Recv(length int, retry *Retry) ([]byte, error) 
-
-    // 读取一行 '\n'
-    RecvLine(retry *Retry) ([]byte, error) 
-
-    // 读取已经超时的链接
-    RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) 
-
-    // 写入数据给已经超时的链接
-    SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error
-
-    // 写入数据并读取返回
-    SendRecv(data []byte, length int, retry *Retry) ([]byte, error)
-
-    // 将数据写入并读出已经超时的链接
-    SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error)
-```
 
 ## tools
-### votodo
-```go
-package main
-
-import "github.com/songzhibin97/gkit/tools/vto"
-
-type CP struct {
-	Z1 int `default:"1"`
-	Z2 string `default:"z2"`
-}
-
-func main() {
-	c1 := CP{
-		Z1: 22,
-		Z2: "33",
-	}
-	c2 := CP{}
-	c3 := CP{}
-	_ = vto.VoToDo(&c2,&c1)
-	// c2 CP{ Z1: 22, Z2: "33"}
-	// 相同名称相同类型的执行复制
-	// 一定要dst、src 必须传指针类型
-	
-	// v1.1.2 新增default标签
-	_ = vto.VoToDo(&c2,&c3)
-	// c2 CP{ Z1: 1, Z2: "z2"}
-	// 相同名称相同类型的执行复制
-	// 一定要dst、src 必须传指针类型
-	
-}
-```
-
-### votodoPlus
-
-增加了字段&tag&默认值
 
 ### bind
 ```go
@@ -1522,6 +1557,82 @@ func main() {
 	r.Run(":8080")
 }
 ```
+
+### votodo
+```go
+package main
+
+import "github.com/songzhibin97/gkit/tools/vto"
+
+type CP struct {
+	Z1 int `default:"1"`
+	Z2 string `default:"z2"`
+}
+
+func main() {
+	c1 := CP{
+		Z1: 22,
+		Z2: "33",
+	}
+	c2 := CP{}
+	c3 := CP{}
+	_ = vto.VoToDo(&c2,&c1)
+	// c2 CP{ Z1: 22, Z2: "33"}
+	// 相同名称相同类型的执行复制
+	// 一定要dst、src 必须传指针类型
+	
+	// v1.1.2 新增default标签
+	_ = vto.VoToDo(&c2,&c3)
+	// c2 CP{ Z1: 1, Z2: "z2"}
+	// 相同名称相同类型的执行复制
+	// 一定要dst、src 必须传指针类型
+	
+}
+```
+
+### votodoPlus
+
+增加了字段&tag&默认值
+
+
+## window
+
+提供指标窗口
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/songzhibin97/gkit/window"
+	"time"
+)
+func main() {
+	w := window.NewWindow()
+	slice := []window.Index{
+		{Name: "1", Score: 1}, {Name: "2", Score: 2},
+		{Name: "2", Score: 2}, {Name: "3", Score: 3},
+		{Name: "2", Score: 2}, {Name: "3", Score: 3},
+		{Name: "4", Score: 4}, {Name: "3", Score: 3},
+		{Name: "5", Score: 5}, {Name: "2", Score: 2},
+		{Name: "6", Score: 6}, {Name: "5", Score: 5},
+	}
+	/*
+			[{1 1} {2 2}]
+		    [{2 4} {3 3} {1 1}]
+		    [{1 1} {2 6} {3 6}]
+		    [{3 9} {4 4} {1 1} {2 6}]
+		    [{1 1} {2 8} {3 9} {4 4} {5 5}]
+		    [{5 10} {3 9} {2 6} {4 4} {6 6}]
+	*/
+	for i := 0; i < len(slice); i += 2 {
+		w.AddIndex(slice[i].Name, slice[i].Score)
+		w.AddIndex(slice[i+1].Name, slice[i+1].Score)
+		time.Sleep(time.Second)
+		fmt.Println(w.Show())
+	}
+}
+```
+
 
 ## trace
 链路追踪
