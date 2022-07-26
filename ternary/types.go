@@ -1,5 +1,7 @@
 package ternary
 
+import "time"
+
 // ReturnBool
 //  @Description: if实现的三元表达式，返回结果是bool
 //  @param boolExpression: 表达式，最终返回一个布尔值
