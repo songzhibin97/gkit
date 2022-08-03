@@ -101,7 +101,7 @@ func (s *Server) GetRegisteredTask(name string) (interface{}, bool) {
 // SendTaskWithContext 发送任务,可以传入ctx
 func (s *Server) SendTaskWithContext(ctx context.Context, signature *task.Signature) (*result.AsyncResult, error) {
 	// 设置任务状态为pending
-	if err := s.backend.SetStateStarted(signature); err != nil {
+	if err := s.backend.SetStatePending(signature); err != nil {
 		return nil, errors.Wrap(err, "set state pending")
 	}
 	// 是否预处理
