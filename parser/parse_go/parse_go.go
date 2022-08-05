@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/songzhibin97/gkit/options"
-	"github.com/songzhibin97/gkit/parser"
+	gparser "github.com/songzhibin97/gkit/parser"
 )
 
-func ParseGo(filepath string, options ...options.Option) (parser.Parse, error) {
+func ParseGo(filepath string, options ...options.Option) (gparser.Parser, error) {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, err
