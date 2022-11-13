@@ -87,10 +87,18 @@ func cpuProc() {
 	for range ticker.C {
 		stats := &cupstat.Stat{}
 		cupstat.ReadStat(stats)
+		stats.Usage = min(stats.Usage, 1000)
 		prevCpu := atomic.LoadInt64(&cpu)
 		curCpu := int64(float64(prevCpu)*decay + float64(stats.Usage)*(1.0-decay))
 		atomic.StoreInt64(&cpu, curCpu)
 	}
+}
+
+func min(l, r uint64) uint64 {
+	if l < r {
+		return l
+	}
+	return r
 }
 
 // maxPASS 最大通过值
