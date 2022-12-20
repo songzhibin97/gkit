@@ -6,9 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
 
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
@@ -42,12 +45,15 @@ func (g *Goroutine) _go() {
 		// recover 避免野生goroutine panic后主程退出
 		defer func() {
 			if err := recover(); err != nil {
+				buf := buffer.GetBytes(64 << 10)
+				n := runtime.Stack(*buf, false)
+				defer buffer.PutBytes(buf)
 				// recover panic
 				if g.logger == nil {
-					fmt.Println("recover go func, error:", err)
+					fmt.Println("recover go func, stack:", (*buf)[:n])
 					return
 				}
-				g.logger.Log(log.LevelError, "Panic", err)
+				g.logger.Log(log.LevelError, "Panic stack:", (*buf)[:n])
 				return
 			}
 		}()
