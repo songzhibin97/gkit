@@ -50,10 +50,10 @@ func (g *Goroutine) _go() {
 				defer buffer.PutBytes(buf)
 				// recover panic
 				if g.logger == nil {
-					fmt.Println("recover go func, stack:", (*buf)[:n])
+					fmt.Println("recover go func, stack:", string((*buf)[:n]))
 					return
 				}
-				g.logger.Log(log.LevelError, "Panic stack:", (*buf)[:n])
+				g.logger.Log(log.LevelError, "Panic stack:", string((*buf)[:n]))
 				return
 			}
 		}()
