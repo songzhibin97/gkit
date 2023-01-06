@@ -371,7 +371,7 @@ package main
 import (
 	"fmt"
 	"github.com/songzhibin97/gkit/coding"
-	_ "github.com/songzhibin97/gkit/json" // 一定要提前导入!!!
+	_ "github.com/songzhibin97/gkit/coding/json" // 一定要提前导入!!!
 )
 
 func main() {
