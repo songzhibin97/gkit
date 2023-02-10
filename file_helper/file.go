@@ -212,6 +212,7 @@ func NewFileReader(ctx context.Context, filename string, options ...options.Opti
 			file:     r,
 			filePath: filename,
 			ctx:      ctx,
+			config:   c,
 		},
 		readerBuff:   scan,
 		buffer:       make(chan []byte, c.bufSize),
@@ -259,7 +260,14 @@ func NewFileReader(ctx context.Context, filename string, options ...options.Opti
 					return
 				}
 			} else {
-				f.buffer <- line
+				select {
+				case <-f.ctx.Done():
+					f.info = fmt.Sprintf("file %s has been canceled", filename)
+					return
+				case f.buffer <- line:
+
+				}
+
 			}
 		}
 	}()
@@ -320,7 +328,6 @@ func (f *FileReader) Close() {
 	}
 	defer atomic.StoreInt32(&f.finish, 1)
 	_ = f.file.Close()
-	close(f.buffer)
 }
 
 func (f *FileReader) Info() string {

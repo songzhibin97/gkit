@@ -1,6 +1,7 @@
 package file_helper
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"testing"
@@ -8,10 +9,13 @@ import (
 )
 
 func TestNewFileWrite(t *testing.T) {
-	w, err := NewFileWrite("test.txt", "END")
+
+	w, err := NewFileWrite(context.Background(), "test.txt")
 	if err != nil {
 		t.Error(err)
+		return
 	}
+	defer w.Finish()
 	for i := 0; i < 10; i++ {
 		err = w.Write([]byte("hello world" + strconv.Itoa(i)))
 		if err != nil {
@@ -31,10 +35,17 @@ func TestAdd(t *testing.T) {
 }
 
 func TestNewFileReader(t *testing.T) {
-	r, err := NewFileReader("test.txt", "END", 0, time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	r, err := NewFileReader(ctx, "test.txt", SetTimeout(time.Minute))
 	if err != nil {
 		t.Error(err)
+		return
 	}
+	defer r.Close()
+	defer func() {
+		t.Log(r.Info())
+	}()
 	for {
 		v, err := r.ReadLine()
 		if err != nil {
