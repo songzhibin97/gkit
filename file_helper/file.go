@@ -313,3 +313,16 @@ func (f *FileReader) ReadLineSync() ([]byte, error) {
 		return nil, ErrReScan
 	}
 }
+
+func (f *FileReader) Close() {
+	if atomic.LoadInt32(&f.finish) == 1 {
+		return
+	}
+	defer atomic.StoreInt32(&f.finish, 1)
+	_ = f.file.Close()
+	close(f.buffer)
+}
+
+func (f *FileReader) Info() string {
+	return f.info
+}
