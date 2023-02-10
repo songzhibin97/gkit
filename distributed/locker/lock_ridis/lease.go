@@ -72,7 +72,7 @@ func LeaseLock(lock Lock, key string, expire int, ops ...options.Option) (func()
 
 	if c.enable {
 		go func() {
-			click := time.NewTimer(c.interval)
+			click := time.NewTicker(c.interval)
 			defer click.Stop()
 			for {
 				select {
