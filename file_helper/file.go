@@ -3,7 +3,9 @@ package file_helper
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -11,10 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/songzhibin97/gkit/options"
+
 	"github.com/fsnotify/fsnotify"
 )
-
-const DefaultDir = "./"
 
 var (
 	ErrAlreadyExists = errors.New("file already exists")
@@ -24,13 +26,68 @@ var (
 	ErrTimeout       = errors.New("timeout")
 )
 
+type config struct {
+	endIdentification       string // 文件结束标识
+	lineBreakIdentification byte   // 行标识
+
+	prefix string
+
+	bufSize int
+
+	timeout time.Duration
+}
+
+const (
+	defaultEndIdentification = "END"
+	defaultLineBreak         = '\n'
+	defaultBufSize           = 10
+	defaultTimeout           = time.Hour
+	defaultPrefix            = "./"
+)
+
+func SetEndIdentification(endIdentification string) options.Option {
+	return func(o interface{}) {
+		c := o.(*config)
+		c.endIdentification = endIdentification
+	}
+}
+
+func SetLineBreakIdentification(lineBreakIdentification byte) options.Option {
+	return func(o interface{}) {
+		c := o.(*config)
+		c.lineBreakIdentification = lineBreakIdentification
+	}
+}
+
+func SetPrefix(prefix string) options.Option {
+	return func(o interface{}) {
+		c := o.(*config)
+		c.prefix = prefix
+	}
+}
+
+func SetBufSize(bufSize int) options.Option {
+	return func(o interface{}) {
+		c := o.(*config)
+		c.bufSize = bufSize
+	}
+}
+
+func SetTimeout(timeout time.Duration) options.Option {
+	return func(o interface{}) {
+		c := o.(*config)
+		c.timeout = timeout
+	}
+}
+
 type fileBase struct {
 	file     *os.File
 	filePath string
 	finish   int32 // 标记是否已经关闭句柄
 
-	EndIdentification string // 文件结束标识
+	ctx context.Context
 
+	config
 }
 
 func (f *fileBase) Close() {
@@ -43,10 +100,9 @@ func (f *fileBase) FilePath() string {
 	return f.filePath
 }
 
-func processFilePath(filename string, prefix ...string) string {
+func processFilePath(filename string, prefix string) string {
 	if !filepath.IsAbs(filename) {
-		prefix = append(prefix, DefaultDir)
-		filename = filepath.Join(prefix[0], filename)
+		filename = filepath.Join(prefix, filename)
 	}
 	return filename
 }
@@ -60,7 +116,7 @@ func (f *FileWriter) Write(data []byte) error {
 		return ErrAlreadyFinish
 	}
 
-	data = append(data, '\n')
+	data = append(data, f.lineBreakIdentification)
 	_, err := f.file.Write(data)
 	return err
 }
@@ -71,13 +127,24 @@ func (f *FileWriter) Finish() {
 	}
 	defer atomic.StoreInt32(&f.finish, 1)
 
-	_ = f.Write([]byte(f.EndIdentification))
+	_ = f.Write([]byte(f.endIdentification))
 	_ = f.file.Sync()
 	f.Close()
 }
 
-func NewFileWrite(filename string, endIdentification string, prefix ...string) (*FileWriter, error) {
-	filename = processFilePath(filename, prefix...)
+func NewFileWrite(ctx context.Context, filename string, options ...options.Option) (*FileWriter, error) {
+	c := config{
+		endIdentification:       defaultEndIdentification,
+		lineBreakIdentification: defaultLineBreak,
+		prefix:                  defaultPrefix,
+		bufSize:                 defaultBufSize,
+		timeout:                 defaultTimeout,
+	}
+	for _, o := range options {
+		o(&c)
+	}
+
+	filename = processFilePath(filename, c.prefix)
 	_, err := os.Stat(filename)
 	if err == nil {
 		return nil, ErrAlreadyExists
@@ -95,10 +162,11 @@ func NewFileWrite(filename string, endIdentification string, prefix ...string) (
 	}
 	return &FileWriter{
 		fileBase: &fileBase{
-			file:              w,
-			filePath:          filename,
-			finish:            0,
-			EndIdentification: endIdentification,
+			ctx:      ctx,
+			file:     w,
+			filePath: filename,
+			finish:   0,
+			config:   c,
 		},
 	}, nil
 }
@@ -109,13 +177,26 @@ type FileReader struct {
 	readerBuff   *bufio.Reader // 只读模式
 	lastScanTime int64
 
-	timeOut time.Duration
-
 	buffer chan []byte
+
+	info string
 }
 
-func NewFileReader(filename string, endIdentification string, buf int, timeout time.Duration, prefix ...string) (*FileReader, error) {
-	filename = processFilePath(filename, prefix...)
+func NewFileReader(ctx context.Context, filename string, options ...options.Option) (*FileReader, error) {
+
+	c := config{
+		endIdentification:       defaultEndIdentification,
+		lineBreakIdentification: defaultLineBreak,
+		prefix:                  defaultPrefix,
+		bufSize:                 defaultBufSize,
+		timeout:                 defaultTimeout,
+	}
+
+	for _, o := range options {
+		o(&c)
+	}
+
+	filename = processFilePath(filename, c.prefix)
 	_, err := os.Stat(filename)
 	if err != nil {
 		return nil, ErrFileNotFound
@@ -128,13 +209,12 @@ func NewFileReader(filename string, endIdentification string, buf int, timeout t
 
 	f := &FileReader{
 		fileBase: &fileBase{
-			file:              r,
-			filePath:          filename,
-			EndIdentification: endIdentification,
+			file:     r,
+			filePath: filename,
+			ctx:      ctx,
 		},
 		readerBuff:   scan,
-		buffer:       make(chan []byte, buf),
-		timeOut:      timeout,
+		buffer:       make(chan []byte, c.bufSize),
 		lastScanTime: time.Now().Unix(),
 	}
 	watcher, err := fsnotify.NewWatcher()
@@ -147,7 +227,7 @@ func NewFileReader(filename string, endIdentification string, buf int, timeout t
 	}
 
 	go func() {
-		timer := time.NewTicker(f.timeOut/2 + 1)
+		timer := time.NewTicker(f.timeout/2 + 1)
 		defer close(f.buffer)
 		defer func() { timer.Stop() }()
 		for {
@@ -160,13 +240,22 @@ func NewFileReader(filename string, endIdentification string, buf int, timeout t
 						switch env.Op {
 						case fsnotify.Remove:
 							// 文件被删除 退出
+							f.info = fmt.Sprintf("file %s has been deleted", filename)
 							return
 						default:
 
 						}
 					case <-timer.C:
+
+					case <-f.ctx.Done():
+						// ctx 终止
+						f.info = fmt.Sprintf("file %s has been canceled", filename)
+						return
+
 					}
 				default:
+					// 其他错误
+					f.info = fmt.Sprintf("file %s has been error %s", filename, err.Error())
 					return
 				}
 			} else {
@@ -183,16 +272,16 @@ func (f *FileReader) readLine() ([]byte, error) {
 		f.Close()
 		return nil, io.EOF
 	}
-	bs, err := f.readerBuff.ReadBytes('\n')
+	bs, err := f.readerBuff.ReadBytes(f.lineBreakIdentification)
 	if err != nil && errors.Is(err, io.EOF) {
-		if f.timeOut != 0 && time.Now().Unix()-f.lastScanTime > int64(f.timeOut/time.Second) {
+		if f.timeout != 0 && time.Now().Unix()-f.lastScanTime > int64(f.timeout/time.Second) {
 			return nil, ErrTimeout
 		}
 		return nil, ErrReScan
 	}
 
-	bs = bytes.TrimSuffix(bs, []byte{'\n'})
-	if len(bs) == len(f.EndIdentification) && string(bs) == f.EndIdentification {
+	bs = bytes.TrimSuffix(bs, []byte{f.lineBreakIdentification})
+	if len(bs) == len(f.endIdentification) && string(bs) == f.endIdentification {
 		if atomic.CompareAndSwapInt32(&f.finish, 0, 1) {
 			f.Close()
 		}
