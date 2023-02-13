@@ -30,11 +30,13 @@ type config struct {
 	endIdentification       string // 文件结束标识
 	lineBreakIdentification byte   // 行标识
 
-	prefix string
+	prefix string // 目录前缀
 
-	bufSize int
+	bufSize int // 文件行容忍大小
 
-	timeout time.Duration
+	timeout time.Duration // 超时时间
+
+	tolerateFileExist bool // 容忍文件存在
 }
 
 const (
@@ -77,6 +79,13 @@ func SetTimeout(timeout time.Duration) options.Option {
 	return func(o interface{}) {
 		c := o.(*config)
 		c.timeout = timeout
+	}
+}
+
+func SetTolerateFileExist(tolerateFileExist bool) options.Option {
+	return func(o interface{}) {
+		c := o.(*config)
+		c.tolerateFileExist = tolerateFileExist
 	}
 }
 
@@ -146,7 +155,7 @@ func NewFileWrite(ctx context.Context, filename string, options ...options.Optio
 
 	filename = processFilePath(filename, c.prefix)
 	_, err := os.Stat(filename)
-	if err == nil {
+	if err == nil && !c.tolerateFileExist {
 		return nil, ErrAlreadyExists
 	}
 	_, err = os.Stat(path.Dir(filename))
