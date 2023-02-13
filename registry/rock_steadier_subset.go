@@ -11,16 +11,18 @@ import (
 
 const Lot = 10
 
-func corput(n int, base int) float64 {
-	var q float64
-	bk := float64(1) / float64(base)
-	for n > 0 {
-		q += float64(n%base) * bk
-		bk /= float64(base)
-		n /= base
-	}
-	return q
-}
+type MagicNumberGeneration func() int64
+
+//func corput(n int, base int) float64 {
+//	var q float64
+//	bk := float64(1) / float64(base)
+//	for n > 0 {
+//		q += float64(n%base) * bk
+//		bk /= float64(base)
+//		n /= base
+//	}
+//	return q
+//}
 
 type RockSteadierSubset struct {
 	// The number of servers in the cluster.
@@ -66,7 +68,7 @@ func max(a, b int) int {
 	return b
 }
 
-func NewRockSteadierSubset(clients, services []int) *RockSteadierSubset {
+func NewRockSteadierSubset(clients, services []int, magicNumberGeneration MagicNumberGeneration) *RockSteadierSubset {
 	pad := len(clients)
 	matrix := make([][]*int, pad)
 	col := 0
@@ -79,7 +81,7 @@ func NewRockSteadierSubset(clients, services []int) *RockSteadierSubset {
 	for ; ls%pad != 0; ls++ {
 		matrix[ls%pad] = append(matrix[ls%pad], nil)
 	}
-	shuffle(pad, ls, clients, matrix)
+	shuffle(magicNumberGeneration(), clients, matrix)
 	hasClient := make(map[int]int)
 	hasService := make(map[int][2]int)
 	for idx, client := range clients {
@@ -102,8 +104,8 @@ func NewRockSteadierSubset(clients, services []int) *RockSteadierSubset {
 	}
 }
 
-func shuffle(n, base int, clients []int, matrixServices [][]*int) {
-	s := rand.NewSource(int64(corput(n, base) * 10000000))
+func shuffle(magicNumber int64, clients []int, matrixServices [][]*int) {
+	s := rand.NewSource(magicNumber)
 	ra := rand.New(s)
 
 	ra.Shuffle(len(matrixServices), func(i, j int) {
