@@ -1,10 +1,14 @@
 package registry
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
-	"sync"
+	"sync/atomic"
+
+	"github.com/songzhibin97/gkit/options"
 )
 
 // https://dl.acm.org/doi/10.1145/3570937
@@ -12,6 +16,8 @@ import (
 const Lot = 10
 
 type MagicNumberGeneration func() int64
+
+var ErrorHasBeenClosed = errors.New("has been closed")
 
 //func corput(n int, base int) float64 {
 //	var q float64
@@ -24,15 +30,60 @@ type MagicNumberGeneration func() int64
 //	return q
 //}
 
+type config struct {
+	buf int
+}
+
+type command struct {
+	ids  []int
+	code int
+}
+
 type RockSteadierSubset struct {
 	// The number of servers in the cluster.
 	clients        []int
-	matrixServices [][]*int
+	matrixServices atomic.Value // [][]*int
 	appendIndex    int
-	serLock        sync.RWMutex
-	hasClient      map[int]int    // client: index
-	hasService     map[int][2]int // service: (x,y) 快速置为nil
-	col            int
+	//serLock        sync.RWMutex
+	hasClient  map[int]int    // client: index 只读模式
+	hasService map[int][2]int // service: (x,y) 快速置为nil
+	col        int
+
+	command chan command
+	config  config
+	ctx     context.Context
+	cancel  context.CancelFunc
+	close   int32
+}
+
+func (r *RockSteadierSubset) Close() {
+	if !atomic.CompareAndSwapInt32(&r.close, 0, 1) {
+		return
+	}
+	r.cancel()
+	close(r.command)
+}
+
+func (r *RockSteadierSubset) sentinel() {
+	go func() {
+		for {
+			select {
+			case c, ok := <-r.command:
+				if !ok {
+					return
+				}
+				switch c.code {
+				case 1:
+					r.addService(c.ids)
+				case 2:
+					r.removeService(c.ids)
+				}
+
+			case <-r.ctx.Done():
+				return
+			}
+		}
+	}()
 }
 
 func (r *RockSteadierSubset) matrix() string {
@@ -42,9 +93,10 @@ func (r *RockSteadierSubset) matrix() string {
 		b.WriteString(fmt.Sprintf("lot:%d\t", i))
 	}
 	b.WriteString(fmt.Sprintln())
+	matrix := r.matrixServices.Load().([][]*int)
 	for idx, client := range r.clients {
 		b.WriteString(fmt.Sprintf("client:%d\t", client))
-		for _, ss := range r.matrixServices[idx] {
+		for _, ss := range matrix[idx] {
 			if ss == nil {
 				b.WriteString("N\t")
 				continue
@@ -68,7 +120,12 @@ func max(a, b int) int {
 	return b
 }
 
-func NewRockSteadierSubset(clients, services []int, magicNumberGeneration MagicNumberGeneration) *RockSteadierSubset {
+func NewRockSteadierSubset(ctx context.Context, clients, services []int, magicNumberGeneration MagicNumberGeneration, options ...options.Option) *RockSteadierSubset {
+	cfg := config{buf: 10}
+	for _, option := range options {
+		option(&cfg)
+	}
+
 	pad := len(clients)
 	matrix := make([][]*int, pad)
 	col := 0
@@ -95,13 +152,20 @@ func NewRockSteadierSubset(clients, services []int, magicNumberGeneration MagicN
 			hasService[*v] = [2]int{x, y}
 		}
 	}
-	return &RockSteadierSubset{
-		clients:        clients,
-		matrixServices: matrix,
-		hasClient:      hasClient,
-		hasService:     hasService,
-		col:            col,
+	ctx, cancel := context.WithCancel(ctx)
+	r := &RockSteadierSubset{
+		clients:    clients,
+		hasClient:  hasClient,
+		hasService: hasService,
+		col:        col,
+
+		ctx:     ctx,
+		cancel:  cancel,
+		config:  cfg,
+		command: make(chan command, cfg.buf),
 	}
+	r.matrixServices.Store(matrix)
+	return r
 }
 
 func shuffle(magicNumber int64, clients []int, matrixServices [][]*int) {
@@ -120,41 +184,72 @@ func shuffle(magicNumber int64, clients []int, matrixServices [][]*int) {
 	})
 }
 
-func (r *RockSteadierSubset) AddService(ids []int) {
-	r.serLock.Lock()
-	defer r.serLock.Unlock()
-	for _, id := range ids {
-		r.matrixServices[r.appendIndex] = append(r.matrixServices[r.appendIndex], toPoint(id))
-		x := r.appendIndex
-		y := len(r.matrixServices[r.appendIndex]) - 1
-		r.hasService[id] = [2]int{x, y}
-		r.col = max(r.col, len(r.matrixServices[r.appendIndex]))
-		r.appendIndex = (r.appendIndex + 1) % len(r.matrixServices)
+func (r *RockSteadierSubset) AddService(ctx context.Context, ids []int) error {
+	if atomic.LoadInt32(&r.close) == 1 {
+		return ErrorHasBeenClosed
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case r.command <- command{
+		ids:  ids,
+		code: 1,
+	}:
+		return nil
 	}
 }
 
-func (r *RockSteadierSubset) RemoveService(ids []int) {
-	r.serLock.Lock()
-	defer r.serLock.Unlock()
+func (r *RockSteadierSubset) addService(ids []int) {
+	matrix := r.matrixServices.Load().([][]*int)
+	defer r.matrixServices.Store(matrix)
+
+	for _, id := range ids {
+		matrix[r.appendIndex] = append(matrix[r.appendIndex], toPoint(id))
+		x := r.appendIndex
+		y := len(matrix[r.appendIndex]) - 1
+		r.hasService[id] = [2]int{x, y}
+		r.col = max(r.col, len(matrix[r.appendIndex]))
+		r.appendIndex = (r.appendIndex + 1) % len(matrix)
+	}
+}
+
+func (r *RockSteadierSubset) RemoveService(ctx context.Context, ids []int) error {
+	if atomic.LoadInt32(&r.close) == 1 {
+		return ErrorHasBeenClosed
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case r.command <- command{
+		ids:  ids,
+		code: 2,
+	}:
+		return nil
+	}
+}
+
+func (r *RockSteadierSubset) removeService(ids []int) {
+	matrix := r.matrixServices.Load().([][]*int)
+	defer r.matrixServices.Store(matrix)
+
 	for _, id := range ids {
 		xy := r.hasService[id]
-		r.matrixServices[xy[0]][xy[1]] = nil
+		matrix[xy[0]][xy[1]] = nil
 		delete(r.hasService, id)
 	}
 }
 
 func (r *RockSteadierSubset) GetServices(client int) []int {
-	r.serLock.RLock()
-	defer r.serLock.RUnlock()
 	idx, ok := r.hasClient[client]
 	if !ok {
 		return nil
 	}
 	services := make([]int, 0, Lot)
 	oid := idx
+	matrix := r.matrixServices.Load().([][]*int)
 loop:
 	for (idx+1)%len(r.clients) != oid && len(services) != Lot {
-		for _, v := range r.matrixServices[idx] {
+		for _, v := range matrix[idx] {
 			if v == nil {
 				continue
 			}
