@@ -34,6 +34,12 @@ type config struct {
 	buf int
 }
 
+func SetBufSize(size int) options.Option {
+	return func(o interface{}) {
+		o.(*config).buf = size
+	}
+}
+
 type command struct {
 	ids  []int
 	code int
