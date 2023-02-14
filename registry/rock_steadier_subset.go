@@ -26,7 +26,7 @@ type MagicNumberGeneration func() int64
 
 type RockSteadierSubset struct {
 	// The number of servers in the cluster.
-	Clients        []int
+	clients        []int
 	matrixServices [][]*int
 	appendIndex    int
 	serLock        sync.RWMutex
@@ -42,7 +42,7 @@ func (r *RockSteadierSubset) matrix() string {
 		b.WriteString(fmt.Sprintf("lot:%d\t", i))
 	}
 	b.WriteString(fmt.Sprintln())
-	for idx, client := range r.Clients {
+	for idx, client := range r.clients {
 		b.WriteString(fmt.Sprintf("client:%d\t", client))
 		for _, ss := range r.matrixServices[idx] {
 			if ss == nil {
@@ -96,7 +96,7 @@ func NewRockSteadierSubset(clients, services []int, magicNumberGeneration MagicN
 		}
 	}
 	return &RockSteadierSubset{
-		Clients:        clients,
+		clients:        clients,
 		matrixServices: matrix,
 		hasClient:      hasClient,
 		hasService:     hasService,
@@ -153,7 +153,7 @@ func (r *RockSteadierSubset) GetServices(client int) []int {
 	services := make([]int, 0, Lot)
 	oid := idx
 loop:
-	for (idx+1)%len(r.Clients) != oid && len(services) != Lot {
+	for (idx+1)%len(r.clients) != oid && len(services) != Lot {
 		for _, v := range r.matrixServices[idx] {
 			if v == nil {
 				continue
@@ -163,7 +163,7 @@ loop:
 				break loop
 			}
 		}
-		idx = (idx + 1) % len(r.Clients)
+		idx = (idx + 1) % len(r.clients)
 	}
 	return services
 }
