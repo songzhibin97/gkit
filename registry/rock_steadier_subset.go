@@ -15,6 +15,7 @@ import (
 
 const Lot = 10
 
+// MagicNumberGeneration 要保证同一个服务种子一致
 type MagicNumberGeneration func() int64
 
 var ErrorHasBeenClosed = errors.New("has been closed")
