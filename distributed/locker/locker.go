@@ -6,7 +6,7 @@ type Locker interface {
 	// Lock 获取锁
 	// key 锁名称
 	// mark 锁的凭证,用于释放锁的唯一标志
-	// expire 锁过期失效,以纳秒为单位
+	// expire 锁过期失效,以Millisecond为单位 1000 = 1s
 	Lock(key string, expire int, mark string) error
 
 	// UnLock 解锁

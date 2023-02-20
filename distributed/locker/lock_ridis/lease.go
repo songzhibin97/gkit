@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/songzhibin97/gkit/distributed/locker"
+
 	"github.com/songzhibin97/gkit/log"
 
 	"github.com/songzhibin97/gkit/options"
@@ -52,10 +54,10 @@ func SetLeaseLogger(logger log.Logger) options.Option {
 	}
 }
 
-func LeaseLock(lock Lock, key string, expire int, ops ...options.Option) (func() error, error) {
+func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option) (func() error, error) {
 	c := leaseConfig{
 		enable:    true,
-		interval:  time.Duration(expire / 3),
+		interval:  time.Duration(expire/1000) * time.Second / 3,
 		logger:    log.DefaultLogger,
 		randomNum: 6,
 	}
@@ -67,6 +69,11 @@ func LeaseLock(lock Lock, key string, expire int, ops ...options.Option) (func()
 	}
 
 	mark := rand_string.RandStringBytesMaskImprSrc(c.randomNum)
+	err := lock.Lock(key, expire, mark)
+	if err != nil {
+		return nil, err
+	}
+
 	var cls atomic.Bool
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -84,7 +91,7 @@ func LeaseLock(lock Lock, key string, expire int, ops ...options.Option) (func()
 						return
 					}
 					// 续约
-					err := lock.lock(key, expire, mark)
+					err = lock.Lock(key, expire, mark)
 					if err != nil && c.logger != nil {
 						_ = c.logger.Log(log.LevelError, "key", key, "err", err)
 					}
@@ -94,8 +101,8 @@ func LeaseLock(lock Lock, key string, expire int, ops ...options.Option) (func()
 	}
 
 	return func() error {
-		cancel()
 		cls.Store(true)
+		cancel()
 		return lock.UnLock(key, mark)
 	}, nil
 }
