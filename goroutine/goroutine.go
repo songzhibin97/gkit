@@ -53,7 +53,7 @@ func (g *Goroutine) _go() {
 					fmt.Println("recover go func, stack:", string((*buf)[:n]))
 					return
 				}
-				g.logger.Log(log.LevelError, "Panic stack:", string((*buf)[:n]))
+				g.logger.Log(log.LevelError, "panic err:", err, "Panic stack:", string((*buf)[:n]))
 				return
 			}
 		}()
