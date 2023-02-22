@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"sync/atomic"
 	"time"
@@ -158,9 +157,9 @@ func NewFileWrite(ctx context.Context, filename string, options ...options.Optio
 	if err == nil && !c.tolerateFileExist {
 		return nil, ErrAlreadyExists
 	}
-	_, err = os.Stat(path.Dir(filename))
+	_, err = os.Stat(filepath.Dir(filename))
 	if err != nil {
-		err = os.Mkdir(path.Dir(filename), 0666)
+		err = os.Mkdir(filepath.Dir(filename), 0666)
 		if err != nil {
 			return nil, err
 		}
