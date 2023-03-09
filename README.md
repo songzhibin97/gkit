@@ -22,7 +22,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── buffer (提供byte数组复用以及io buffer封装)
   ├── mbuffer (buffer 类似实现) 
   ├── local_cache (提供本地key-value构建本地缓存的封装实现)
-  ├── singlefight (提供高并发情况下防止重复任务,一般用于cache miss后填补cache场景)
+  ├── singleflight (提供高并发情况下防止重复任务,一般用于cache miss后填补cache场景)
 ├── coding (提供对象序列化/反序列化接口化, 提供json、proto、xml、yaml 实例方法)
 ├── concurrent (在并发中使用channel的最佳实践)
   ├── fan_in (扇入模式,常用与生产者消费者模型中多个生产者,一个消费者)
