@@ -132,6 +132,44 @@ func TestVoToDo(t *testing.T) {
 	}
 }
 
+func TestVoToDoRecursion(t *testing.T) {
+	type (
+		mock1 struct {
+			Name string `json:"name"`
+		}
+
+		mock2 struct {
+			Name string `json:"name"`
+		}
+
+		mock3 struct {
+			Name string `json:"name"`
+			Mock mock1  `json:"mock"`
+		}
+
+		mock4 struct {
+			Name string `json:"name"`
+			Mock mock2  `json:"mock"`
+		}
+	)
+
+	var (
+		m1 = mock3{
+			Name: "m1",
+			Mock: mock1{
+				Name: "m1.mock1",
+			},
+		}
+	)
+	{
+		var m2 mock4
+		err := VoToDo(&m2, &m1)
+		assert.NoError(t, err)
+		assert.Equal(t, m2.Name, m1.Name)
+		assert.Equal(t, m2.Mock.Name, m1.Mock.Name)
+	}
+}
+
 func TestVoToDoPlus(t *testing.T) {
 	type (
 		mock1 struct {

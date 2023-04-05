@@ -54,7 +54,16 @@ func VoToDo(dst interface{}, src interface{}) error {
 		for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
 			s = s.Elem()
 		}
+
 		if d.Kind() != s.Kind() {
+			continue
+		}
+
+		if d.Type() != s.Type() && d.Kind() == reflect.Struct {
+			err := VoToDo(d.Addr().Interface(), s.Addr().Interface())
+			if err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -123,6 +132,14 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				continue
 			}
 
+			if d.Type() != s.Type() && d.Kind() == reflect.Struct {
+				err := VoToDoPlus(d.Addr().Interface(), s.Addr().Interface(), model)
+				if err != nil {
+					return err
+				}
+				continue
+			}
+
 			if !s.IsZero() {
 				d.Set(s)
 			}
@@ -156,6 +173,14 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 						continue
 					}
 
+					if d.Type() != s.Type() && d.Kind() == reflect.Struct {
+						err := VoToDoPlus(d.Addr().Interface(), s.Addr().Interface(), model)
+						if err != nil {
+							return err
+						}
+						continue
+					}
+
 					if !s.IsZero() {
 						d.Set(s)
 					}
@@ -163,6 +188,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 			}
 		}
 	}
+
 	if model.Model&DefaultValueBind == DefaultValueBind {
 		for i := 0; i < dstT.NumField(); i++ {
 			field := dstT.Field(i)
