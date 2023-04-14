@@ -249,6 +249,10 @@ func SetWithProperType(val string, value reflect.Value, field reflect.StructFiel
 		return json.Unmarshal(bytesconv.StringToBytes(val), value.Addr().Interface())
 	case reflect.Map:
 		return json.Unmarshal(bytesconv.StringToBytes(val), value.Addr().Interface())
+	case reflect.Slice:
+		return json.Unmarshal(bytesconv.StringToBytes(val), value.Addr().Interface())
+	case reflect.Array:
+		return json.Unmarshal(bytesconv.StringToBytes(val), value.Addr().Interface())
 	default:
 		return errUnknownType
 	}
