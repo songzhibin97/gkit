@@ -1,7 +1,6 @@
 package vto
 
 import (
-	"fmt"
 	"reflect"
 
 	"github.com/songzhibin97/gkit/tools"
@@ -196,7 +195,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				continue
 			}
 			defaultTag := field.Tag.Get("default")
-			if len(defaultTag) == 0 {
+			if len(defaultTag) == 0 || defaultTag == "-" {
 				continue
 			}
 			d := dstV.Field(i)
@@ -222,22 +221,6 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 	return nil
 }
 
-func bindDefault(value reflect.Value, df string, field reflect.StructField) error {
-	vs := []string{df}
-	switch value.Kind() {
-	case reflect.Slice:
-		return bind.SetSlice(vs, value, field)
-	case reflect.Array:
-		if len(vs) != value.Len() {
-			return fmt.Errorf("%q is not valid value for %s", vs, value.Type().String())
-		}
-		return bind.SetArray(vs, value, field)
-	default:
-		var val string
-		val = df
-		if len(vs) > 0 {
-			val = vs[0]
-		}
-		return bind.SetWithProperType(val, value, field)
-	}
+func bindDefault(value reflect.Value, val string, field reflect.StructField) error {
+	return bind.SetWithProperType(val, value, field)
 }
