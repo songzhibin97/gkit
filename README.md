@@ -12,110 +12,113 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
         __\////////////____\///________\///__\///////////________\///________                                 
 ```
 
-# 项目简介
-致力于提供微服务以及单体服务的可用性基础组件工具集合,借鉴了一些优秀的开源项目例如:`kratos`、`go-kit`、`mosn`、`sentinel`、`gopkg`...
-希望大家多多支持
 
-# 目录结构
+# Project Description
+Dedicated to providing microservices and monolithic services of the availability of a collection of basic component tools, drawing on some of the best open source projects such as : `kratos`, `go-kit`, `mosn`, `sentinel`, `gopkg` ... We hope you will support us!
+
+# Directory structure
 ```shell
-├── cache (构建缓存相关组件)
-  ├── buffer (提供byte数组复用以及io buffer封装)
-  ├── mbuffer (buffer 类似实现) 
-  ├── local_cache (提供本地key-value构建本地缓存的封装实现)
-  ├── singleflight (提供高并发情况下防止重复任务,一般用于cache miss后填补cache场景)
-├── coding (提供对象序列化/反序列化接口化, 提供json、proto、xml、yaml 实例方法)
-├── concurrent (在并发中使用channel的最佳实践)
-  ├── fan_in (扇入模式,常用与生产者消费者模型中多个生产者,一个消费者)
-  ├── fan_out (扇出模式,常用与生产着消费者模型中一个生产者,多个消费者)
-  ├── or_done (并发场景下任意一个任务完成后立即返回)
-  ├── orderly (在并发场景下也能保持有序的完成返回)
-  ├── map_reduce 
-  ├── stream (提供数据生产流封装,以及处理流的实现)
-  ├── pipeline (并发变为串行)
-├── container (容器化组件,提供group、pool、queue)
-  ├── group (提供了容器懒加载模式,类似sync.Pool,在使用时使用key获取对应容器实例,如果不存在则进行生成)
-  ├── pool (提供了pool的封装抽象,以及使用list对接口的实现)
-  ├── queue
-    ├── codel (对列实现可控制延时算法,对积压任务实现制裁)
-├── delayed (延时任务-单机版)
-├── distributed (分布式任务,提供了标准化接口以及redis、mysql、pgsql、mongodb对应的实现)
-├── downgrade (熔断降级相关组件)
-├── egroup (errgroup,控制组件生命周期)
-├── errors (grpc error处理)
-├── gctuner (go1.19前优化gc利器)
-├── generator (发号器,snowflake)
-├── goroutine (提供goroutine池,控制goroutine数量激增)
-├── log (接口化日志,使用日志组件接入)
-├── metrics (指标接口化)
-├── middleware (中间件接口模型定义)
-├── net (网络相关封装)
-  ├── tcp
-├── options (选项模式接口化)
-├── overload (服务器自适应保护,提供bbr接口,监控部署服务器状态选择流量放行,保护服务器可用性)
-  ├── bbr (自适应限流)
-├── parser (文件解析,proto<->go相互解析)
-  ├── parseGo (解析go生成pb)
-  ├── parsePb (解析pb生成go)
-├── registry (服务发现接口化、google sre subset实现)
-├── restrictor (限流,提供令牌桶和漏桶接口封装)
-  ├── client_throttling (客户端节流)
-  ├── rate 
-  ├── ratelimite 
-├── structure (常用数据结构)
-  ├── hashset (哈希表)
-  ├── lscq (无锁无边界队列,支持arm)
-  ├── skipmap (跳表)
-  ├── skipset 
+├─ cache (builds cache-related components)
+  ├── buffer (provides byte array reuse and io buffer wrapping)
+  ├── mbuffer (buffer-like implementation) 
+  ├── local_cache (provides local key-value wrapper implementation for building local caches)
+  ├── singleflight (provides prevention of duplicate tasks in high concurrency situations, generally used to fill cache miss scenarios)
+├── coding (provides object serialization/deserialization interface, provides json, proto, xml, yaml instance methods)
+├─ concurrent (best practices for using channels in concurrency)
+  ├── fan_in (fan-in pattern, commonly used with multiple producers and one consumer in the producer-consumer model)
+  ├── fan_out (fan-out mode, often used with a producer-consumer model where there are multiple producers and multiple consumers)
+  ├── or_done (a concurrency scenario in which any one task is returned immediately after completion)
+  ├── orderly (keep orderly completion even in concurrent scenarios)
+  ├─ map_reduce 
+  ├─ stream (provides data production stream encapsulation, and implementation of processing streams)
+  ├─ pipeline (concurrency becomes serial)
+├─ container (containerized component, providing groups, pools, queues)
+  ├─ group (provides a lazy loading mode for containers, similar to sync.Pool, which uses a key to get the corresponding container instance when used, or generates it if it doesn't exist)
+  pool (provides a wrapped abstraction of pool, and an implementation of the interface using lists)
+  ├─ queue
+    ├─ codel (implements a controlled delay algorithm for columns, and sanctions backlogged tasks)
+├─ delayed (delayed tasks - standalone version)
+├── distributed (distributed tasks, provides standardized interfaces and corresponding implementations for redis, mysql, pgsql, mongodb)
+├── downgrade (fusion downgrade related components)
+├── egroup (errgroup, controls component lifecycle)
+├── errors (grpc error handling)
+├── gctuner (pre go1.19 gc optimization tool)
+├óΓé¼╦£generator' (number generator, snowflake)
+├─ goroutine (provide goroutine pools, control goroutine spikes)
+├─ log (interface logging, use logging component to access)
+├── metrics (interface to metrics)
+├── middleware (middleware interface model definition)
+├─ net (network related encapsulation)
+  ├─ tcp
+├─ options (option model interfacing)
+├── overload (server adaptive protection, provides bbr interface, monitors deployed server status to select traffic release, protects server availability)
+  ├── bbr (adaptive flow limiting)
+├── page_token (google aip next token implementation)  
+├── parser (file parsing, proto<->go mutual parsing)
+  ├── parseGo (parses go to generate pb)
+  ├── parsePb (parses pb to generate go)
+├── registry (service discovery interfacing, google sre subset implementation)
+├─ restrictor (restrict flow, provide token bucket and leaky bucket interface wrappers)
+  ├── client_throttling (client throttling)
+  ├─ rate 
+  ├─ ratelimite 
+├─ structure (common data structure)
+  ├─ hashset (hash tables)
+  ├─ lscq (lock-free unbounded queue, supports arm)
+  ├── skipmap 
+  ├─ skipset 
   ├── zset 
-├── sync
-    ├── cpu (获取Linux平台下的系统信息,包括cpu主频、cpu使用率等)
-    ├── fastrand (随机数)
-    ├── goid (获取goroutine id)
-    ├── mutex (提供trylock、重入锁和token重入锁)
-    ├── nanotime (时间戳优化)
-    ├── once (once 更强大的实现,设置once函数增加返回error,失败后可重试)
-    ├── queue (无锁队列)
-    ├── stringx (string 增强版)
-    ├── syncx (sync 增强版)
+├─ sync
+    ├─ cpu (Get system information for Linux, including cpu mains, cpu usage, etc.)
+    ├── fastrand (random numbers)
+    ├── goid (get goroutine id)
+    ├── mutex (provides trylock, reentrant lock and token reentrant lock)
+    ├── nanotime (timestamp optimization)
+    ├── once (a more powerful implementation of once, set the once function to return an error, and retry if it fails)
+    ├── queue (lock-free queue)
+    ├── safe (underlying string, slice structure)
+    ├─ stringx (enhanced version of string)
+    ├─ syncx (sync enhancement)
     ├── xxhash3 
-├── ternary (三元表达式)    
-├── timeout (超时控制,全链路保护、提供一些数据库处理时间的封装实现)
-  ├── ctime (链路超时控制)
-  ├── c_json (适配数据库json类型)
-  ├── d_time (适配数据库 只存储时间)
-  ├── date (适配数据库 只存储日期)
-  ├── date_struct (适配数据库 只存储日期)
-  ├── datetime (适配数据库 存储datetime)
-  ├── datetime_struct (适配数据库 存储datetime)
-  ├── stamp (适配数据库 存储时间戳)
-  ├── human (提供可视化时间间距)
-├── tools 
-  ├── bind (绑定工具,常用与gin框架中自定义绑定数据,例如同时绑定query和json)
-  ├── deepcopy (深拷贝)
-  ├── float (浮点数截断工具)
-  ├── match (基础匹配器,根据通配符匹配)
-  ├── pointer (指针工具)
-  ├── pretty (格式化json)
-  ├── reflect2value (基础字段映射)
-  ├── rand_string (随机字符串)
-  ├── vto (具有相同类型的函数赋值,解放双手,通常用于vo->do对象转换)
-    ├── 新增plus 支持字段,tag以及默认值绑定
-├── trace (链路追踪)
-├── watching (监控cpu、mum、gc、goroutine等指标信息,在波动的情况下自动dump pprof指标)
-└── window (滑动窗口,支持多数据类型指标窗口收集)
+├─ ternary (ternary expressions)    
+├─ timeout (timeout control, full link protection, provides some encapsulated implementation of database processing time)
+  ├── ctime (link timeout control)
+  ├── c_json (adapt to database json types)
+  ├── d_time (adapts to database to store time only)
+  ├── date (Adapts database to store dates only)
+  ├─ date_struct (Adapts database to store dates only)
+  ├─ datetime (adapter database stores datetime)
+  ├─ datetime_struct (adapter database stores datetime)
+  ├── stamp (adapter database stores timestamps)
+  ├── human (provides visual time spacing)
+├─ tools 
+  ├── bind (binding tool, often used with the gin framework to customize the bound data, e.g. binding both query and json)
+  ├── deepcopy (deep copy)
+  ├── float (floating point truncation tool)
+  ├── match (base matcher, match on wildcards)
+  ├─ pointer (pointer tool)
+  ├─ pretty (formatting json)
+  ├─ reflect2value (basic field mapping)
+  ├─ rand_string (random strings)
+  ├─ vto (assignment of functions with the same type, hands free, usually used for vo->do object conversions)
+    ├── vtoPlus (adds plus support for field, tag and default value binding)
+├── trace (link tracing)
+├── watching (monitor cpu, mum, gc, goroutine and other metrics, automatically dump pprof metrics in case of fluctuations)
+└── window (sliding window, supports multi-data type metrics window collection)
 
 ```
 
-# 下载使用
+# Download and use
 ```shell
-# go get github.com/songzhibin97/gkit@master
 go get github.com/songzhibin97/gkit
 ```
 
-# 组件使用介绍
+
+## Introduction to the use of components
 ## cache
 
-缓存相关组件
+Cache-related components
+
 
 ### buffer pool
 ```go
@@ -127,30 +130,31 @@ import (
 )
 
 func main() {
-	// Byte复用
+	// Byte reuse
 
 	// size 2^6 - 2^18
-	// 返回向上取整的 2的整数倍 cap, len == size
-	// 其他特殊的或者在运行期间扩容的 将会被清空
+	// return an integer multiple of 2 rounded upwards cap, len == size
+	// Any other special or expanded during runtime will be cleared
 	slice := buffer.GetBytes(1024)
 	fmt.Println(len(*slice), cap(*slice)) // 1024 1024
 
-	// 回收
-	// 注意: 回收以后不可在引用
+	// Recycle
+	// Note: no further references are allowed after recycling
 	buffer.PutBytes(slice)
 
-	// IOByte 复用
+	// IOByte reuse
 
 	// io buffer.IoBuffer interface
-	io := buffer.GetIoPool(1024)
+	GetIoPool(1024)
 
-	// 如果一个对象已经被回收了,再次引用被回收的对象会触发错误
+	// If an object has already been recycled, referring to the recycled object again will trigger an error
 	err := buffer.PutIoPool(io)
 	if err != nil {
-		// 处理错误 	    
+		// Handle the error 	    
 	}
 }
 ```
+
 
 ### local_cache
 ```go
@@ -164,111 +168,111 @@ import (
 var ch Cache
 
 func ExampleNewCache() {
-	// 默认配置
-	//ch = NewCache()
+	// default configuration
+	// ch = NewCache()
 
-	// 可供选择的配置选项
+	// Optional configuration options
 
-	// 设置间隔时间
+	// Set the interval time
 	// SetInternal(interval time.Duration)
 
-	// 设置默认的超时时间
+	// Set the default timeout
 	// SetDefaultExpire(expire time.Duration)
 
-	// 设置周期的执行函数,默认(不设置)是扫描全局清除过期的k
+	// Set the cycle execution function, the default (not set) is to scan the global to clear expired k
 	// SetFn(fn func())
 
-	// 设置触发删除后的捕获函数, 数据删除后回调用设置的捕获函数
+	// Set the capture function to be called after the deletion is triggered, the set capture function will be called back after the data is deleted
 	// SetCapture(capture func(k string, v interface{}))
 
-	// 设置初始化存储的成员对象
+	// Set the initialization of the stored member object
 	// SetMember(m map[string]Iterator)
 
-	ch = NewCache(SetInternal(1000),
-		SetDefaultExpire(10000),
+	ch = NewCache(SetInternal(1000).
+		SetDefaultExpire(10000).
 		SetCapture(func(k string, v interface{}) {
 			log.Println(k, v)
 		}))
 }
 
 func ExampleCacheStorage() {
-	// Set 添加cache 无论是否存在都会覆盖
+	// Set adds cache and overwrites it whether it exists or not
 	ch.Set("k1", "v1", DefaultExpire)
 
-	// SetDefault 无论是否存在都会覆盖
-	// 偏函数模式,默认传入超时时间为创建cache的默认时间
+	// SetDefault overrides whether or not it exists
+	// Default function mode, default timeout is passed in as the default time to create the cache
 	ch.SetDefault("k1", 1)
 
 	// SetNoExpire
-	// 偏函数模式,默认传入超时时间为永不过期
+	// partial function mode, default timeout is never expired
 	ch.SetNoExpire("k1", 1.1)
 
-	// Add 添加cache 如果存在的话会抛出异常
+	// Add the cache and throw an exception if it exists
 	err := ch.Add("k1", nil, DefaultExpire)
 	CacheErrExist(err) // true
 
-	// Replace 如果有就设置没有就抛出错误
+	// Replace throws an error if it is set or not
 	err = ch.Replace("k2", make(chan struct{}), DefaultExpire)
 	CacheErrNoExist(err) // true
 }
 
 func ExampleGet() {
-	// Get 根据key获取 cache 保证有效期内的kv被取出
+	// Get the cache based on the key to ensure that kv is removed within the expiration date
 	v, ok := ch.Get("k1")
 	if !ok {
 		// v == nil
 	}
 	_ = v
 
-	// GetWithExpire 根据key获取 cache 并带出超时时间
+	// GetWithExpire gets the cache based on the key and brings up the timeout
 	v, t, ok := ch.GetWithExpire("k1")
 	if !ok {
 		// v == nil
 	}
-	// 如果超时时间是 NoExpire t.IsZero() == true
+	// if the timeout is NoExpire t.IsZero() == true
 	if t.IsZero() {
-		// 没有设置超时时间
+		// No timeout is set
 	}
 
-	// Iterator 返回 cache 中所有有效的对象
+	// Iterator returns all valid objects in the cache
 	mp := ch.Iterator()
 	for s, iterator := range mp {
 		log.Println(s, iterator)
 	}
 	
-	// Count 返回member数量
+	// Count returns the number of members
 	log.Println(ch.Count())
 }
 
 func ExampleIncrement() {
 	ch.Set("k3", 1, DefaultExpire)
 	ch.Set("k4", 1.1, DefaultExpire)
-	// Increment 为k对应的value增加n n必须为数字类型
+	// Increment adds n to the value corresponding to k n must be a number type
 	err := ch.Increment("k3", 1)
 	if CacheErrExpire(err) || CacheErrExist(CacheTypeErr) {
-		// 未设置成功
+		// Not set successfully
 	}
 	_ = ch.IncrementFloat("k4", 1.1)
 
-	// 如果你知道设置的k的具体类型 还可以使用类型确定的 increment函数
+	// If you know the exact type of k to set you can also use the type-determining increment function
 	// ch.IncrementInt(k string, v int)
 	// ...
-	// ch.IncrementFloat32(k string, v flot32)
+	// IncrementFloat32(k string, v flot32) // ch.
 	// ...
 
-	// Decrement 同理
+	// Decrement the same
 }
 
 func ExampleDelete() {
-	// Delete 如果设置了 capture 会触发不或函数
+	// Delete triggers the not-or function if capture is set
 	ch.Delete("k1")
 
-	// DeleteExpire 删除所有过期了的key, 默认的 capture 就是执行 DeleteExpire()
+	// DeleteExpire Deletes all expired keys, the default capture is to execute DeleteExpire()
 	ch.DeleteExpire()
 }
 
 func ExampleChangeCapture() {
-	// 提供了在运行中改变捕获函数的方法
+	// Provides a way to change the capture function on the fly
 	// ChangeCapture
 	ch.ChangeCapture(func(k string, v interface{}) {
 		log.Println(k, v)
@@ -276,37 +280,37 @@ func ExampleChangeCapture() {
 }
 
 func ExampleSaveLoad() {
-	// 写入文件采用go独有的gob协议
+	// Write to a file using go's proprietary gob protocol
 
 	io := buffer.NewIoBuffer(1000)
 
-	// Save 传入一个 w io.Writer 参数 将 cache中的 member 成员写入w中
+	// Save pass in a w io.Writer argument to write the member members of the cache to w
 	_ = ch.Save(io)
 
-	// SaveFile 传入path 写到文件中
+	// SaveFile pass in a path to write to a file
 	_ = ch.SaveFile("path")
 
-	// Load 传入一个 r io.Reader对象 从 r中读取写回到 member中
+	// Load pass in an r io.Reader object read from r and write back to member
 	_ = ch.Load(io)
 
-	// LoadFile 传入path 读取文件内容
+	// LoadFile pass in path to read the contents of the file
 	_ = ch.LoadFile("path")
 }
 
-func ExampleFlush()  {
-	// Flush 释放member成员
+func ExampleFlush() {
+	// Flush to free member members
 	ch.Flush()
 }
 
-func ExampleShutdown()  {
-	// Shutdown 释放对象
+func ExampleShutdown() {
+	// Shutdown frees the object
 	ch.Shutdown()
 }
 ```
 
 ### singleflight
 
-归并回源
+Merge back to source
 ```go
 package main
 
@@ -314,12 +318,12 @@ import (
 	"github.com/songzhibin97/gkit/cache/singleflight"
 )
 
-// getResources: 一般用于去数据库去获取数据
+// getResources: Generally used to go to the database and fetch data
 func getResources() (interface{}, error) {
 	return "test", nil
 }
 
-// cache: 填充到 缓存中的数据
+// cache: populate the cache with data
 func cache(v interface{}) {
 	return
 }
@@ -327,35 +331,35 @@ func cache(v interface{}) {
 func main() {
 	f := singleflight.NewSingleFlight()
 
-	// 同步:
+	// Synchronize.
 	v, err, _ := f.Do("test1", func() (interface{}, error) {
-		// 获取资源
+		// Get resources
 		return getResources()
 	})
 	if err != nil {
-		// 处理错误
+		// Handle the error
 	}
-	// 存储到buffer
-	// v就是获取到的资源
+	// store to buffer
+	// v is the fetched resource
 	cache(v)
 
-	// 异步
+	// asynchronously
 	ch := f.DoChan("test2", func() (interface{}, error) {
-		// 获取资源
+		// Get resources
 		return getResources()
 	})
 
-	// 等待获取资源完成后,会将结果通过channel返回
+	// Wait for the resource to be fetched, then return the result via channel
 	result := <-ch
 	if result.Err != nil {
-		// 处理错误
+		// Handle the error
 	}
 	
-	// 存储到buffer
-	// result.Val就是获取到的资源
+	// store to buffer
+	// result.Val is the fetched resource
 	cache(result.Val)
 	
-	// 尽力取消
+	// try to cancel
 	f.Forget("test2")
 }
 ```
@@ -363,7 +367,7 @@ func main() {
 
 ## coding
 
-对象序列化反序列化接口以及实例
+Object serialization deserialization interface and examples
 
 ```go
 package main
@@ -371,42 +375,41 @@ package main
 import (
 	"fmt"
 	"github.com/songzhibin97/gkit/coding"
-	_ "github.com/songzhibin97/gkit/coding/json" // 一定要提前导入!!!
+	_ "github.com/songzhibin97/gkit/coding/json" // Be sure to import ahead of time!!!
 )
 
 func main() {
 	t := struct {
-		Gkit  string
+		Gkit string
 		Lever int
 	}{"Gkit", 200}
 	fmt.Println(coding.GetCode("json").Name())
-	data, err := coding.GetCode("json").Marshal(t)
+	GetCode("json").Marshal(t)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println(string(data)) // {"Gkit":"Gkit","Lever":200}
+	fmt.Println(string(data)) // {"Gkit": "Gkit", "Lever":200}
 	v := struct {
-		Gkit  string
+		Gkit string
 		Lever int
 	}{}
 	coding.GetCode("json").Unmarshal(data,&v)
-	fmt.Println(v) // {Gkit 200}
+	fmt.Println(v) // { Gkit 200}
 }
 ```
 
 ## concurrent
 
-并发中channel最佳实践
-
+Channel Best Practices in Concurrency
 
 ## container
 
-容器化组件
+Containerized components
 
 ### group
 
-懒加载容器
+Lazy loading containers
 ```go
 package main
 
@@ -424,12 +427,12 @@ func createResources2() interface{} {
 }
 
 func main() {
-	// 类似 sync.Pool 一样
-	// 初始化一个group
+	// Like sync.Pool
+	// initialize a group
 	g := group.NewGroup(createResources)
 
-	// 如果key 不存在 调用 NewGroup 传入的 function 创建资源
-	// 如果存在则返回创建的资源信息
+	// If the key does not exist call the function passed in by NewGroup to create resources
+	// If it exists, return the information about the created resource
 	v := g.Get("test")
 	fmt.Println(v) // map[1:1 2:2]
 	v.(map[int]int)[1] = 3
@@ -437,19 +440,19 @@ func main() {
 	v2 := g.Get("test")
 	fmt.Println(v2) // map[1:3 2:2]
 
-	// ReSet 重置初始化函数,同时会对缓存的 key进行清空
+	// ReSet resets the initialization function and clears the cached key
 	g.ReSet(createResources2)
 	v3 := g.Get("test")
 	fmt.Println(v3) // []int{1,2,3}
 	
-	// 清空缓存的 buffer
+	// Clear the cached buffer
 	g.Clear()
 }
 ```
 
 ### pool
 
-类似资源池
+Similar to a resource pool
 ```go
 package main
 
@@ -468,60 +471,63 @@ func (m *mock) Shutdown() error {
 	return nil
 }
 
-// getResources: 获取资源,返回的资源对象需要实现 IShutdown 接口,用于资源回收
-func getResources(c context.Context) (pool.IShutdown, error) {
+// getResources: gets resources, returns a resource object that needs to implement the IShutdown interface for resource recycling
+func getResources(context.Context) (pool.IShutdown, error) {
 	return &mock{"mockKey": "mockValue"}, nil
 }
 
 func main() {
 	// pool.NewList(options ...)
-	// 默认配置
+	// default configuration
 	// p = pool.NewList()
 
-	// 可供选择配置选项
+	// Optional configuration options
 
-	// 设置 Pool 连接数, 如果 == 0 则无限制
+	// Set the number of Pool connections, if == 0 then no limit
 	// pool.SetActive(100)
 
-	// 设置最大空闲连接数
+	// Set the maximum number of free connections
 	// pool.SetIdle(20)
 
-	// 设置空闲等待时间
+	// Set idle wait time
 	// pool.SetIdleTimeout(time.Second)
 
-	// 设置期望等待
+	// Set the expected wait
 	// pool.SetWait(false,time.Second)
 
-	// 自定义配置
+	// Customize the configuration
 	p = pool.NewList(
-		pool.SetActive(100),
-		pool.SetIdle(20),
-		pool.SetIdleTimeout(time.Second),
-		pool.SetWait(false, time.Second))
+		pool.SetActive(100).
+		pool.SetIdle(20).
+		pool.SetIdleTimeout(time.Second).
+		SetIdleTimeout(time.Second), pool.SetWait(false, time.Second))
 
-	// New需要实例化,否则在 pool.Get() 会无法获取到资源
+	// New needs to be instantiated, otherwise it will not get the resource in pool.
 	p.NewQueue(getResources)
 
 	v, err := p.Get(context.TODO())
 	if err != nil {
-		// 处理错误
+		// Handle the error
 	}
 	fmt.Println(v) // &map[mockKey:mockValue]
 
-	// Put: 资源回收
-	// forceClose: true 内部帮你调用 Shutdown回收, 否则判断是否是可回收,挂载到list上
+	// Put: Resource recovery
+	// forceClose: true internally help you call Shutdown to recycle, otherwise determine if it is recyclable and mount it on a list
 	err = p.Put(context.TODO(), v, false)
 	if err != nil {
-		// 处理错误  	    
+		// handle the error  	    
 	}
 	
-	// Shutdown 回收资源,关闭所有资源
+	// Shutdown reclaims resources, shutting down all resources
 	_ = p.Shutdown()
 }
 ```
 
+
 ### queue
-codel实现
+
+codel implementation
+
 ```go
 package main
 
@@ -535,19 +541,19 @@ import (
 func main() {
 	queue := codel.NewQueue(codel.SetTarget(40), codel.SetInternal(1000))
 
-	// start 体现 CoDel 状态信息
+	// start reflects CoDel state information
 	start := queue.Stat()
 	fmt.Println(start)
 
 	go func() {
-		// 实际消费的地方
+		// where the actual consumption takes place
 		queue.Pop()
 	}()
 	if err := queue.Push(context.TODO()); err != nil {
 		if err == bbr.LimitExceed {
-			// todo 处理过载保护错误
+			// todo handles overload protection errors
 		} else {
-			// todo 处理其他错误
+			// todo handles other errors
 		}
 	}
 }
@@ -555,7 +561,7 @@ func main() {
 
 ## delayed
 
-延时任务(单机版)
+Delayed tasks (stand-alone version)
 
 ```go
 package main
@@ -578,20 +584,20 @@ func (m mockDelayed) Identify() string {
 }
 
 func main() {
-	// 创建延时对象
-	// delayed.SetSingle() 设置监控信号
-	// delayed.SetSingleCallback() 设置信号回调
-	// delayed.SetWorkerNumber() 设置工作协程
-	// delayed.SetCheckTime() 设置监控时间
+	// Create a delayed object
+	// delayed.SetSingle() sets the monitor signal
+	// delayed.SetSingleCallback() set the signal callback
+	// delayed.SetWorkerNumber() sets the worker concurrently
+	// delayed.SetCheckTime() Set the monitoring time
 	n := delayed.NewDispatchingDelayed()
 
-	// 添加延时任务
+	// add a delayed task
 	n.AddDelayed(mockDelayed{exec: 1})
 	
-	// 强制刷新
+	// Force a refresh
 	n.Refresh()
 	
-	// 关闭
+	// Close
 	n.Close()
 }
 
@@ -599,14 +605,14 @@ func main() {
 
 ## distributed 
 
-分布式任务(详细使用看测试用例)
+Distributed tasks (see test cases for detailed use)
 
 ## downgrade
 
-熔断降级
+Meltdown downgrade
 
 ```go
-// 与 github.com/afex/hystrix-go 使用方法一致,只是做了抽象封装,避免因为升级对服务造成影响
+// Same as github.com/afex/hystrix-go, but in an abstract wrapper to avoid the impact of upgrades on the service
 package main
 
 import (
@@ -650,51 +656,49 @@ func mockFallbackFuncC() FallbackFuncC {
 }
 
 func main() {
-	// 拿到一个熔断器
+	// Get a fuse
 	fuse = downgrade.NewFuse()
 
-	// 不设置 ConfigureCommand 走默认配置
-	// hystrix.CommandConfig{} 设置参数
+	// Leave ConfigureCommand unset and go to the default configuration
+	// hystrix.CommandConfig{} set the parameters
 	fuse.ConfigureCommand("test", hystrix.CommandConfig{})
 
-	// Do: 同步执行 func() error, 没有超时控制 直到等到返回,
-	// 如果返回 error != nil 则触发 FallbackFunc 进行降级
+	// Do: execute func() error synchronously, no timeout control until it returns.
+	// if return error ! = nil then FallbackFunc is triggered to downgrade
 	err := fuse.Do("do", mockRunFunc(), mockFallbackFunc())
 	if err != nil {
-		// 处理 error
+		// Handle the error
 	}
 
-	// Go: 异步执行 返回 channel
+	// Go: asynchronous execution Return channel
 	ch := fuse.Go("go", mockRunFunc(), mockFallbackFunc())
 	select {
 	case err = <-ch:
-	// 处理错误
+	// Handle the error
 	case <-outCH:
 		break
 	}
 
-	// GoC: Do/Go 实际上最终调用的就是GoC, Do主处理了异步过程
-	// GoC可以传入 context 保证链路超时控制
+	// GoC: Do/Go actually ends up calling GoC, the Do master handles the asynchronous process
+	// GoC can be passed into context to ensure link timeout control
 	fuse.GoC(context.TODO(), "goc", mockRunFuncC(), mockFallbackFuncC())
 }
 ```
 
 ## egroup
 
-组件生命周期管理
+Component Lifecycle Management
+
 ```go
 // errorGroup 
-// 级联控制,如果有组件发生错误,会通知group所有组件退出
-// 声明生命周期管理
+// Cascade control, if a component has an error, all components in the group will be notified to exit
+// Declare lifecycle management
 
 package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/songzhibin97/gkit/egroup"
-	"github.com/songzhibin97/gkit/goroutine"
-	"net/http"
 	"os"
 	"syscall"
 	"time"
@@ -721,22 +725,23 @@ func (m *mockLifeAdminer) Shutdown(ctx context.Context) error {
 }
 
 func main() {
-	// 默认配置
-	//admin = egroup.NewLifeAdmin()
+	// Default configuration
+	// admin = egroup.NewLifeAdmin()
 
-	// 可供选择配置选项
+	// Optional configuration options
 
-	// 设置启动超时时间
-	// <=0 不启动超时时间,注意要在shutdown处理关闭通知
+	// set the start timeout
+
+	// <= 0 no start timeout, note that shutdown notifications should be handled at shutdown
 	// egroup.SetStartTimeout(time.Second)
 
-	//  设置关闭超时时间
-	//	<=0 不启动超时时间
+	// Set the shutdown timeout
+	// <=0 no start timeout
 	// egroup.SetStopTimeout(time.Second)
 
-	// 设置信号集合,和处理信号的函数
+	// Set the set of signals, and the functions to handle them
 	// egroup.SetSignal(func(lifeAdmin *LifeAdmin, signal os.Signal) {
-	//	return
+	// return
 	// }, signal...)
 
 	admin = egroup.NewLifeAdmin(egroup.SetStartTimeout(time.Second), egroup.SetStopTimeout(time.Second),
@@ -747,32 +752,32 @@ func main() {
 			default:
 			}
 		}))
-
-	// 通过struct添加
+	
+	// Add via struct
 	admin.Add(egroup.Member{
 		Start:    mockStart(),
 		Shutdown: mockShutdown(),
 	})
 
-	// 通过接口适配
+	// Adapted via interface
 	admin.AddMember(&mockLifeAdminer{})
 
-	// 启动
+	// Start
 	defer admin.Shutdown()
 	if err := admin.Start(); err != nil {
-		// 处理错误
-		// 正常启动会hold主
+		// Handle errors
+		// normal start will hold main
 	}
 }
 
 func Demo() {
-	// 完整demo
+	// Full demo
 	var _admin = egroup.NewLifeAdmin()
 
 	srv := &http.Server{
 		Addr: ":8080",
 	}
-	// 增加任务
+	// Add a task
 	_admin.Add(egroup.Member{
 		Start: func(ctx context.Context) error {
 			fmt.Println("http start")
@@ -785,17 +790,16 @@ func Demo() {
 			return srv.Shutdown(context.Background())
 		},
 	})
-	// _admin.Start() 启动
+	// _admin.Start() start
 	fmt.Println("error", _admin.Start())
 	defer _admin.Shutdown()
 }
 
 ```
 
-
 ## errors
 
-封装一些error处理
+Wrapping some error handling
 
 ```go
 package main
@@ -808,14 +812,14 @@ import (
 	"github.com/songzhibin97/gkit/errors"
 )
 func main() {
-	err := errors.Errorf(http.StatusBadRequest, "原因", "携带信息%s", "测试")
-	err2 := err.AddMetadata(map[string]string{"time": time.Now().String()}) // 携带元信息
-	// err 是原来的错误 err2 是带有元信息的错误
+	err := errors.Errorf(http.StatusBadRequest, "reason", "carrying message %s", "test")
+	err2 := err.AddMetadata(map[string]string{"time": time.Now().String()}) // Carry meta information
+	// err is the original error err2 is the error with meta information
 	fmt.Println(errors.Is(err,err2)) // ture
-	// 可以解析err2 来获取更多的信息
+	// err2 can be parsed to get more information
 	fmt.Println(err2.Metadata["time"]) // meta
 }
-```
+````
 
 ## gctuner
 
@@ -837,11 +841,11 @@ gctuner.TuningWithAuto(false) // Is it a container? Incoming Boolean
 
 ## generator
 
-发号器
+Generator
 
 ### snowflake
 
-雪花算法
+Snowflake algorithm
 
 ```go
 package main
@@ -856,7 +860,7 @@ func main() {
 	ids := generator.NewSnowflake(time.Now(), 1)
 	nid, err := ids.NextID()
 	if err != nil {
-		// 处理错误
+		// Handle the error
 	}
 	fmt.Println(nid)
 }
@@ -865,7 +869,7 @@ func main() {
 
 ## goroutine
 
-池化,控制野生goroutine
+Pooling, controlling wild goroutines
 
 ```go
 package main
@@ -877,7 +881,7 @@ import (
 	"time"
 )
 
-var gGroup goroutine.GGroup
+var gGroup goroutine.
 
 func mockFunc() func() {
 	return func() {
@@ -886,18 +890,18 @@ func mockFunc() func() {
 }
 
 func main() {
-	// 默认配置
-	//gGroup = goroutine.NewGoroutine(context.TODO())
+	// Default configuration
+	// gGroup = goroutine.NewGoroutine(context.TODO())
 
-	// 可供选择配置选项
+	// Optional configuration options
 
-	// 设置停止超时时间
+	// set the stop timeout time
 	// goroutine.SetStopTimeout(time.Second)
 
-	// 设置日志对象
+	// Set the log object
 	// goroutine.SetLogger(&testLogger{})
 
-	// 设置pool最大容量
+	// Set the maximum pool size
 	// goroutine.SetMax(100)
 
 	gGroup = goroutine.NewGoroutine(context.TODO(),
@@ -905,27 +909,27 @@ func main() {
 		goroutine.SetMax(100),
 	)
 
-	// 添加任务
+	// Add a task
 	if !gGroup.AddTask(mockFunc()) {
-		// 添加任务失败
+		// Adding a task failed
 	}
 
-	// 带有超时控制添加任务
+	// Add a task with timeout control
 	if !gGroup.AddTaskN(context.TODO(), mockFunc()) {
-		// 添加任务失败
+		// Failed to add task
 	}
 
-	// 修改 pool最大容量
+	// Modify the pool maximum size
 	gGroup.ChangeMax(1000)
 
-	// 回收资源
+	// Recycle resources
 	_ = gGroup.Shutdown()
 }
 ```
 
 ## log
 
-日志相关
+Logging related
 
 ```go
 package main
@@ -971,8 +975,10 @@ func main() {
 
 ## metrics
 
-提供指标接口,用于实现监控配置
+Provides a metrics interface for implementing monitoring configurations
 ```go
+package main
+
 type Counter interface {
 	With(lvs ...string) Counter
 	Inc()
@@ -996,7 +1002,7 @@ type Observer interface {
 
 ## middleware
 
-中间件接口模型定义
+Middleware interface model definition
 ```go
 package main
 
@@ -1026,7 +1032,7 @@ var (
 	req = struct{}{}
 )
 
-func main()  {
+func main() {
     e := middleware.Chain(
 		annotate("first"),
 		annotate("second"),
@@ -1036,7 +1042,7 @@ func main()  {
 	if _, err := e(ctx, req); err != nil {
 		panic(err)
 	}
-	// Output:
+	// Output.
 	// first pre
 	// second pre
 	// third pre
@@ -1047,49 +1053,44 @@ func main()  {
 }
 ```
 
-
 ## net
 
-网络相关封装
+Network related encapsulation
 
 ### tcp
 ```go
-    // 发送数据至对端,有重试机制
+    // Send data to the other side, with a retry mechanism
     Send(data []byte, retry *Retry) error
 
-    // 接受数据
-    // length == 0 从 Conn一次读取立即返回
-    // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
-    // length > 0 从 Conn 接收到对应的数据返回
+    // Accept data
+    // length == 0 Read from Conn once and return immediately
+    // length < 0 Receive all data from Conn and return it until there is no more data
+    // length > 0 Receive the corresponding data from Conn and return it
     Recv(length int, retry *Retry) ([]byte, error) 
 
-    // 读取一行 '\n'
+    // Read a line of '\n'
     RecvLine(retry *Retry) ([]byte, error) 
 
-    // 读取已经超时的链接
+    // Read a link that has timed out
     RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) 
 
-    // 写入数据给已经超时的链接
+    // Write data to a link that has timed out
     SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error
 
-    // 写入数据并读取返回
+    // Write data and read back
     SendRecv(data []byte, length int, retry *Retry) ([]byte, error)
 
-    // 将数据写入并读出已经超时的链接
+    // Write data to and read from a link that has timed out
     SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error)
 ```
 
-
 ## options
 
-选项模式接口
+Options mode interface
 
 
 ## overload
-
-过载保护
-
-**普通使用**
+**general use**
 
 ```go
 package main
@@ -1101,23 +1102,23 @@ import (
 )
 
 func main() {
-	// 普通使用
+	// Common use
 	
-	// 先建立Group
+	// Create the Group first
 	group := bbr.NewGroup()
-	// 如果没有就会创建
+	// If it doesn't exist, it will be created
 	limiter := group.Get("key")
 	f, err := limiter.Allow(context.TODO())
 	if err != nil {
-		// 代表已经过载了,服务不允许接入
+		// means it is overloaded and the service is not allowed to access it
 		return
 	}
-	// Op:流量实际的操作类型回写记录指标
+	// Op: the actual operation type of the traffic write-back record indicator
 	f(overload.DoneInfo{Op: overload.Success})
 }
 ```
 
-**中间件套用**
+**Middleware application**
 
 ```go
 package main
@@ -1129,32 +1130,32 @@ import (
 )
 
 func main() {
-	// 普通使用
+	// Common use
 
-	// 先建立Group
+	// Create the Group first
 	group := bbr.NewGroup()
-	// 如果没有就会创建
+	// If it doesn't exist, it will be created
 	limiter := group.Get("key")
 	f, err := limiter.Allow(context.TODO())
 	if err != nil {
-		// 代表已经过载了,服务不允许接入
+		// means it is overloaded and the service is not allowed to access it
 		return
 	}
-	// Op:流量实际的操作类型回写记录指标
+	// Op: the actual operation type of the traffic write-back record indicator
 	f(overload.DoneInfo{Op: overload.Success})
 
-	// 建立Group 中间件
+	// Create Group middleware
 	middle := bbr.NewLimiter()
 
-	// 在middleware中 
-	// ctx中携带这两个可配置的有效数据
-	// 可以通过 ctx.Set
+	// in the middleware 
+	// The ctx carries these two configurable valid data
+	// You can get the limiter type via the ctx.Set
 
-	// 配置获取限制器类型,可以根据不同api获取不同的限制器
+	// Configure to get the limiter type, you can get different limiter according to different api
 	ctx := context.WithValue(context.TODO(), bbr.LimitKey, "key")
 
-	// 可配置成功是否上报
-	// 必须是 overload.Op 类型
+	// Configurable to report success or not
+	// must be of type overload.
 	ctx = context.WithValue(ctx, bbr.LimitOp, overload.Success)
 
 	_ = middle
@@ -1163,8 +1164,9 @@ func main() {
 
 ## parser
 
-提供 `.go`文件转`.pb` 以及 `.pb`转`.go`
-`.go`文件转`.pb` 功能更为丰富,例如提供定点打桩代码注入以及去重识别
+Provides `.go` file to `.pb` and `.pb` to `.go` 
+`.go` files to `.pb` are more feature-rich, for example, providing spot staking code injection and de-duplication recognition
+
 ```go
 package main
 
@@ -1183,65 +1185,66 @@ func main() {
 	for _, note := range r.Note {
 		fmt.Println(note.Text, note.Pos(), note.End())
 	}
-	// 输出 字符串,如果需要自行导入文件
+	// Output the string, if you need to import the file yourself
 	fmt.Println(r.Generate())
 
-	// 打桩注入
+	// Pile injection
 	_ = r.PileDriving("", "start", "end", "var _ = 1")
     
-	// 拆装
+	// Dismounting
 	_ = r.PileDismantle("var _ = 1")
 	
 	ppb, err := parsePb.ParsePb("GKit/parse/demo/test.proto")
 	if err != nil {
 		panic(err)
 	}
-	// 输出 字符串,如果需要自行导入文件
+	// Output the string, if you need to import the file yourself
 	fmt.Println(ppb.Generate())
 }
 ```
 
 ## registry
 
-提供注册发现通用接口,使用通用接口外挂依赖
+Provides a generic interface for registering discovery, using a generic interface for external dependencies
 
 ```go
-// Registrar: 注册抽象
+package main
+
+// Registrar : Registrar abstraction
 type Registrar interface {
-	// Register: 注册
+	// Register : Register
 	Register(ctx context.Context, service *ServiceInstance) error
-	// Deregister: 注销
+	// Deregister : Logout
 	Deregister(ctx context.Context, service *ServiceInstance) error
 }
 
-// Discovery: 服务发现抽象
+// Discovery : Service discovery abstraction
 type Discovery interface {
-	// GetService: 返回服务名相关的服务实例
+	// GetService : Returns the service instance associated with the service name
 	GetService(ctx context.Context, serviceName string) ([]*ServiceInstance, error)
-	// Watch: 根据服务名创建监控
+	// Watch : Creates a watch based on the service name
 	Watch(ctx context.Context, serviceName string) (Watcher, error)
 }
 
-// Watcher: 服务监控
+// Watcher : Service monitoring
 type Watcher interface {
-	// Watch需要满足以下条件
-	// 1. 第一次 GetService 的列表不为空
-	// 2. 发现任何服务实例更改
-	// 不满足以上两种条件,Next则会无限等待直到上下文截止
+	// Next Watch requires the following conditions to be met
+	// 1. the first GetService list is not empty
+	// 2. Any service instance changes are found
+	// If the above two conditions are not met, Next will wait indefinitely until the context is closed
 	Next() ([]*ServiceInstance, error)
-	// Stop: 停止监控行为
+	// Stop : stops the monitoring behaviour
 	Stop() error
 }
 ```
 
-
 ## restrictor
 
-限流器
+flow limiter
 
 ### rate
 
-漏桶
+leakage bucket
 
 ```go
 package main
@@ -1254,35 +1257,36 @@ import (
 )
 
 func main() {
-	// 第一个参数是 r Limit。代表每秒可以向 Token 桶中产生多少 token。Limit 实际上是 float64 的别名
-	// 第二个参数是 b int。b 代表 Token 桶的容量大小。
-	// limit := Every(100 * time.Millisecond);
+	// The first argument is r Limit, which represents how many tokens can be generated into the Token bucket per second; Limit is actually an alias for float64
+	// The second argument is b int. b represents the size of the Token bucket.
+	// limit := Every(100 * time.Millisecond).
 	// limiter := rate.NewLimiter(limit, 4)
-	// 以上就表示每 100ms 往桶中放一个 Token。本质上也就是一秒钟产生 10 个。
+	// The above means putting a Token in the bucket every 100ms, which essentially means generating 10 a second.
 
 	// rate: golang.org/x/time/rate
 	limiter := rate.NewLimiter(2, 4)
 
 	af, wf := rate2.NewRate(limiter)
 
-	// af.Allow()bool: 默认取1个token
+	// af.Allow() bool: take 1 token by default
 	// af.Allow() == af.AllowN(time.Now(), 1)
 	af.Allow()
 
-	// af.AllowN(ctx,n)bool: 可以取N个token
+	// af.AllowN(ctx,n) bool: can take N tokens
 	af.AllowN(time.Now(), 5)
 
-	// wf.Wait(ctx) err: 等待ctx超时,默认取1个token
+	// wf.Wait(ctx) err: wait for ctx to time out, default takes 1 token
 	// wf.Wait(ctx) == wf.WaitN(ctx, 1) 
 	_ = wf.Wait(context.TODO())
 
-	// wf.WaitN(ctx, n) err: 等待ctx超时,可以取N个token
+	// wf.WaitN(ctx, n) err: wait for ctx to time out, can take N tokens
 	_ = wf.WaitN(context.TODO(), 5)
 }
 ```
+
 ### ratelimite
 
-令牌桶
+Token bucket
 
 ```go
 package main
@@ -1299,28 +1303,31 @@ func main() {
 	bucket := ratelimit.NewBucket(time.Second/2, 4)
 
 	af, wf := ratelimit2.NewRateLimit(bucket)
-	// af.Allow()bool: 默认取1个token
+	// af.Allow() bool: takes 1 token by default
 	// af.Allow() == af.AllowN(time.Now(), 1)
 	af.Allow()
 
-	// af.AllowN(ctx,n)bool: 可以取N个token
+	// af.AllowN(ctx,n) bool: can take N tokens
 	af.AllowN(time.Now(), 5)
 
-	// wf.Wait(ctx) err: 等待ctx超时,默认取1个token
+	// wf.Wait(ctx) err: wait for ctx to time out, default takes 1 token
 	// wf.Wait(ctx) == wf.WaitN(ctx, 1) 
 	_ = wf.Wait(context.TODO())
 
-	// wf.WaitN(ctx, n) err: 等待ctx超时,可以取N个token
+	// wf.WaitN(ctx, n) err: wait for ctx to time out, can take N tokens
 	_ = wf.WaitN(context.TODO(), 5)
 }
 ```
 
-## structure (常用数据结构)
+## structure (common data structures)
 
 ### hashset
 
 ```go
-    l := hashset.NewInt()
+package main
+
+func main() {
+	l := hashset.NewInt()
 
 	for _, v := range []int{10, 12, 15} {
 		l.Add(v)
@@ -1337,11 +1344,16 @@ func main() {
 
 	l.Remove(15)
 	fmt.Printf("hashset contains %d items\r\n", l.Len())
+}
 ```
+
 
 ### lscq
 
 ```go
+package main
+
+func main() {
     l := lscq.NewUint64()
 	
 	ok := l.Enqueue(1)
@@ -1352,13 +1364,18 @@ func main() {
 	if err != nil {
 		panic("dequeue failed")
     }
-	fmt.Println("lscq dequeue value:", v)}
+	fmt.Println("lscq dequeue value:", v)
+}
 ```
+
 
 ### skipmap 
 
 ```go
-    m := skipmap.NewInt()
+package main
+
+func main() {
+     m := skipmap.NewInt()
 
 	// Correctness.
 	m.Store(123, "123")
@@ -1366,11 +1383,13 @@ func main() {
 	m.Delete(123)
 	m.LoadOrStore(123)
 	m.LoadAndDelete(123)
+}
 ```
 
 ### skipset 
 
 ```go
+package main
 func Example() {
 	l := skipset.NewInt()
 
@@ -1394,51 +1413,60 @@ func Example() {
 }
 ```
 
-### zset 查看对应readme 
+
+### zset View corresponding readme 
 
 ## sys
 ### mutex
-    锁相关封装（实现了trylock、重入锁等、重入token锁,还可以获取锁指标数据）
+    Lock-related wrappers (implements trylock, reentrant locks, etc., reentrant token locks, can also get lock indicator data)
 ```go
-    // 获取锁
+package main
+
+func main() {
+     // Get the lock
     lk := mutex.NewMutex()
-    // 尝试获取锁
+    // Try to get a lock
     if lk.TryLock() {
-    	// 获取到锁
+    	// Get the lock
     	defer lk.Unlock()
     }
-    // 获取失败执行其他逻辑
+    // Failed to execute other logic
     
-    lk.Count() // 获取等待锁的数量
+    lk.Count() // get the number of locks waiting
     
-    lk.IsLocked() // 锁是否被持有
+    lk.IsLocked() // whether the lock is held
     
-    lk.IsWoken() // 内部是否有等待者被唤醒
+    lk.IsWoken() // whether a waiter has been woken up internally
     
-    lk.IsStarving() // 是否处于饥饿模式
+    lk.IsStarving() // whether it is in starvation mode
     
-    // 重入锁
-    // 在同一个goroutine可以多次获取
+    // Reentrant locks
+    // can be acquired multiple times in the same goroutine
     rvlk := mutex.NewRecursiveMutex() 
     rvlk.Lock()
     defer rvlk.Unlock()
     
-    // token重入锁
-    // 传入相同token 可以实现重入功能
+    // token reentrant lock
+    // Pass in the same token to enable the reentrant function
     tklk := mutex.NewTokenRecursiveMutex()
     tklk.Lock(token)
     defer tklk.Unlock(token)
-    
+}
 ```
+
 
 ## ternary
 ```go
+package main
+
+func main() {
     ternary.ReturnInt(true, 1, 2) 
+}
 ```
 
 ## timeout
 
-各个服务间的超时控制(以及处理时间格式的结构体)
+Timeout control between services (and a structure to handle the time format)
 
 ```go
 package main
@@ -1450,15 +1478,15 @@ import (
 )
 
 func main() {
-	// timeout.Shrink 方法提供全链路的超时控制
-	// 只需要传入一个父节点的ctx 和需要设置的超时时间,他会帮你确认这个ctx是否之前设置过超时时间,
-	// 如果设置过超时时间的话会和你当前设置的超时时间进行比较,选择一个最小的进行设置,保证链路超时时间不会被下游影响
-	// d: 代表剩余的超时时间
-	// nCtx: 新的context对象
-	// cancel: 如果是成功真正设置了超时时间会返回一个cancel()方法,未设置成功会返回一个无效的cancel,不过别担心,还是可以正常调用的
+	// The timeout.Shrink method provides link-wide timeout control
+	// Just pass in a ctx of the parent node and the timeout to be set, and he will check for you if the ctx has been set before.
+	// If the timeout has been set, it will be compared with the timeout you currently set, and the smallest one will be set to ensure that the link timeout is not affected downstream.
+	// d: represents the remaining timeout period
+	// nCtx: the new context object
+	// cancel: returns a cancel() method if the timeout was actually set successfully, or an invalid cancel if it was not, but don't worry, it can still be called normally
 	d, nCtx, cancel := timeout.Shrink(context.Background(), 5*time.Second)
-	// d 根据需要判断 
-	// 一般判断该服务的下游超时时间,如果d过于小,可以直接放弃
+	// d as needed 
+	// Generally determine the downstream timeout for the service, if d is too small you can just drop it
 	select {
 	case <-nCtx.Done():
 		cancel()
@@ -1468,17 +1496,16 @@ func main() {
 	_ = d
 }
 ```
-其他
+Other
 ```go
-    timeout.DbJSON // 提供db json格式的一些功能
-	timeout.DTime // 提供db 15:04:05 格式的一些功能
-	timeout.DateStruct // 提供db 15:04:05 格式的一些功能 嵌入模式为struct
-	timeout.Date // 提供db 2006-01-02 格式的一些功能
-	timeout.DateTime // 提供db 2006-01-02 15:04:05 格式的一些功能
-	timeout.DateTimeStruct // 提供db 2006-01-02 15:04:05 格式的一些功能 嵌入模式为struct
-	timeout.Stamp // 提供db 时间戳格式的一些功能
+    // timeout.DbJSON // provides some functionality in db json format
+	// timeout.DTime // provides some functionality in db 15:04:05 format
+	// DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
+	// Date // provides some functionality in db 2006-01-02 format
+	// DateTime // provides some functions in db 2006-01-02 15:04:05 format
+	// DateTimeStruct // provides some functions in db 2006-01-02 15:04:05 format Embed mode as struct
+	// timeout.Stamp // provides some functionality in db timestamp format
 ```
-
 
 ```go
 package main
@@ -1498,7 +1525,7 @@ type GoStruct struct {
 }
 
 func main() {
-	// 参考 https://github.com/go-sql-driver/mysql#dsn-data-source-name 获取详情
+	// refer to https://github.com/go-sql-driver/mysql#dsn-data-source-name for details
 	dsn := "user:pass@tcp(127.0.0.1:3306)/dbname?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -1506,15 +1533,16 @@ func main() {
 	}
 	db.AutoMigrate(&GoStruct{})
 	db.Create(&GoStruct{
-		DateTime: timeout.DateTime(time.Now()),
-		DTime:    timeout.DTime(time.Now()),
-		Date:     timeout.Date(time.Now()),
+		DateTime: timeout.DateTime(time.Now()).
+		DTime: timeout.DTime(time.Now()).
+		Date: timeout.Date(time.Now()).
 	})
 	v := &GoStruct{}
-	db.Find(v) // 成功查出
+	db.Find(v) // successfully found
 }
 
 ```
+
 
 
 ## tools
@@ -1524,7 +1552,7 @@ func main() {
 
 package main
 
-// 为 gin提供一个全能bind工具
+// Provide an all-in-one bind tool for gin
 import (
 	"github.com/songzhibin97/gkit/tools/bind"
 
@@ -1532,22 +1560,22 @@ import (
 )
 
 type Test struct {
-	Json  string `json:"json" form:"json,default=jjjson"`
-	Query string `json:"query" form:"query"`
+	Json string `json: "json" form: "json,default=jjjson"`
+	Query string `json: "query" form: "query"`
 }
 
 func main() {
 	r := gin.Default()
-	r.POST("test", func(c *gin.Context) {
+	r.POST("test", func(c * gin.Context) {
 		t := Test{}
 		// url : 127.0.0.1:8080/test?query=query
 		// {
-		//  "json":"json",
-		//  "query":"query"
+		// "json": "json".
+		// "query": "query"
 		// }
-		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()),bind.)
-		// 自定义binding对象
-		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(),bind.SetSelectorParse([]bind.Binding{})))
+		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()), bind.)
+		// Custom binding object
+		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(), bind.SetSelectorParse([]bind.Binding{})))
 		if err != nil {
 			c.JSON(200, err)
 			return
@@ -1565,8 +1593,8 @@ package main
 import "github.com/songzhibin97/gkit/tools/vto"
 
 type CP struct {
-	Z1 int `default:"1"`
-	Z2 string `default:"z2"`
+	Z1 int `default: "1"`
+	Z2 string `default: "z2"`
 }
 
 func main() {
@@ -1578,26 +1606,25 @@ func main() {
 	c3 := CP{}
 	_ = vto.VoToDo(&c2,&c1)
 	// c2 CP{ Z1: 22, Z2: "33"}
-	// 相同名称相同类型的执行复制
-	// 一定要dst、src 必须传指针类型
+	// same name same type execution copy
+	// must be dst, src must pass pointer type
 	
-	// v1.1.2 新增default标签
+	// v1.1.2 New default tag
 	_ = vto.VoToDo(&c2,&c3)
 	// c2 CP{ Z1: 1, Z2: "z2"}
-	// 相同名称相同类型的执行复制
-	// 一定要dst、src 必须传指针类型
+	// same name same type execution copy
+	// must dst, src must pass pointer type
 	
 }
 ```
 
 ### votodoPlus
 
-增加了字段&tag&默认值
-
+Added field &tag & default value
 
 ## window
 
-提供指标窗口
+Provide indicator windows
 ```go
 package main
 
@@ -1609,12 +1636,12 @@ import (
 func main() {
 	w := window.NewWindow()
 	slice := []window.Index{
-		{Name: "1", Score: 1}, {Name: "2", Score: 2},
-		{Name: "2", Score: 2}, {Name: "3", Score: 3},
-		{Name: "2", Score: 2}, {Name: "3", Score: 3},
-		{Name: "4", Score: 4}, {Name: "3", Score: 3},
-		{Name: "5", Score: 5}, {Name: "2", Score: 2},
-		{Name: "6", Score: 6}, {Name: "5", Score: 5},
+		{Name: "1", Score: 1}, {Name: "2", Score: 2}.
+		{Name: "2", Score: 2}, {Name: "3", Score: 3}.
+		{Name: "2", Score: 2}, {Name: "3", Score: 3}.
+		{Name: "4", Score: 4}, {Name: "3", Score: 3}.
+		{Name: "5", Score: 5}, {Name: "2", Score: 2}.
+		{Name: "6", Score: 6}, {Name: "5", Score: 5}.
 	}
 	/*
 			[{1 1} {2 2}]
@@ -1633,9 +1660,8 @@ func main() {
 }
 ```
 
-
 ## trace
-链路追踪
+Link tracing
 
 ```go
 package main
@@ -1663,10 +1689,10 @@ func (tr *_Transport) Keys() []string {
 	panic("implement me")
 }
 func main() {
-	// trace.WithServer() 服务端使用中间件
-	// trace.WithClient() 客户端使用中间件
+	// trace.WithServer() server side using middleware
+	// trace.WithClient() client using middleware
 	tracer := gtrace.NewTracer(trace.SpanKindServer)
-	ctx, span := tracer.Start(context.Background(), "使用gkit", &_Transport{})
+	ctx, span := tracer.Start(context.Background(), "Using gkit", &_Transport{})
 	fmt.Println(span)
 	defer tracer.End(ctx, span, "replay", nil)
 }
@@ -1674,4 +1700,4 @@ func main() {
 
 ## watching
 
-系统监控(包含cpu、mum、gc、goroutine等窗口监控,在预设波动值后dump pprof)
+System monitoring (includes cpu, mum, gc, goroutine, etc. window monitoring, dump pprof after preset fluctuation values)
