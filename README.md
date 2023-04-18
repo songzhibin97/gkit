@@ -18,39 +18,39 @@ Dedicated to providing microservices and monolithic services of the availability
 
 # Directory structure
 ```shell
-├─ cache (builds cache-related components)
+├── cache (builds cache-related components)
   ├── buffer (provides byte array reuse and io buffer wrapping)
   ├── mbuffer (buffer-like implementation) 
   ├── local_cache (provides local key-value wrapper implementation for building local caches)
   ├── singleflight (provides prevention of duplicate tasks in high concurrency situations, generally used to fill cache miss scenarios)
 ├── coding (provides object serialization/deserialization interface, provides json, proto, xml, yaml instance methods)
-├─ concurrent (best practices for using channels in concurrency)
+├── concurrent (best practices for using channels in concurrency)
   ├── fan_in (fan-in pattern, commonly used with multiple producers and one consumer in the producer-consumer model)
   ├── fan_out (fan-out mode, often used with a producer-consumer model where there are multiple producers and multiple consumers)
   ├── or_done (a concurrency scenario in which any one task is returned immediately after completion)
   ├── orderly (keep orderly completion even in concurrent scenarios)
-  ├─ map_reduce 
-  ├─ stream (provides data production stream encapsulation, and implementation of processing streams)
-  ├─ pipeline (concurrency becomes serial)
-├─ container (containerized component, providing groups, pools, queues)
-  ├─ group (provides a lazy loading mode for containers, similar to sync.Pool, which uses a key to get the corresponding container instance when used, or generates it if it doesn't exist)
-  pool (provides a wrapped abstraction of pool, and an implementation of the interface using lists)
-  ├─ queue
-    ├─ codel (implements a controlled delay algorithm for columns, and sanctions backlogged tasks)
-├─ delayed (delayed tasks - standalone version)
+  ├── map_reduce 
+  ├── stream (provides data production stream encapsulation, and implementation of processing streams)
+  ├── pipeline (concurrency becomes serial)
+├── container (containerized component, providing groups, pools, queues)
+  ├── group (provides a lazy loading mode for containers, similar to sync.Pool, which uses a key to get the corresponding container instance when used, or generates it if it doesn\'t exist)
+  ├── pool (provides a wrapped abstraction of pool, and an implementation of the interface using lists)
+  ├── queue
+    ├── codel (implements a controlled delay algorithm for columns, and sanctions backlogged tasks)
+├── delayed (delayed tasks - standalone version)
 ├── distributed (distributed tasks, provides standardized interfaces and corresponding implementations for redis, mysql, pgsql, mongodb)
 ├── downgrade (fusion downgrade related components)
 ├── egroup (errgroup, controls component lifecycle)
 ├── errors (grpc error handling)
 ├── gctuner (pre go1.19 gc optimization tool)
 ├── generator (number generator, snowflake)
-├─ goroutine (provide goroutine pools, control goroutine spikes)
-├─ log (interface logging, use logging component to access)
+├── goroutine (provide goroutine pools, control goroutine spikes)
+├── log (interface logging, use logging component to access)
 ├── metrics (interface to metrics)
 ├── middleware (middleware interface model definition)
-├─ net (network related encapsulation)
-  ├─ tcp
-├─ options (option model interfacing)
+├── net (network related encapsulation)
+  ├── tcp
+├── options (option model interfacing)
 ├── overload (server adaptive protection, provides bbr interface, monitors deployed server status to select traffic release, protects server availability)
   ├── bbr (adaptive flow limiting)
 ├── page_token (google aip next token implementation)  
@@ -58,18 +58,18 @@ Dedicated to providing microservices and monolithic services of the availability
   ├── parseGo (parses go to generate pb)
   ├── parsePb (parses pb to generate go)
 ├── registry (service discovery interfacing, google sre subset implementation)
-├─ restrictor (restrict flow, provide token bucket and leaky bucket interface wrappers)
+├── restrictor (restrict flow, provide token bucket and leaky bucket interface wrappers)
   ├── client_throttling (client throttling)
-  ├─ rate 
-  ├─ ratelimite 
-├─ structure (common data structure)
-  ├─ hashset (hash tables)
-  ├─ lscq (lock-free unbounded queue, supports arm)
+  ├── rate 
+  ├── ratelimite 
+├── structure (common data structure)
+  ├── hashset (hash tables)
+  ├── lscq (lock-free unbounded queue, supports arm)
   ├── skipmap 
-  ├─ skipset 
+  ├── skipset 
   ├── zset 
-├─ sync
-    ├─ cpu (Get system information for Linux, including cpu mains, cpu usage, etc.)
+├── sync
+    ├── cpu (Get system information for Linux, including cpu mains, cpu usage, etc.)
     ├── fastrand (random numbers)
     ├── goid (get goroutine id)
     ├── mutex (provides trylock, reentrant lock and token reentrant lock)
@@ -77,30 +77,30 @@ Dedicated to providing microservices and monolithic services of the availability
     ├── once (a more powerful implementation of once, set the once function to return an error, and retry if it fails)
     ├── queue (lock-free queue)
     ├── safe (underlying string, slice structure)
-    ├─ stringx (enhanced version of string)
-    ├─ syncx (sync enhancement)
+    ├── stringx (enhanced version of string)
+    ├── syncx (sync enhancement)
     ├── xxhash3 
-├─ ternary (ternary expressions)    
-├─ timeout (timeout control, full link protection, provides some encapsulated implementation of database processing time)
+├── ternary (ternary expressions)    
+├── timeout (timeout control, full link protection, provides some encapsulated implementation of database processing time)
   ├── ctime (link timeout control)
   ├── c_json (adapt to database json types)
   ├── d_time (adapts to database to store time only)
   ├── date (Adapts database to store dates only)
-  ├─ date_struct (Adapts database to store dates only)
-  ├─ datetime (adapter database stores datetime)
-  ├─ datetime_struct (adapter database stores datetime)
+  ├── date_struct (Adapts database to store dates only)
+  ├── datetime (adapter database stores datetime)
+  ├── datetime_struct (adapter database stores datetime)
   ├── stamp (adapter database stores timestamps)
   ├── human (provides visual time spacing)
-├─ tools 
+├── tools 
   ├── bind (binding tool, often used with the gin framework to customize the bound data, e.g. binding both query and json)
   ├── deepcopy (deep copy)
   ├── float (floating point truncation tool)
   ├── match (base matcher, match on wildcards)
-  ├─ pointer (pointer tool)
-  ├─ pretty (formatting json)
-  ├─ reflect2value (basic field mapping)
-  ├─ rand_string (random strings)
-  ├─ vto (assignment of functions with the same type, hands free, usually used for vo->do object conversions)
+  ├── pointer (pointer tool)
+  ├── pretty (formatting json)
+  ├── reflect2value (basic field mapping)
+  ├── rand_string (random strings)
+  ├── vto (assignment of functions with the same type, hands free, usually used for vo->do object conversions)
     ├── vtoPlus (adds plus support for field, tag and default value binding)
 ├── trace (link tracing)
 ├── watching (monitor cpu, mum, gc, goroutine and other metrics, automatically dump pprof metrics in case of fluctuations)
