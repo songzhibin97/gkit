@@ -43,7 +43,7 @@ Dedicated to providing microservices and monolithic services of the availability
 ├── egroup (errgroup, controls component lifecycle)
 ├── errors (grpc error handling)
 ├── gctuner (pre go1.19 gc optimization tool)
-├óΓé¼╦£generator' (number generator, snowflake)
+├── generator (number generator, snowflake)
 ├─ goroutine (provide goroutine pools, control goroutine spikes)
 ├─ log (interface logging, use logging component to access)
 ├── metrics (interface to metrics)
