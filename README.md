@@ -11,7 +11,8 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
        _\//\\\\\\\\\\\\/__\/\\\______\//\\\__/\\\\\\\\\\\_______\/\\\_______ 
         __\////////////____\///________\///__\///////////________\///________                                 
 ```
-
+ 
+##### Translate to: [简体中文](README_zh.md)
 
 # Project Description
 Dedicated to providing microservices and monolithic services of the availability of a collection of basic component tools, drawing on some of the best open source projects such as : `kratos`, `go-kit`, `mosn`, `sentinel`, `gopkg` ... We hope you will support us!
@@ -118,6 +119,9 @@ go get github.com/songzhibin97/gkit
 ## cache
 
 Cache-related components
+> buffer & mbuffer provide similar functionality, buffer has more encapsulation and implements some interfaces to io, while mbuffer is just a memory cache; it is more suitable for short and frequent life cycles.
+> local_cache provides a local data cache, and also has some expiry mechanisms, you can set the expiry time, and regularly clean up the expired data, but he is now older, if needed there is a generic version https://github.com/songzhibin97/go-baseutils/blob/main/ app/bcache
+> singleflight wraps golang.org/x/sync/singleflight to prevent the effects of changes.
 
 
 ### buffer pool
