@@ -118,6 +118,9 @@ go get github.com/songzhibin97/gkit
 ## cache
 
 缓存相关组件
+> buffer&mbuffer 提供的功能类似,buffer多了一些封装,以及实现了io方面的一些接口,而mbuffer仅仅是一个memory的缓存;在生命周期较短且频繁的情况下更适用;
+> local_cache 提供了本地的数据缓存,也有一些失效机制,可以设置过期时间,以及定时清理过期数据,但是他现在比较旧了,如果需要的话有泛型版本 https://github.com/songzhibin97/go-baseutils/blob/main/app/bcache
+> singleflight 封装了 golang.org/x/sync/singleflight,防止变更带来的影响.
 
 ### buffer pool
 ```go
