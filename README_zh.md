@@ -367,8 +367,7 @@ func main() {
 
 
 ## coding
-
-对象序列化反序列化接口以及实例
+> 对象序列化反序列化接口以及实例封装,只需要导入匿名,例如json `_ "github.com/songzhibin97/gkit/coding/json"` 也可以实现对应接口后,进行注册,好处是可以控制全局序列化对象以及使用库的统一
 
 ```go
 package main
