@@ -370,8 +370,7 @@ func main() {
 
 
 ## coding
-
-Object serialization deserialization interface and examples
+> Object serialization deserialization interface and instance encapsulation, just import anonymous, such as json `_ "github.com/songzhibin97/gkit/coding/json"` You can also implement the corresponding interface, after registration, the benefit is to control the global serialization object and the use of library unity
 
 ```go
 package main
