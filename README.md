@@ -404,7 +404,7 @@ func main() {
 
 ## concurrent
 
-Channel Best Practices in Concurrency
+> Best practices for channel in concurrency, including fan_in,fan_out,map_reduce,or_done,orderly,pipeline,stream,generic version can be found at https://github.com/songzhibin97/go-baseutils/tree/main/app/bconcurrent
 
 ## container
 

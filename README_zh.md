@@ -401,7 +401,7 @@ func main() {
 
 ## concurrent
 
-并发中channel最佳实践
+> 并发中channel最佳实践,包含 fan_in,fan_out,map_reduce,or_done,orderly,pipeline,stream,泛型版本可以参考 https://github.com/songzhibin97/go-baseutils/tree/main/app/bconcurrent
 
 
 ## container
