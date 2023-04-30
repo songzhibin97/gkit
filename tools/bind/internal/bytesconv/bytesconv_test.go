@@ -38,7 +38,7 @@ func TestBytesToString(t *testing.T) {
 
 func TestStringToBytes(t *testing.T) {
 	for i := 0; i < 100; i++ {
-		s := rand_string.RandStringBytesMaskImprSrc(64)
+		s := rand_string.RandomLetter(64)
 		if !bytes.Equal(rawStrToBytes(s), StringToBytes(s)) {
 			t.Fatal("don't match")
 		}

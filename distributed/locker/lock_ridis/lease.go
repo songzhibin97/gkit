@@ -68,7 +68,7 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 		c.enable = false
 	}
 
-	mark := rand_string.RandStringBytesMaskImprSrc(c.randomNum)
+	mark := rand_string.RandomLetter(c.randomNum)
 	err := lock.Lock(key, expire, mark)
 	if err != nil {
 		return nil, err
