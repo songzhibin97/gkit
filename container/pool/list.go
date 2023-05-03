@@ -231,7 +231,7 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 	return s.Shutdown()
 }
 
-// IShutdown 关闭
+// Shutdown 关闭
 func (l *List) Shutdown() error {
 	l.mu.Lock()
 	if atomic.SwapUint32(&l.closed, 1) == 1 {
