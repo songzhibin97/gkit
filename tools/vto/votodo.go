@@ -58,7 +58,7 @@ func VoToDo(dst interface{}, src interface{}) error {
 			continue
 		}
 
-		if d.Type() != s.Type() && d.Kind() == reflect.Struct {
+		if d.Kind() != s.Kind() && d.Kind() == reflect.Struct {
 			err := VoToDo(d.Addr().Interface(), s.Addr().Interface())
 			if err != nil {
 				return err
@@ -67,7 +67,11 @@ func VoToDo(dst interface{}, src interface{}) error {
 		}
 
 		if !s.IsZero() {
-			d.Set(s)
+			if d.Type() == s.Type() {
+				d.Set(s)
+			} else {
+				d.Set(reflect.ValueOf(s.Interface()).Convert(d.Type()))
+			}
 		}
 
 		// 如果源位置的内容为空,并且默认值不为0
@@ -131,7 +135,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				continue
 			}
 
-			if d.Type() != s.Type() && d.Kind() == reflect.Struct {
+			if d.Kind() != s.Kind() && d.Kind() == reflect.Struct {
 				err := VoToDoPlus(d.Addr().Interface(), s.Addr().Interface(), model)
 				if err != nil {
 					return err
@@ -140,7 +144,11 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 			}
 
 			if !s.IsZero() {
-				d.Set(s)
+				if d.Type() == s.Type() {
+					d.Set(s)
+				} else {
+					d.Set(reflect.ValueOf(s.Interface()).Convert(d.Type()))
+				}
 			}
 		}
 	}

@@ -408,7 +408,9 @@ func main() {
 
 ## container
 
-Containerized components
+> Pool, but you can customize the creation function and replace the initialization function.
+> pool pooling object, through the configuration can set the maximum number of connections and the number of waiting connections, synchronous asynchronous acquisition of connections, and connection life cycle management, you can customize the creation function, and replace the initialization function
+> codel implement codel algorithm, can be used to limit the flow, and fuse
 
 ### group
 
