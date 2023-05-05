@@ -154,6 +154,20 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 	}
 
 	if model.Model&TagBind == TagBind {
+
+		srcMapping := make(map[string]reflect.StructField)
+		for i := 0; i < srcT.NumField(); i++ {
+			srcField := srcT.Field(i)
+			if !srcField.IsExported() {
+				continue
+			}
+			tag := srcField.Tag.Get(model.Tag)
+			if tag == "" {
+				continue
+			}
+			srcMapping[tag] = srcField
+		}
+
 		for i := 0; i < dstT.NumField(); i++ {
 			field := dstT.Field(i)
 			if !field.IsExported() {
@@ -167,30 +181,31 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 
 			currentFieldTag := field.Tag.Get(model.Tag)
 
-			// 这里没办法,就需要循环 on^2
-			for j := 0; j < srcT.NumField(); j++ {
-				srcField := srcT.Field(j)
-				if currentFieldTag == srcField.Tag.Get(model.Tag) {
+			srcField, ok := srcMapping[currentFieldTag]
+			if !ok {
+				continue
+			}
 
-					s := srcV.FieldByName(srcField.Name)
-					for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
-						s = s.Elem()
-					}
-					if d.Kind() != s.Kind() {
-						continue
-					}
+			s := srcV.FieldByName(srcField.Name)
+			for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
+				s = s.Elem()
+			}
+			if d.Kind() != s.Kind() {
+				continue
+			}
+			if d.Type() != s.Type() && d.Kind() == reflect.Struct {
+				err := VoToDoPlus(d.Addr().Interface(), s.Addr().Interface(), model)
+				if err != nil {
+					return err
+				}
+				continue
+			}
 
-					if d.Type() != s.Type() && d.Kind() == reflect.Struct {
-						err := VoToDoPlus(d.Addr().Interface(), s.Addr().Interface(), model)
-						if err != nil {
-							return err
-						}
-						continue
-					}
-
-					if !s.IsZero() {
-						d.Set(s)
-					}
+			if !s.IsZero() {
+				if d.Type() == s.Type() {
+					d.Set(s)
+				} else {
+					d.Set(reflect.ValueOf(s.Interface()).Convert(d.Type()))
 				}
 			}
 		}
