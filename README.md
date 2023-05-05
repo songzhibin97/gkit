@@ -566,7 +566,7 @@ func main() {
 
 ## delayed
 
-Delayed tasks (stand-alone version)
+> Stand-alone version of the delay task, using the quadruple heap for implementation, you can customize the monitoring signal, as well as the monitoring time, and the number of work co-processes
 
 ```go
 package main
