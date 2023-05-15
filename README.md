@@ -42,6 +42,7 @@ Dedicated to providing microservices and monolithic services of the availability
 ├── distributed (distributed tasks, provides standardized interfaces and corresponding implementations for redis, mysql, pgsql, mongodb)
 ├── downgrade (fusion downgrade related components)
 ├── egroup (errgroup, controls component lifecycle)
+├── encrypt (Encryption encapsulation, protection padkey complement)
 ├── errors (grpc error handling)
 ├── gctuner (pre go1.19 gc optimization tool)
 ├── generator (number generator, snowflake)
@@ -610,7 +611,7 @@ func main() {
 
 ## distributed 
 
-Distributed tasks (see test cases for detailed use)
+> Distributed tasks, currently supports db(gorm), mongodb, redis on the backend, redis on the scheduling side, redis on the distributed locking side, including retry mechanisms, and deferred tasks
 
 ## downgrade
 
@@ -692,7 +693,7 @@ func main() {
 
 ## egroup
 
-Component Lifecycle Management
+> ErrorGroup, compared with sync.ErrorGroup, adds a fault tolerance mechanism to prevent wild goroutine panic resulting in abnormal system exit
 
 ```go
 // errorGroup 
@@ -802,6 +803,10 @@ func Demo() {
 
 ```
 
+## encrypt
+
+> Encryption encapsulation, protection padkey complement
+
 ## errors
 
 Wrapping some error handling
@@ -828,20 +833,28 @@ func main() {
 
 ## gctuner
 
+> go pre 1.19 gc optimizer
+
 ```go
 
-// Get mem limit from the host machine or cgroup file.
-limit := 4 * 1024 * 1024 * 1024
-threshold := limit * 0.7
+package main
 
-gctuner.Tuning(threshold)
+import "github.com/songzhibin97/gkit/gctuner"
 
-// Friendly input
-gctuner.TuningWithFromHuman("1g")
+func main() {
+	// Get mem limit from the host machine or cgroup file.
+	limit := 4 * 1024 * 1024 * 1024
+	threshold := uint64(float64(limit) * 0.7)
 
-// Auto
-// There may be problems with multiple services in one pod.
-gctuner.TuningWithAuto(false) // Is it a container? Incoming Boolean
+	gctuner.Tuning(threshold)
+
+	// Friendly input
+	gctuner.TuningWithFromHuman("1g")
+
+	// Auto
+	// There may be problems with multiple services in one pod.
+	gctuner.TuningWithAuto(false) // Is it a container? Incoming Boolean
+}
 ```
 
 ## generator

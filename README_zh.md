@@ -41,6 +41,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── distributed (分布式任务,提供了标准化接口以及redis、mysql、pgsql、mongodb对应的实现)
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
+├── encrypt (加密封装,保护padkey补全)
 ├── errors (grpc error处理)
 ├── gctuner (go1.19前优化gc利器)
 ├── generator (发号器,snowflake)
@@ -605,11 +606,12 @@ func main() {
 
 ## distributed 
 
-分布式任务(详细使用看测试用例)
+> 分布式任务, 目前后端支持db(gorm),mongodb,redis,调度端支持redis,分布式锁支持redis,包括重试机制,以及延时任务
+
 
 ## downgrade
 
-熔断降级
+> 熔断降级
 
 ```go
 // 与 github.com/afex/hystrix-go 使用方法一致,只是做了抽象封装,避免因为升级对服务造成影响
@@ -687,7 +689,9 @@ func main() {
 
 ## egroup
 
-组件生命周期管理
+> 组件生命周期管理,与sync.ErrorGroup相比,增加了容错机制,防止野生goroutine panic导致系统异常退出
+
+
 ```go
 // errorGroup 
 // 级联控制,如果有组件发生错误,会通知group所有组件退出
@@ -798,6 +802,9 @@ func Demo() {
 
 ```
 
+## encrypt
+
+> aes加密解密常用方法,包括 padkey填充
 
 ## errors
 
@@ -825,20 +832,27 @@ func main() {
 
 ## gctuner
 
+> go 1.19前优化gc利器
+
 ```go
+package main
 
-// Get mem limit from the host machine or cgroup file.
-limit := 4 * 1024 * 1024 * 1024
-threshold := limit * 0.7
+import "github.com/songzhibin97/gkit/gctuner"
 
-gctuner.Tuning(threshold)
+func main() {
+	// Get mem limit from the host machine or cgroup file.
+	limit := 4 * 1024 * 1024 * 1024
+	threshold := uint64(float64(limit) * 0.7)
 
-// Friendly input
-gctuner.TuningWithFromHuman("1g")
+	gctuner.Tuning(threshold)
 
-// Auto
-// There may be problems with multiple services in one pod.
-gctuner.TuningWithAuto(false) // Is it a container? Incoming Boolean
+	// Friendly input
+	gctuner.TuningWithFromHuman("1g")
+
+	// Auto
+	// There may be problems with multiple services in one pod.
+	gctuner.TuningWithAuto(false) // Is it a container? Incoming Boolean
+}
 ```
 
 ## generator
