@@ -198,33 +198,41 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 			}
 
 			currentFieldTag := field.Tag.Get(model.Tag)
-
-			srcField, ok := srcMapping[currentFieldTag]
-			if !ok {
+			if currentFieldTag == "" || currentFieldTag == "-" {
 				continue
 			}
-
-			s := srcV.FieldByName(srcField.Name)
-			for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
-				s = s.Elem()
-			}
-			if d.Kind() != s.Kind() {
-				continue
-			}
-			if d.Type() != s.Type() && d.Kind() == reflect.Struct {
-				err := VoToDoPlus(d.Addr().Interface(), s.Addr().Interface(), model)
-				if err != nil {
-					return err
+			for _, s := range strings.Split(currentFieldTag, model.TagSqlite) {
+				if _, ok := filterTag[s]; ok {
+					continue
 				}
-				continue
-			}
-
-			if !s.IsZero() {
-				if d.Type() == s.Type() {
-					d.Set(s)
-				} else {
-					d.Set(reflect.ValueOf(s.Interface()).Convert(d.Type()))
+				srcField, ok := srcMapping[s]
+				if !ok {
+					continue
 				}
+
+				ss := srcV.FieldByName(srcField.Name)
+				for ss.Kind() == reflect.Ptr && d.Kind() != ss.Kind() {
+					ss = ss.Elem()
+				}
+				if d.Kind() != ss.Kind() {
+					continue
+				}
+				if d.Type() != ss.Type() && d.Kind() == reflect.Struct {
+					err := VoToDoPlus(d.Addr().Interface(), ss.Addr().Interface(), model)
+					if err != nil {
+						return err
+					}
+					continue
+				}
+
+				if !ss.IsZero() {
+					if d.Type() == ss.Type() {
+						d.Set(ss)
+					} else {
+						d.Set(reflect.ValueOf(ss.Interface()).Convert(d.Type()))
+					}
+				}
+				break
 			}
 		}
 	}
