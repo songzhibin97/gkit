@@ -887,7 +887,7 @@ func main() {
 
 ## goroutine
 
-Pooling, controlling wild goroutines
+> Pooling, control exceptions caused by wild goroutine panic, can set maximum capacity, idle time, patrol time, stop timeout, log objects
 
 ```go
 package main
@@ -899,7 +899,7 @@ import (
 	"time"
 )
 
-var gGroup goroutine.
+var gGroup goroutine.GGroup
 
 func mockFunc() func() {
 	return func() {
@@ -1108,6 +1108,8 @@ Options mode interface
 
 
 ## overload
+> Overload protection, internal current limiting using bbr algorithm
+
 **general use**
 
 ```go
@@ -1177,6 +1179,26 @@ func main() {
 	ctx = context.WithValue(ctx, bbr.LimitOp, overload.Success)
 
 	_ = middle
+}
+```
+
+## page_token
+> https://google.aip.dev/158 Google Pagination
+> The options mode allows you to configure a custom maximum page value, maximum number of elements per page, set the encryption key, and expiration time, page_token to effectively prevent crawlers and page flip attacks, and to limit the interface concurrency.
+
+```go
+package main
+
+import "github.com/songzhibin97/gkit/page_token"
+
+func main() {
+   	n := NewTokenGenerate("test") // Unique identification of the resource, and the option to pass the above
+	// 10000 is the total number
+	// Generate page_token
+	// start - end start and end address, tk is next_token
+	start, end, tk, err := n.ProcessPageTokens(10000, 100, "") // 0,100, tk
+	start, end, ntk, err := n.ProcessPageTokens(10000, 100, tk) // 100,200,ntk
+	n.GetIndex(ntk) // 200
 }
 ```
 

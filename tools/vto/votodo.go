@@ -2,6 +2,7 @@ package vto
 
 import (
 	"reflect"
+	"strings"
 
 	"github.com/songzhibin97/gkit/tools"
 
@@ -18,8 +19,10 @@ const (
 )
 
 type ModelParameters struct {
-	Model BindModel `json:"model"` // 绑定参数 默认值为 field bind
-	Tag   string    `json:"tag"`   // tag bind 指定tag,default 为 json
+	Model     BindModel `json:"model"`      // 绑定参数 默认值为 field bind
+	Tag       string    `json:"tag"`        // tag bind 指定tag,default 为 json
+	TagSqlite string    `json:"tag_sqlite"` // 切分tag标识
+	FilterTag []string  `json:"filter_tag"` // 过滤tag
 }
 
 // VoToDo 试图对象与domino对象转换,只能转相同字段且类型相同的
@@ -115,6 +118,16 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 	if model.Model&TagBind == TagBind && len(model.Tag) == 0 {
 		model.Tag = "json"
 	}
+	if model.Model&TagBind == TagBind && len(model.TagSqlite) == 0 {
+		model.TagSqlite = ","
+	}
+	if model.Model&TagBind == TagBind && len(model.FilterTag) == 0 {
+		model.FilterTag = []string{"omitempty"}
+	}
+	filterTag := make(map[string]struct{})
+	for _, s := range model.FilterTag {
+		filterTag[s] = struct{}{}
+	}
 
 	if model.Model&FieldBind == FieldBind {
 		for i := 0; i < dstT.NumField(); i++ {
@@ -162,10 +175,15 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				continue
 			}
 			tag := srcField.Tag.Get(model.Tag)
-			if tag == "" {
+			if tag == "" || tag == "-" {
 				continue
 			}
-			srcMapping[tag] = srcField
+			for _, s := range strings.Split(tag, model.TagSqlite) {
+				if _, ok := filterTag[s]; ok {
+					continue
+				}
+				srcMapping[s] = srcField
+			}
 		}
 
 		for i := 0; i < dstT.NumField(); i++ {

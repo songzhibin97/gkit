@@ -885,7 +885,7 @@ func main() {
 
 ## goroutine
 
-池化,控制野生goroutine
+> 池化,控制野生goroutine panic导致的异常情况, 可以设置最大容量,闲置时间,巡检时间,停止超时时间,日志对象
 
 ```go
 package main
@@ -1109,7 +1109,7 @@ func main()  {
 
 ## overload
 
-过载保护
+> 提供过载保护,内部使用bbr算法进行限流
 
 **普通使用**
 
@@ -1182,6 +1182,26 @@ func main() {
 	_ = middle
 }
 ```
+## page_token
+> https://google.aip.dev/158 Google Pagination
+> 通过选项模式可以配置自定义最大页值,每一页最大元素数,设置加密秘钥,以及过期时间, page_token 可以有效的防止爬虫,以及翻页攻击,也可以限制接口并发量
+
+
+```go
+package main
+
+import "github.com/songzhibin97/gkit/page_token"
+
+func main() {
+   	n := NewTokenGenerate("test") // 资源唯一标识,以及可传上述选项
+	// 10000 为总数
+	// 生成page_token
+	// start - end 起止地址, tk为next_token
+	start, end, tk, err := n.ProcessPageTokens(10000, 100, "") // 0,100, tk
+	start, end, ntk, err := n.ProcessPageTokens(10000, 100, tk) // 100,200,ntk
+	n.GetIndex(ntk) // 200
+}
+```
 
 ## parser
 
@@ -1222,6 +1242,7 @@ func main() {
 	fmt.Println(ppb.Generate())
 }
 ```
+
 
 ## registry
 
