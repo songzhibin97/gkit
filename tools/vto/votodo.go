@@ -57,7 +57,7 @@ func VoToDo(dst interface{}, src interface{}) error {
 			s = s.Elem()
 		}
 
-		if d.Kind() != s.Kind() {
+		if d.Kind() != s.Kind() && !d.CanConvert(s.Type()) {
 			continue
 		}
 
@@ -72,7 +72,7 @@ func VoToDo(dst interface{}, src interface{}) error {
 		if !s.IsZero() {
 			if d.Type() == s.Type() {
 				d.Set(s)
-			} else {
+			} else if s.CanConvert(d.Type()) {
 				d.Set(reflect.ValueOf(s.Interface()).Convert(d.Type()))
 			}
 		}
@@ -144,7 +144,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 			for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
 				s = s.Elem()
 			}
-			if d.Kind() != s.Kind() {
+			if d.Kind() != s.Kind() && !d.CanConvert(s.Type()) {
 				continue
 			}
 
@@ -228,7 +228,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				if !ss.IsZero() {
 					if d.Type() == ss.Type() {
 						d.Set(ss)
-					} else {
+					} else if d.CanConvert(ss.Type()) {
 						d.Set(reflect.ValueOf(ss.Interface()).Convert(d.Type()))
 					}
 				}
