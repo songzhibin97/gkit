@@ -395,3 +395,24 @@ func TestVoToDoPlus(t *testing.T) {
 
 	}
 }
+
+func TestVoToDoCoverType(t *testing.T) {
+	type (
+		mock1 struct {
+			Age   int
+			Money float32
+		}
+		mock2 struct {
+			Age   uint
+			Money float64
+		}
+	)
+	m1, m2 := mock1{}, mock2{
+		Age:   10,
+		Money: 10.01,
+	}
+	err := VoToDo(&m1, &m2)
+	assert.NoError(t, err)
+	assert.Equal(t, m1.Age, 10)
+	assert.Equal(t, m1.Money, float32(10.01))
+}
