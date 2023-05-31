@@ -213,8 +213,9 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	atomic.AddInt64(&l.inFlight, 1)
 	sTime := time.Since(initTime)
 	return func(do overload.DoneInfo) {
-		rt := int64((time.Since(initTime) - sTime) / time.Millisecond)
-		l.rtStat.Add(rt)
+		if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
+			l.rtStat.Add(rt)
+		}
 		atomic.AddInt64(&l.inFlight, -1)
 		switch do.Op {
 		case overload.Success:
