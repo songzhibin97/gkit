@@ -1245,38 +1245,9 @@ func main() {
 
 ## registry
 
-Provides a generic interface for registering discovery, using a generic interface for external dependencies
+> Provides a generic interface for registration discovery, external dependencies using the generic interface, and a fixed instance structure
+> Service discovery provides a variety of algorithms, from the common subset algorithm to the latest rock_steadier_subset(https://dl.acm.org/doi/10.1145/3570937)
 
-```go
-package main
-
-// Registrar : Registrar abstraction
-type Registrar interface {
-	// Register : Register
-	Register(ctx context.Context, service *ServiceInstance) error
-	// Deregister : Logout
-	Deregister(ctx context.Context, service *ServiceInstance) error
-}
-
-// Discovery : Service discovery abstraction
-type Discovery interface {
-	// GetService : Returns the service instance associated with the service name
-	GetService(ctx context.Context, serviceName string) ([]*ServiceInstance, error)
-	// Watch : Creates a watch based on the service name
-	Watch(ctx context.Context, serviceName string) (Watcher, error)
-}
-
-// Watcher : Service monitoring
-type Watcher interface {
-	// Next Watch requires the following conditions to be met
-	// 1. the first GetService list is not empty
-	// 2. Any service instance changes are found
-	// If the above two conditions are not met, Next will wait indefinitely until the context is closed
-	Next() ([]*ServiceInstance, error)
-	// Stop : stops the monitoring behaviour
-	Stop() error
-}
-```
 
 ## restrictor
 
