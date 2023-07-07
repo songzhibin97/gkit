@@ -16,6 +16,13 @@ type Group struct {
 	err       error
 }
 
+func WithContextGroup(ctx context.Context, group goroutine.GGroup) *Group {
+	g := &Group{}
+	g.ctx, g.cancel = context.WithCancel(ctx)
+	g.goroutine = group
+	return g
+}
+
 // WithContext 实例化方法
 func WithContext(ctx context.Context) *Group {
 	g := &Group{}
