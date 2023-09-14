@@ -1467,17 +1467,24 @@ func main() {
 
 
 ## ternary
+
+> Simple implementation of ternary expressions
+> The generic version can be used **[go-baseutils](https://github.com/songzhibin97/go-baseutils/tree/main/base/bternaryexpr)**
+> Be careful not to use the null pointer directly for point arithmetic, as it needs to be called first as an entry, the solution can be to close the incoming function
+
 ```go
 package main
 
+import "github.com/songzhibin97/gkit/ternary"
+
 func main() {
-    ternary.ReturnInt(true, 1, 2) 
+    ternary.ReturnInt(true, 1, 2)  // 1
 }
 ```
 
 ## timeout
 
-Timeout control between services (and a structure to handle the time format)
+> Timeout control between services (and a structure to handle the time format)
 
 ```go
 package main
@@ -1507,23 +1514,20 @@ func main() {
 	_ = d
 }
 ```
-Other
-```go
-    // timeout.DbJSON // provides some functionality in db json format
-	// timeout.DTime // provides some functionality in db 15:04:05 format
-	// DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
-	// Date // provides some functionality in db 2006-01-02 format
-	// DateTime // provides some functions in db 2006-01-02 15:04:05 format
-	// DateTimeStruct // provides some functions in db 2006-01-02 15:04:05 format Embed mode as struct
-	// timeout.Stamp // provides some functionality in db timestamp format
-```
+Other(currently, gorm also has a related type that is supported.)
+> timeout.DbJSON // provides some functionality in db json format
+> timeout.DTime // provides some functionality in db 15:04:05 format
+> DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
+> Date // provides some functionality in db 2006-01-02 format
+> DateTime // provides some functions in db 2006-01-02 15:04:05 format
+> DateTimeStruct // provides some functions in db 2006-01-02 15:04:05 format Embed mode as struct
+> timeout.Stamp // provides some functionality in db timestamp format
 
 ```go
 package main
 
 import (
 	"github.com/songzhibin97/gkit/timeout"
-	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"time"

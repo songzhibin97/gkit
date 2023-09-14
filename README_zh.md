@@ -1464,17 +1464,23 @@ func main() {
 ```
 
 ## ternary
+> 三元表达式的简单实现
+> 可以使用通用版本 **[go-baseutils](https://github.com/songzhibin97/go-baseutils/tree/main/base/bternaryexpr)**
+> 注意不要直接使用空指针进行点运算，因为需要先调用它作为入口，解决办法可以是关闭进入的函数
+
+
 ```go
 package main
+import "github.com/songzhibin97/gkit/ternary"
 
 func main() {
-    ternary.ReturnInt(true, 1, 2) 
+    ternary.ReturnInt(true, 1, 2)  // 1
 }
 ```
 
 ## timeout
 
-各个服务间的超时控制(以及处理时间格式的结构体)
+> 各个服务间的超时控制(以及处理时间格式的结构体)
 
 ```go
 package main
@@ -1504,16 +1510,15 @@ func main() {
 	_ = d
 }
 ```
-其他
-```go
-    // timeout.DbJSON // 提供db json格式的一些功能
-	// timeout.DTime // 提供db 15:04:05 格式的一些功能
-	// timeout.DateStruct // 提供db 15:04:05 格式的一些功能 嵌入模式为struct
-	// timeout.Date // 提供db 2006-01-02 格式的一些功能
-	// timeout.DateTime // 提供db 2006-01-02 15:04:05 格式的一些功能
-	// timeout.DateTimeStruct // 提供db 2006-01-02 15:04:05 格式的一些功能 嵌入模式为struct
-	// timeout.Stamp // 提供db 时间戳格式的一些功能
-```
+其他(目前，GORM还有一个受支持的相关类型.)
+> timeout.DbJSON // provides some functionality in db json format
+> timeout.DTime // provides some functionality in db 15:04:05 format
+> DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
+> Date // provides some functionality in db 2006-01-02 format
+> DateTime // provides some functions in db 2006-01-02 15:04:05 format
+> DateTimeStruct // provides some functions in db 2006-01-02 15:04:05 format Embed mode as struct
+> timeout.Stamp // provides some functionality in db timestamp format
+
 
 
 ```go
@@ -1521,7 +1526,6 @@ package main
 
 import (
 	"github.com/songzhibin97/gkit/timeout"
-	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"time"
