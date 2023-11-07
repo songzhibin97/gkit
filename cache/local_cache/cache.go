@@ -1126,8 +1126,10 @@ func (c *cache) Iterator() map[string]Iterator {
 	}
 	c.RUnlock()
 	// 清除过期key
+	c.Lock()
+	defer c.Unlock()
 	for _, key := range keys {
-		c.Delete(key)
+		c._delete(key)
 	}
 	return ret
 }
