@@ -12,20 +12,20 @@ import (
 type RecursiveMutex struct {
 	sync.Mutex
 	owner     int64 // 当前持有锁的goroutine id
-	recursion int32 // 这个goroutine 重入的次数
+	recursion int64 // 这个goroutine 重入的次数
 }
 
 func (m *RecursiveMutex) Lock() {
 	gid := goid.GetGID()
 	// 如果当前持有锁的goroutine就是这次调用的goroutine,说明是重入
 	if atomic.LoadInt64(&m.owner) == gid {
-		m.recursion++
+		atomic.AddInt64(&m.recursion, 1)
 		return
 	}
 	m.Mutex.Lock()
 	// 获得锁的goroutine第一次调用，记录下它的goroutine id,调用次数加1
 	atomic.StoreInt64(&m.owner, gid)
-	m.recursion = 1
+	atomic.StoreInt64(&m.recursion, 1)
 }
 
 func (m *RecursiveMutex) Unlock() {
@@ -35,8 +35,8 @@ func (m *RecursiveMutex) Unlock() {
 		panic(fmt.Sprintf("wrong the owner(%d): %d!", m.owner, gid))
 	}
 	// 调用次数减1
-	m.recursion--
-	if m.recursion != 0 { // 如果这个goroutine还没有完全释放，则直接返回
+	recursion := atomic.AddInt64(&m.recursion, -1)
+	if recursion != 0 { // 如果这个goroutine还没有完全释放，则直接返回
 		return
 	}
 	// 此goroutine最后一次调用，需要释放锁
