@@ -416,3 +416,70 @@ func TestVoToDoCoverType(t *testing.T) {
 	assert.Equal(t, m1.Age, 10)
 	assert.Equal(t, m1.Money, float32(10.01))
 }
+
+func TestVoToDoNesting(t *testing.T) {
+	type (
+		Mock1 struct {
+			Age   int
+			Money float32
+		}
+
+		Mock2 struct {
+			Age   int
+			Money float32
+		}
+		mock1 struct {
+			Mock Mock1
+		}
+
+		mock2 struct {
+			Mock Mock2
+		}
+	)
+	m1, m2 := mock1{}, mock2{
+		Mock: Mock2{
+			Age:   10,
+			Money: 10.01,
+		},
+	}
+	err := VoToDo(&m1, &m2)
+	assert.NoError(t, err)
+	assert.Equal(t, m1.Mock.Age, 10)
+	assert.Equal(t, m1.Mock.Money, float32(10.01))
+}
+
+func TestVoToDoNesting2(t *testing.T) {
+	type (
+		Mock1 struct {
+			Age   int
+			Money float32
+		}
+
+		Mock2 struct {
+			Age   int
+			Money float32
+		}
+		mock1 struct {
+			Mock1 `tag:"mock"`
+		}
+
+		mock2 struct {
+			Mock2 `tag:"mock"`
+		}
+	)
+	m1, m2 := mock1{}, mock2{
+		Mock2: Mock2{
+			Age:   10,
+			Money: 10.01,
+		},
+	}
+	err := VoToDoPlus(&m1, &m2, ModelParameters{
+		Model:     FieldBind | TagBind,
+		Tag:       "tag",
+		TagSqlite: "",
+		FilterTag: nil,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, m1.Mock1.Age, 10)
+	assert.Equal(t, m1.Mock1.Money, float32(10.01))
+}
