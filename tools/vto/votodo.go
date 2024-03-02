@@ -159,7 +159,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 			if !s.IsZero() {
 				if d.Type() == s.Type() {
 					d.Set(s)
-				} else {
+				} else if s.CanConvert(d.Type()) {
 					d.Set(reflect.ValueOf(s.Interface()).Convert(d.Type()))
 				}
 			}
