@@ -101,8 +101,11 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 	}
 
 	return func() error {
+		if cls.Load() {
+			return nil
+		}
 		cls.Store(true)
-		cancel()
+		defer cancel()
 		return lock.UnLock(key, mark)
 	}, nil
 }
