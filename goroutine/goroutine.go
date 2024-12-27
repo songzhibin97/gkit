@@ -134,7 +134,7 @@ func (g *Goroutine) ChangeMax(m int64) {
 // Shutdown 优雅关闭
 // 符合幂等性
 func (g *Goroutine) Shutdown() error {
-	if atomic.SwapInt32(&g.close, 1) == 1 {
+	if atomic.CompareAndSwapInt32(&g.close, 0, 1) {
 		return ErrRepeatClose
 	}
 	g.cancel()
