@@ -27,6 +27,7 @@ type LifeAdmin struct {
 	opts     *config
 	members  []Member
 	shutdown func()
+	g        *Group
 }
 
 // Add 添加成员表(通过内部 Member 对象添加)
@@ -44,44 +45,41 @@ func (l *LifeAdmin) AddMember(la LifeAdminer) {
 
 // Start 启动
 func (l *LifeAdmin) Start() error {
-	ctx := context.Background()
-	ctx, l.shutdown = context.WithCancel(ctx)
-	g := WithContext(ctx)
 	for _, m := range l.members {
 		func(m Member) {
 			// 如果有shutdown进行注册
 			if m.Shutdown != nil {
-				g.Go(func() error {
+				l.g.Go(func() error {
 					// 等待异常或信号关闭触发
-					<-g.ctx.Done()
-					return goroutine.Delegate(g.ctx, l.opts.stopTimeout, m.Shutdown)
+					<-l.g.ctx.Done()
+					return goroutine.Delegate(l.g.ctx, l.opts.stopTimeout, m.Shutdown)
 				})
 			}
 			if m.Start != nil {
-				g.Go(func() error {
-					return goroutine.Delegate(g.ctx, l.opts.startTimeout, m.Start)
+				l.g.Go(func() error {
+					return goroutine.Delegate(l.g.ctx, l.opts.startTimeout, m.Start)
 				})
 			}
 		}(m)
 	}
 	// 判断是否需要监听信号
 	if len(l.opts.signals) == 0 || l.opts.handler == nil {
-		return g.Wait()
+		return l.g.Wait()
 	}
 	c := make(chan os.Signal, len(l.opts.signals))
 	// 监听信号
 	signal.Notify(c, l.opts.signals...)
-	g.Go(func() error {
+	l.g.Go(func() error {
 		for {
 			select {
-			case <-g.ctx.Done():
-				return g.ctx.Err()
+			case <-l.g.ctx.Done():
+				return l.g.ctx.Err()
 			case sig := <-c:
 				l.opts.handler(l, sig)
 			}
 		}
 	})
-	return g.Wait()
+	return l.g.Wait()
 }
 
 // Shutdown 停止服务
@@ -110,5 +108,15 @@ func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 	for _, opt := range opts {
 		opt(o)
 	}
-	return &LifeAdmin{opts: o}
+
+	l := &LifeAdmin{opts: o}
+
+	ctx := context.Background()
+	ctx, l.shutdown = context.WithCancel(ctx)
+
+	if o.g == nil {
+		o.g = WithContext(context.Background())
+	}
+
+	return l
 }
