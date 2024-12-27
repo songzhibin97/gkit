@@ -22,6 +22,9 @@ type config struct {
 
 	// handler: 捕捉信号后处理函数
 	handler func(*LifeAdmin, os.Signal)
+
+	// group: goroutine group
+	g *Group
 }
 
 // SetStartTimeout 设置启动超时时间
@@ -40,5 +43,13 @@ func SetSignal(handler func(*LifeAdmin, os.Signal), signals ...os.Signal) option
 		conf := c.(*config)
 		conf.handler = handler
 		conf.signals = signals
+	}
+}
+
+// SetGroup 设置goroutine group
+func SetGroup(g *Group) options.Option {
+	return func(c interface{}) {
+		conf := c.(*config)
+		conf.g = g
 	}
 }
