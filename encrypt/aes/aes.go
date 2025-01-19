@@ -29,6 +29,28 @@ func PadKey(s string) string {
 	return string(ps)
 }
 
+func PadKeyToLength(s string, targetLength int) string {
+	if s == "" {
+		s = defaultKey
+	}
+	ps := []byte(s)
+	ls := len(ps)
+
+	// If input is longer than target length, truncate it
+	if ls > targetLength {
+		return string(ps[:targetLength])
+	}
+
+	// Pad the string by repeating the input until reaching target length
+	idx := 0
+	for len(ps) < targetLength {
+		ps = append(ps, s[idx])
+		idx = (idx + 1) % ls
+	}
+
+	return string(ps)
+}
+
 func Encrypt(orig string, key string) string {
 	defer func() {
 		if err := recover(); err != nil {
