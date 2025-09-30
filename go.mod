@@ -1,6 +1,6 @@
 module github.com/songzhibin97/gkit
 
-go 1.17
+go 1.23.0
 
 require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
@@ -22,8 +22,8 @@ require (
 	go.opentelemetry.io/otel v1.3.0
 	go.opentelemetry.io/otel/sdk v1.3.0
 	go.opentelemetry.io/otel/trace v1.3.0
-	golang.org/x/sync v0.4.0
-	golang.org/x/sys v0.17.0
+	golang.org/x/sync v0.11.0
+	golang.org/x/sys v0.30.0
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231212172506-995d672761c0
 	google.golang.org/grpc v1.60.1
@@ -72,7 +72,7 @@ require (
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	golang.org/x/crypto v0.20.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
