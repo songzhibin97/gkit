@@ -35,7 +35,7 @@ func TestStream(t *testing.T) {
 	ret = nil
 	for v := range c {
 		ret = append(ret, v.(int))
-		time.Sleep(time.Second)
+		time.Sleep(time.Second + time.Millisecond)
 	}
 	assert.Equal(t, []int{0, 1, 2}, ret)
 }
@@ -56,7 +56,7 @@ func TestTaskN(t *testing.T) {
 	ret = nil
 	for v := range taskN {
 		ret = append(ret, v.(int))
-		time.Sleep(time.Second)
+		time.Sleep(time.Second + time.Millisecond)
 	}
 	assert.Equal(t, []int{0, 1, 2}, ret)
 }
