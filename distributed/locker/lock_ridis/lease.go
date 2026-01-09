@@ -57,7 +57,7 @@ func SetLeaseLogger(logger log.Logger) options.Option {
 func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option) (func() error, error) {
 	c := leaseConfig{
 		enable:    true,
-		interval:  time.Duration(expire/1000) * time.Second / 3,
+		interval:  time.Duration(expire) * time.Millisecond / 3, // expire单位是毫秒
 		logger:    log.DefaultLogger,
 		randomNum: 6,
 	}
