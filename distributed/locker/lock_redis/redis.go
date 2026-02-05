@@ -1,4 +1,4 @@
-package lock_ridis
+package lock_redis
 
 import (
 	"errors"
@@ -13,11 +13,12 @@ import (
 var (
 	ErrLockFailed   = errors.New("获取锁失败")
 	ErrUnLockFailed = errors.New("释放锁失败")
-	CMDLock         = `if redis.call("GET", KEYS[1]) == ARGV[1] then
-    redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
-    return "OK"
+	ErrRenewFailed  = errors.New("续约锁失败")
+	CMDLock         = `return redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])`
+	CMDRenew        = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("PEXPIRE", KEYS[1], ARGV[2])
 else
-    return redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])
+    return 0
 end`
 	CMDUnlock = `if redis.call("GET", KEYS[1]) == ARGV[1] then
     return redis.call("DEL", KEYS[1])
@@ -42,7 +43,7 @@ func (l *Lock) lock(key string, expire int, mark string) error {
 	}
 	reply, ok := resp.(string)
 	if !ok || reply != "OK" {
-		return ErrUnLockFailed
+		return ErrLockFailed
 	}
 	return nil
 }
@@ -77,6 +78,22 @@ func (l *Lock) UnLock(key string, mark string) error {
 	return nil
 }
 
+func (l *Lock) Renew(key string, expire int, mark string) error {
+	ctx := l.client.Context()
+	resp, err := l.client.Eval(ctx, CMDRenew, []string{key}, []string{mark, strconv.Itoa(expire)}).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return err
+	}
+	if errors.Is(err, redis.Nil) || resp == nil {
+		return ErrRenewFailed
+	}
+	reply, ok := resp.(int64)
+	if !ok || reply != 1 {
+		return ErrRenewFailed
+	}
+	return nil
+}
+
 func NewRedisLock(client redis.UniversalClient, opts ...options.Option) locker.Locker {
 	o := &config{
 		interval: 0,
@@ -85,9 +102,14 @@ func NewRedisLock(client redis.UniversalClient, opts ...options.Option) locker.L
 	for _, opt := range opts {
 		opt(o)
 	}
-	if o.interval <= 0 || o.retries <= 0 {
+	// 如果 interval < 0, 则禁用重试
+	if o.interval < 0 {
 		o.interval = 0
 		o.retries = 0
+	}
+	// 如果 retries > 0 但 interval 未设置, 使用默认值
+	if o.retries > 0 && o.interval == 0 {
+		o.interval = 100 * time.Millisecond
 	}
 	return &Lock{
 		client: client,

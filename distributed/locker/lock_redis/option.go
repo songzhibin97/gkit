@@ -1,4 +1,4 @@
-package lock_ridis
+package lock_redis
 
 import (
 	"time"
