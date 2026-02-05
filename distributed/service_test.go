@@ -13,7 +13,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/songzhibin97/gkit/distributed/broker"
 	"github.com/songzhibin97/gkit/distributed/controller/controller_redis"
-	"github.com/songzhibin97/gkit/distributed/locker/lock_ridis"
+	"github.com/songzhibin97/gkit/distributed/locker/lock_redis"
 )
 
 func initServer() *Server {
@@ -24,7 +24,7 @@ func initServer() *Server {
 	if client == nil {
 		return nil
 	}
-	lock := lock_ridis.NewRedisLock(client)
+	lock := lock_redis.NewRedisLock(client)
 	bk := broker.NewBroker(broker.NewRegisteredTask(), context.Background())
 	c := controller_redis.NewControllerRedis(bk, client, "test_task", "delayed")
 	backend := backend_redis.NewBackendRedis(client, -1)

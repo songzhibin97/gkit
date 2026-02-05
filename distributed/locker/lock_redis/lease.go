@@ -1,4 +1,4 @@
-package lock_ridis
+package lock_redis
 
 import (
 	"context"
@@ -28,6 +28,10 @@ type leaseConfig struct {
 
 	// logger 内部错误输出
 	logger log.Logger
+
+	// maxRetry 续约最大失败次数，超过则自动释放锁，避免死锁
+	// 默认 3 次，-1 表示无限重试
+	maxRetry int
 }
 
 func SetLeaseEnable(enable bool) options.Option {
@@ -48,9 +52,9 @@ func SetLeaseRandomNum(randomNum int) options.Option {
 	}
 }
 
-func SetLeaseLogger(logger log.Logger) options.Option {
+func SetLeaseMaxRetry(maxRetry int) options.Option {
 	return func(c interface{}) {
-		c.(*leaseConfig).logger = logger
+		c.(*leaseConfig).maxRetry = maxRetry
 	}
 }
 
@@ -60,6 +64,7 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 		interval:  time.Duration(expire) * time.Millisecond / 3, // expire单位是毫秒
 		logger:    log.DefaultLogger,
 		randomNum: 6,
+		maxRetry:  3,
 	}
 	for _, op := range ops {
 		op(&c)
@@ -81,19 +86,34 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 		go func() {
 			click := time.NewTicker(c.interval)
 			defer click.Stop()
+			retryCount := 0
 			for {
 				select {
 				case <-ctx.Done():
-					cancel()
 					return
 				case <-click.C:
 					if cls.Load() {
 						return
 					}
 					// 续约
-					err = lock.Lock(key, expire, mark)
-					if err != nil && c.logger != nil {
-						_ = c.logger.Log(log.LevelError, "key", key, "err", err)
+					err := lock.Renew(key, expire, mark)
+					if err != nil {
+						retryCount++
+						if c.maxRetry >= 0 && retryCount >= c.maxRetry {
+							if c.logger != nil {
+								_ = c.logger.Log(log.LevelError, "key", key, "msg", "lease retry exceeded, auto unlocking", "retryCount", retryCount)
+							}
+							// 自动释放锁，避免死锁
+							_ = lock.UnLock(key, mark)
+							cls.Store(true)
+							return
+						}
+						if c.logger != nil {
+							_ = c.logger.Log(log.LevelError, "key", key, "err", err, "retryCount", retryCount)
+						}
+					} else {
+						// 续约成功，重置计数
+						retryCount = 0
 					}
 				}
 			}
