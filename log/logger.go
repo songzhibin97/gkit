@@ -29,12 +29,9 @@ type logger struct {
 func (l *logger) Log(lever Lever, kvs ...interface{}) error {
 	nKvs := make([]interface{}, 0, len(l.prefix)+len(kvs))
 	nKvs = append(nKvs, l.prefix...)
-	if l.hasValuer && len(kvs) > 0 {
-		// 特殊处理
+	nKvs = append(nKvs, kvs...)
+	if l.hasValuer {
 		bindValues(l.ctx, nKvs)
-	}
-	if len(kvs) > 0 {
-		nKvs = append(nKvs, kvs...)
 	}
 
 	for _, log := range l.logs {
