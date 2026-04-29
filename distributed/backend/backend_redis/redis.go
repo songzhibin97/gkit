@@ -29,7 +29,7 @@ type BackendRedis struct {
 	// resultExpire 数据过期时间
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
-	// 单位为ns
+	// 单位为s
 	resultExpire int64
 }
 
@@ -63,7 +63,7 @@ func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...str
 	// 避免接管任务记录被覆盖
 	var ok bool
 	for !ok {
-		ok, err = b.client.SetNX(context.Background(), groupID, body, time.Duration(expire)).Result()
+		ok, err = b.client.SetNX(context.Background(), groupID, body, time.Duration(expire)*time.Second).Result()
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	if expire < 0 {
 		expire = 0
 	}
-	err = b.client.Set(context.Background(), groupID, body, time.Duration(expire)).Err()
+	err = b.client.Set(context.Background(), groupID, body, time.Duration(expire)*time.Second).Err()
 	if err != nil {
 		return false, err
 	}
@@ -258,7 +258,7 @@ func (b *BackendRedis) updateStatus(status *task.Status) error {
 	if expire < 0 {
 		expire = 0
 	}
-	_, err = b.client.Set(context.Background(), status.TaskID, body, time.Duration(expire)).Result()
+	_, err = b.client.Set(context.Background(), status.TaskID, body, time.Duration(expire)*time.Second).Result()
 	return err
 }
 
