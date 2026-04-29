@@ -168,6 +168,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 		// 判断是否需要新增
 		if l.conf.active == 0 || l.active < l.conf.active {
 			if l.f == nil {
+				l.mu.Unlock()
 				return nil, ErrPoolNewFuncIsNull
 			}
 			newItem := l.f
