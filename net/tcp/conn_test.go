@@ -3,6 +3,7 @@ package tcp
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -115,6 +116,45 @@ func TestConn_Recv(t *testing.T) {
 		t.Log("send:", "910", "->", "read:", string(readBody))
 
 	}
+}
+
+// TestConn_SetDeadlineFields 回归测试:确保 SetRecvDeadline 写入 recvTimeout 而非 sendTimeout
+// (历史上曾因复制粘贴 bug 写错字段)
+func TestConn_SetDeadlineFields(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.NoError(t, err)
+	defer l.Close()
+
+	go func() {
+		c, err := l.Accept()
+		if err == nil {
+			defer c.Close()
+		}
+	}()
+
+	mockConn, err := NewConn(l.Addr().String(), nil)
+	assert.NoError(t, err)
+	defer mockConn.Close()
+
+	zero := time.Time{}
+
+	// SetRecvDeadline 只更新 recvTimeout
+	recvDL := time.Now().Add(5 * time.Second)
+	assert.NoError(t, mockConn.SetRecvDeadline(recvDL))
+	assert.Equal(t, recvDL, mockConn.recvTimeout, "SetRecvDeadline 应更新 recvTimeout")
+	assert.Equal(t, zero, mockConn.sendTimeout, "SetRecvDeadline 不应影响 sendTimeout")
+
+	// SetSendDeadline 只更新 sendTimeout
+	sendDL := time.Now().Add(7 * time.Second)
+	assert.NoError(t, mockConn.SetSendDeadline(sendDL))
+	assert.Equal(t, recvDL, mockConn.recvTimeout, "SetSendDeadline 不应影响 recvTimeout")
+	assert.Equal(t, sendDL, mockConn.sendTimeout, "SetSendDeadline 应更新 sendTimeout")
+
+	// SetDeadline 同时更新两者
+	bothDL := time.Now().Add(9 * time.Second)
+	assert.NoError(t, mockConn.SetDeadline(bothDL))
+	assert.Equal(t, bothDL, mockConn.recvTimeout)
+	assert.Equal(t, bothDL, mockConn.sendTimeout)
 }
 
 func TestConn_RecvLine(t *testing.T) {
