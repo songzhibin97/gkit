@@ -216,7 +216,7 @@ func (c *Conn) SetDeadline(t time.Time) error {
 func (c *Conn) SetRecvDeadline(t time.Time) error {
 	err := c.SetReadDeadline(t)
 	if err == nil {
-		c.sendTimeout = t
+		c.recvTimeout = t
 	}
 	return err
 }
