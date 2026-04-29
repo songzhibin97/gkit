@@ -213,7 +213,7 @@ func (z *Float64Set) RevRank(value string) int {
 		return -1
 	}
 	// NOTE: list.Rank returns 1-based rank.
-	return z.list.Rank(score, value) - 1
+	return z.list.length - z.list.Rank(score, value)
 }
 
 // Count returns the number of elements in the sorted set at element with a score
@@ -381,8 +381,8 @@ func (z *Float64Set) RevRangeByScoreWithOpt(max, min float64, opt RangeOpt) []Fl
 //
 // RemoveRangeByRank is the replacement of ZREMRANGEBYRANK command of redis.
 func (z *Float64Set) RemoveRangeByRank(start, stop int) []Float64Node {
-	z.mu.RLock()
-	defer z.mu.RUnlock()
+	z.mu.Lock()
+	defer z.mu.Unlock()
 
 	// Convert negative rank to positive.
 	if start < 0 {
@@ -400,12 +400,12 @@ func (z *Float64Set) RemoveRangeByRank(start, stop int) []Float64Node {
 //
 // RemoveRangeByScore is the replacement of ZREMRANGEBYSCORE command of redis.
 func (z *Float64Set) RemoveRangeByScore(min, max float64) []Float64Node {
-	return z.RevRangeByScoreWithOpt(min, max, RangeOpt{})
+	return z.RemoveRangeByScoreWithOpt(min, max, RangeOpt{})
 }
 
 func (z *Float64Set) RemoveRangeByScoreWithOpt(min, max float64, opt RangeOpt) []Float64Node {
-	z.mu.RLock()
-	defer z.mu.RUnlock()
+	z.mu.Lock()
+	defer z.mu.Unlock()
 
 	return z.list.DeleteRangeByScore(min, max, opt, z.dict)
 }
