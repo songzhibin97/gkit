@@ -71,20 +71,19 @@ func (d *DispatchingDelayed) delDelayed(i int) Delayed {
 		return BadDelayed
 	}
 
+	ret := d.delays[i]
 	last := len(d.delays) - 1
 	if i != last {
 		d.delays[i] = d.delays[last]
 	}
 	d.delays[last] = nil
 	d.delays = d.delays[:last]
-	smallestChanged := i
-	if i != last {
-		// Moving to i may have moved the last timer to a new parent,
-		// so sift up to preserve the heap guarantee.
-		smallestChanged = siftupDelayed(d.delays, i)
+	if i != last && last > 0 {
+		siftupDelayed(d.delays, i)
+		siftdownDelayed(d.delays, i)
 	}
 
-	return d.delays[smallestChanged]
+	return ret
 }
 
 // delDelayedTop pop最小时间
@@ -113,7 +112,7 @@ func (d *DispatchingDelayed) delDelayedTop() Delayed {
 // getTopDelayed 获取下一个需要执行的任务
 func (d *DispatchingDelayed) getTopDelayed() Delayed {
 	d.RLock()
-	d.RUnlock()
+	defer d.RUnlock()
 	if len(d.delays) == 0 {
 		return BadDelayed
 	}
@@ -122,7 +121,7 @@ func (d *DispatchingDelayed) getTopDelayed() Delayed {
 
 // IsInvalid 判断任务是否有效
 func (d *DispatchingDelayed) IsInvalid(delayed Delayed) bool {
-	return delayed == badDelayed{}
+	return delayed == BadDelayed
 }
 
 // Close 关闭
@@ -138,6 +137,7 @@ func (d *DispatchingDelayed) Close() error {
 func (d *DispatchingDelayed) Refresh() {
 	select {
 	case d.refresh <- struct{}{}:
+	default:
 	}
 }
 
