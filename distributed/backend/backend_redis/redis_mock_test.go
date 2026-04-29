@@ -32,7 +32,7 @@ func TestUpdateStatusTTLUnit(t *testing.T) {
 	require.NoError(t, b.SetStatePending(sig))
 
 	ttl := mr.TTL(sig.ID)
-	assert.InDelta(t, time.Hour.Seconds(), ttl.Seconds(), 5,
+	assert.InDelta(t, time.Hour.Seconds(), ttl.Seconds(), 2,
 		"expected TTL ~= 1h, got %s — confirms unit is seconds, not nanoseconds", ttl)
 }
 
@@ -43,8 +43,24 @@ func TestGroupTakeOverTTLUnit(t *testing.T) {
 	require.NoError(t, b.GroupTakeOver("group1", "g", "task1", "task2"))
 
 	ttl := mr.TTL("group1")
-	assert.InDelta(t, (60 * time.Second).Seconds(), ttl.Seconds(), 2,
+	assert.InDelta(t, 60.0, ttl.Seconds(), 2,
 		"expected TTL ~= 60s, got %s", ttl)
+}
+
+// TestTriggerCompletedTTLUnit 回归测试：TriggerCompleted 重写 group key 时 TTL 单位为秒。
+func TestTriggerCompletedTTLUnit(t *testing.T) {
+	b, mr := newMockBackend(t, 60)
+
+	const groupID = "group1"
+	require.NoError(t, b.GroupTakeOver(groupID, "g", "task1", "task2"))
+
+	triggered, err := b.TriggerCompleted(groupID)
+	require.NoError(t, err)
+	require.True(t, triggered)
+
+	ttl := mr.TTL(groupID)
+	assert.InDelta(t, 60.0, ttl.Seconds(), 2,
+		"expected TTL ~= 60s after TriggerCompleted, got %s", ttl)
 }
 
 // TestNeverExpire 验证 resultExpire == -1 时 key 不会过期。
