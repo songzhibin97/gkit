@@ -205,3 +205,29 @@ func TestGetTopDelayed_Race(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// TestSentinel_NoRaceOnDelays 在 -race 下覆盖 sentinel 主循环对 d.delays 的访问：
+// 早先 `for i := 0; i < len(d.delays); i++` 与 close 流程的 `ln := len(d.delays)`
+// 都是无锁读，与 AddDelayed 加锁写并发会触发 data race。
+// 修复后 sentinel 改为 popIfReady（锁内 pop）/ pop 驱动循环，并发场景应通过。
+func TestSentinel_NoRaceOnDelays(t *testing.T) {
+	n := NewDispatchingDelayed(
+		SetCheckTime(time.Millisecond),
+		SetSingle(), // 关闭 signal handler，避免污染全局信号
+	)
+	defer func() { _ = n.Close() }()
+
+	var wg sync.WaitGroup
+	now := time.Now().Unix()
+	for i := 0; i < 200; i++ {
+		wg.Add(1)
+		go func(v int64) {
+			defer wg.Done()
+			n.AddDelayed(mockDelayed{exec: v})
+			n.Refresh()
+		}(now + int64(i%5))
+	}
+	wg.Wait()
+	// 让 sentinel 跑几个 tick，触发与 AddDelayed 的窗口重叠
+	time.Sleep(50 * time.Millisecond)
+}
