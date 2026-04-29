@@ -57,6 +57,7 @@ func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...str
 		return err
 	}
 	expire := b.resultExpire
+	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
 	}
@@ -143,6 +144,7 @@ func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	group.TriggerCompleted = true
 	body, _ := json.Marshal(group)
 	expire := b.resultExpire
+	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
 	}
@@ -255,6 +257,7 @@ func (b *BackendRedis) updateStatus(status *task.Status) error {
 		return err
 	}
 	expire := b.resultExpire
+	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
 	}
