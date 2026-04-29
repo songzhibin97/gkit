@@ -1,7 +1,6 @@
 package page_token
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
@@ -36,24 +35,25 @@ type token struct {
 }
 
 func (t *token) ForIndex(i int) string {
-	v := aes.Encrypt(fmt.Sprintf("%s%s:%d", t.resourceIdentification, time.Now().Format(layout), i), t.salt)
-	return base64.StdEncoding.EncodeToString(
-		[]byte(v))
+	v, err := aes.Encrypt(fmt.Sprintf("%s%s:%d", t.resourceIdentification, time.Now().Format(layout), i), t.salt)
+	if err != nil {
+		return ""
+	}
+	return v
 }
 
 func (t *token) GetIndex(s string) (int, error) {
 	if s == "" {
 		return 0, nil
 	}
-	bs, err := base64.StdEncoding.DecodeString(s)
+	decrypted, err := aes.Decrypt(s, t.salt)
 	if err != nil {
 		return -1, ErrInvalidToken
 	}
-	decrypted := aes.Decrypt(string(bs), t.salt)
 	if decrypted == "" {
 		return -1, ErrInvalidToken
 	}
-	parseToken := strings.Split(strings.TrimPrefix(string(decrypted), t.resourceIdentification), ":")
+	parseToken := strings.Split(strings.TrimPrefix(decrypted, t.resourceIdentification), ":")
 	if len(parseToken) != 2 {
 		return -1, ErrInvalidToken
 	}
