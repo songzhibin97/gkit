@@ -53,7 +53,7 @@ func (g *Group) Wait() error {
 }
 
 func (g *Group) Shutdown() error {
-	if atomic.CompareAndSwapInt32(&g.close, 0, 1) {
+	if !atomic.CompareAndSwapInt32(&g.close, 0, 1) {
 		return nil
 	}
 	g.wg.Wait()
