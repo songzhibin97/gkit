@@ -294,3 +294,28 @@ func BenchmarkList5(b *testing.B) {
 		}
 	})
 }
+
+// TestListGetWithNilFactory 回归测试: 未设置 New 工厂函数时, Get 应直接返回
+// ErrPoolNewFuncIsNull, 不能因为忘记 Unlock 而让后续调用永久阻塞.
+func TestListGetWithNilFactory(t *testing.T) {
+	pool := NewList(SetActive(1), SetIdle(1), SetWait(false, 10*time.Millisecond))
+	defer func() { _ = pool.Shutdown() }()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_, err := pool.Get(ctx)
+		assert.Equal(t, ErrPoolNewFuncIsNull, err)
+		// 第二次调用必须同样能返回; 修复前因 mu 未释放会在此处永久阻塞.
+		_, err = pool.Get(ctx)
+		assert.Equal(t, ErrPoolNewFuncIsNull, err)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Get() deadlocked when factory is nil")
+	}
+}
