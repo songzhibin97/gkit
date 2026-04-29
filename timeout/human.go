@@ -25,13 +25,13 @@ func HumanDurationFormat(stamp int64, designation ...time.Time) string {
 		return fmt.Sprintf("%d天前", now/(24*time.Hour))
 	}
 
-	if now < 30*7*24*time.Hour {
+	if now < 30*24*time.Hour {
 		return fmt.Sprintf("%d周前", now/(7*24*time.Hour))
 	}
 
-	if now < 12*30*7*24*time.Hour {
-		return fmt.Sprintf("%d月前", now/(30*7*24*time.Hour))
+	if now < 12*30*24*time.Hour {
+		return fmt.Sprintf("%d月前", now/(30*24*time.Hour))
 	}
 
-	return fmt.Sprintf("%d年前", now/(12*30*7*24*time.Hour))
+	return fmt.Sprintf("%d年前", now/(12*30*24*time.Hour))
 }
