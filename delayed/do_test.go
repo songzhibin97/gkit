@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -131,4 +132,76 @@ func TestDispatchingDelayed_AddDelayed3(t *testing.T) {
 	}
 	// print 0...9
 	time.Sleep(time.Minute)
+}
+
+// TestIsInvalid 锁定 IsInvalid 必须基于哨兵指针单例 BadDelayed 比较；
+// 早先 `delayed == badDelayed{}`（值类型）的写法对 *badDelayed 指针恒为 false。
+func TestIsInvalid(t *testing.T) {
+	d := &DispatchingDelayed{}
+	assert.True(t, d.IsInvalid(BadDelayed))
+	assert.False(t, d.IsInvalid(mockDelayed{exec: 1}))
+}
+
+// TestRefresh_NonBlocking 验证 Refresh 在 sentinel 未消费时不阻塞。
+// refresh 通道 buffer=1，第一次写入后再次调用必须走 default 分支。
+func TestRefresh_NonBlocking(t *testing.T) {
+	d := &DispatchingDelayed{refresh: make(chan struct{}, 1)}
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			d.Refresh()
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Refresh blocked when channel buffer was full")
+	}
+}
+
+// TestDelDelayed_LastIndex 覆盖 i == last 边界：
+// 早先在末尾元素截断后访问 d.delays[last] 会触发 index out of range panic。
+func TestDelDelayed_LastIndex(t *testing.T) {
+	d := &DispatchingDelayed{}
+	d.AddDelayed(mockDelayed{exec: 1})
+	d.AddDelayed(mockDelayed{exec: 2})
+	d.AddDelayed(mockDelayed{exec: 3})
+
+	last := len(d.delays) - 1
+	expected := d.delays[last]
+
+	assert.NotPanics(t, func() {
+		ret := d.delDelayed(last)
+		assert.Equal(t, expected, ret)
+	})
+	assert.Equal(t, 2, len(d.delays))
+}
+
+// TestDelDelayed_OutOfRange 越界索引返回 BadDelayed，不修改堆。
+func TestDelDelayed_OutOfRange(t *testing.T) {
+	d := &DispatchingDelayed{}
+	d.AddDelayed(mockDelayed{exec: 1})
+	ret := d.delDelayed(10)
+	assert.True(t, d.IsInvalid(ret))
+	assert.Equal(t, 1, len(d.delays))
+}
+
+// TestGetTopDelayed_Race 在 -race 下应触发既往的数据竞争（修复前 RUnlock 立即调用，
+// d.delays 读取无锁保护）。修复后 (defer d.RUnlock()) 应通过。
+func TestGetTopDelayed_Race(t *testing.T) {
+	d := &DispatchingDelayed{}
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func(v int64) {
+			defer wg.Done()
+			d.AddDelayed(mockDelayed{exec: v})
+		}(int64(i + 1))
+		go func() {
+			defer wg.Done()
+			_ = d.getTopDelayed()
+		}()
+	}
+	wg.Wait()
 }
