@@ -73,3 +73,20 @@ func TestNeverExpire(t *testing.T) {
 	// miniredis: TTL 为 0 表示该 key 没有设置过期时间。
 	assert.Equal(t, time.Duration(0), mr.TTL(sig.ID))
 }
+
+// TestSetResultExpireZeroFallsBackToDefault 验证 SetResultExpire(0) 与构造函数一致，
+// 都会回落到 defaultResultExpire（3600s），而不是被解释为"永不过期"。
+func TestSetResultExpireZeroFallsBackToDefault(t *testing.T) {
+	b, mr := newMockBackend(t, 60)
+
+	// 运行时把 expire 改成 0 —— 期望与 NewBackendRedis(client, 0) 同义
+	b.SetResultExpire(0)
+
+	sig := &task.Signature{ID: "task1", GroupID: "group1", Name: "task1"}
+	require.NoError(t, b.SetStatePending(sig))
+
+	ttl := mr.TTL(sig.ID)
+	assert.Greater(t, ttl, time.Hour-2*time.Second,
+		"expected TTL ~= defaultResultExpire (1h), got %s", ttl)
+	assert.LessOrEqual(t, ttl, time.Hour)
+}

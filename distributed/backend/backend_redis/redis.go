@@ -46,7 +46,11 @@ func NewBackendRedis(client redis.UniversalClient, resultExpire int64) backend.B
 }
 
 // SetResultExpire 设置结果超时时间
+// expire == 0 时回落到 defaultResultExpire，与 NewBackendRedis 的语义保持一致
 func (b *BackendRedis) SetResultExpire(expire int64) {
+	if expire == 0 {
+		expire = defaultResultExpire
+	}
 	b.resultExpire = expire
 }
 
