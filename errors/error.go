@@ -98,7 +98,7 @@ func Code(err error) int {
 	if err == nil {
 		return 0
 	}
-	if se := FromError(err); err != nil {
+	if se := FromError(err); se != nil {
 		return int(se.Code)
 	}
 	return UnknownCode
@@ -106,7 +106,7 @@ func Code(err error) int {
 
 // Reason 返回err的reason
 func Reason(err error) string {
-	if se := FromError(err); err != nil {
+	if se := FromError(err); se != nil {
 		return se.Reason
 	}
 	return UnknownReason
