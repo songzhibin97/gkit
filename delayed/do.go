@@ -78,7 +78,7 @@ func (d *DispatchingDelayed) delDelayed(i int) Delayed {
 	}
 	d.delays[last] = nil
 	d.delays = d.delays[:last]
-	if i != last && last > 0 {
+	if i != last {
 		siftupDelayed(d.delays, i)
 		siftdownDelayed(d.delays, i)
 	}
@@ -119,6 +119,32 @@ func (d *DispatchingDelayed) getTopDelayed() Delayed {
 	return d.delays[0]
 }
 
+// popIfReady 在持锁状态下检查 top 是否已到达执行时间；
+// 是则 pop 并返回，否则返回 BadDelayed。
+// 把"判断 + pop"合到同一把锁里，避免 sentinel 中无锁读 len(d.delays)
+// 以及 getTopDelayed/delDelayedTop 分离造成的 TOCTOU。
+func (d *DispatchingDelayed) popIfReady(now int64) Delayed {
+	d.Lock()
+	defer d.Unlock()
+	if len(d.delays) == 0 {
+		return BadDelayed
+	}
+	if d.delays[0].ExecTime() > now {
+		return BadDelayed
+	}
+	ret := d.delays[0]
+	last := len(d.delays) - 1
+	if last > 0 {
+		d.delays[0] = d.delays[last]
+	}
+	d.delays[last] = nil
+	d.delays = d.delays[:last]
+	if last > 0 {
+		siftdownDelayed(d.delays, 0)
+	}
+	return ret
+}
+
 // IsInvalid 判断任务是否有效
 func (d *DispatchingDelayed) IsInvalid(delayed Delayed) bool {
 	return delayed == BadDelayed
@@ -150,27 +176,22 @@ func (d *DispatchingDelayed) sentinel() {
 			case <-timer.C:
 			case <-d.refresh:
 			case <-d.close:
-				// 关闭流程
-				ln := len(d.delays)
-				for i := 0; i < ln; i++ {
+				// 关闭流程：pop 驱动，避免无锁读 len(d.delays)
+				for {
 					pop := d.delDelayedTop()
 					if d.IsInvalid(pop) {
-						continue
+						break
 					}
 					d.pool.AddTask(pop.Do)
 				}
 				return
 			}
 			now := time.Now().Unix()
-			for i := 0; i < len(d.delays); i++ {
-				top := d.getTopDelayed()
-
-				// 还没到达执行时间
-				if top.ExecTime() > now {
+			for {
+				top := d.popIfReady(now)
+				if d.IsInvalid(top) {
 					break
 				}
-
-				d.delDelayedTop()
 				d.pool.AddTask(top.Do)
 			}
 		}
