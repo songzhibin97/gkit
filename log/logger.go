@@ -49,11 +49,11 @@ func (l *logger) Log(lever Lever, kvs ...interface{}) error {
 func With(l Logger, kvs ...interface{}) Logger {
 	if c, ok := l.(*logger); ok {
 		nKvs := make([]interface{}, 0, len(c.prefix)+len(kvs))
-		nKvs = append(kvs, kvs...)
-		nKvs = append(kvs, c.prefix...)
+		nKvs = append(nKvs, c.prefix...)
+		nKvs = append(nKvs, kvs...)
 		return &logger{
 			logs:      c.logs,
-			prefix:    kvs,
+			prefix:    nKvs,
 			hasValuer: containsValuer(nKvs),
 			ctx:       c.ctx,
 		}
