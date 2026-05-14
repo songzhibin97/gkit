@@ -248,7 +248,7 @@ func (c *ControllerRedis) consumeOne(taskBody []byte, queue string, handler task
 		if t.IgnoreNotRegisteredTask {
 			return nil
 		}
-		c.client.RPush(c.GetStopCtx(), queue, handler)
+		c.client.RPush(c.GetStopCtx(), queue, taskBody)
 		return nil
 	}
 	return handler.Process(&t)
