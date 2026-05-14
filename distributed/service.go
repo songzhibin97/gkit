@@ -356,6 +356,20 @@ func (s *Server) EnforcementConf() {
 	s.controller.SetDelayedQueue(s.config.DelayedQueue)
 }
 
+// Shutdown stops the scheduler started by NewServer and waits up to the
+// supplied context's deadline for any in-flight cron jobs to finish. Without
+// this, the goroutine launched by `go server.scheduler.Run()` survives until
+// process exit, holding timers for every registered job.
+func (s *Server) Shutdown(ctx context.Context) error {
+	stopCtx := s.scheduler.Stop()
+	select {
+	case <-stopCtx.Done():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (s *Server) NewWorker(consumerTag string, concurrency int, queue string) *Worker {
 	return &Worker{
 		bindService: s,

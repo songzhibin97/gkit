@@ -170,7 +170,10 @@ func (d *DispatchingDelayed) Refresh() {
 // sentinel 启动
 func (d *DispatchingDelayed) sentinel() {
 	go func() {
+		// Stop the ticker on exit; previously it kept firing for the lifetime
+		// of the process on every DispatchingDelayed close.
 		timer := time.NewTicker(d.checkTime)
+		defer timer.Stop()
 		for {
 			select {
 			case <-timer.C:
@@ -208,7 +211,6 @@ func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 			_ = d.Close()
 		},
 		close:   make(chan struct{}, 1),
-		pool:    goroutine.NewGoroutine(context.Background(), goroutine.SetMax(1), goroutine.SetIdle(1)),
 		refresh: make(chan struct{}, 1),
 	}
 	for _, option := range o {
@@ -220,13 +222,23 @@ func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 	if dispatchingDelayed.Worker <= 0 {
 		dispatchingDelayed.Worker = 1
 	}
-	if dispatchingDelayed.Worker != 1 {
-		dispatchingDelayed.pool = goroutine.NewGoroutine(context.Background(), goroutine.SetMax(dispatchingDelayed.Worker), goroutine.SetIdle(dispatchingDelayed.Worker))
-	}
+	// Create the pool exactly once with the resolved Worker count. The
+	// previous code allocated a Worker=1 pool unconditionally inside the
+	// struct literal, then discarded it (along with its idle goroutines,
+	// ticker, and chan) when Worker != 1.
+	dispatchingDelayed.pool = goroutine.NewGoroutine(
+		context.Background(),
+		goroutine.SetMax(dispatchingDelayed.Worker),
+		goroutine.SetIdle(dispatchingDelayed.Worker),
+	)
 	if len(dispatchingDelayed.signal) != 0 && dispatchingDelayed.signalCallback != nil {
 		sign := make(chan os.Signal, 1)
 		signal.Notify(sign, dispatchingDelayed.signal...)
 		go func() {
+			// Match Notify with Stop on goroutine exit; the previous code
+			// leaked the signal forwarder for every DispatchingDelayed
+			// instance, accumulating handlers across the process lifetime.
+			defer signal.Stop(sign)
 			for {
 				select {
 				case <-dispatchingDelayed.close:
