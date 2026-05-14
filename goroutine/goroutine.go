@@ -166,6 +166,7 @@ func (g *Goroutine) Trick() string {
 // Delegate 委托执行 一般用于回收函数超时控制
 func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) error) error {
 	ch := make(chan error, 1)
+	fctx := c
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -181,7 +182,7 @@ func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) er
 				return
 			}
 		}()
-		ch <- f(c)
+		ch <- f(fctx)
 	}()
 	// 增加优雅退出超时控制
 	var (
