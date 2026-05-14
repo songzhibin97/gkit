@@ -16,8 +16,7 @@ const (
 func NewLimiter(options ...options.Option) middleware.MiddleWare {
 	g := NewGroup(options...)
 	return func(next middleware.Endpoint) middleware.Endpoint {
-		return func(ctx context.Context, i interface{}) (interface{}, error) {
-			// 通过ctx 获取 g中的限制器
+		return func(ctx context.Context, i interface{}) (resp interface{}, err error) {
 			defaultKey := "default"
 			defaultOp := overload.Success
 			if v := ctx.Value(LimitKey); v != nil {
@@ -27,16 +26,27 @@ func NewLimiter(options ...options.Option) middleware.MiddleWare {
 				defaultOp = v.(overload.Op)
 			}
 			limiter := g.Get(defaultKey)
-			f, err := limiter.Allow(ctx)
-			if err != nil {
-				return nil, err
+			f, allowErr := limiter.Allow(ctx)
+			if allowErr != nil {
+				return nil, allowErr
 			}
-			resp, err := next(ctx, i)
-			if err != nil {
-				f(overload.DoneInfo{Op: overload.Drop})
-			} else {
-				f(overload.DoneInfo{Op: defaultOp})
-			}
+			// Always release the inFlight slot, even if next panics. The
+			// previous code called f(...) inline after `next` returned, so a
+			// panic in any downstream middleware leaked the slot permanently
+			// — eventually inFlight > maxFlight for that key and every
+			// request to it was dropped.
+			defer func() {
+				if r := recover(); r != nil {
+					f(overload.DoneInfo{Op: overload.Drop})
+					panic(r)
+				}
+				if err != nil {
+					f(overload.DoneInfo{Op: overload.Drop})
+				} else {
+					f(overload.DoneInfo{Op: defaultOp})
+				}
+			}()
+			resp, err = next(ctx, i)
 			return resp, err
 		}
 	}
