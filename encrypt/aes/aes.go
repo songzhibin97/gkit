@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
-	"unsafe"
+	"errors"
+	"io"
 )
 
 const defaultKey = "gkit"
@@ -36,12 +38,10 @@ func PadKeyToLength(s string, targetLength int) string {
 	ps := []byte(s)
 	ls := len(ps)
 
-	// If input is longer than target length, truncate it
 	if ls > targetLength {
 		return string(ps[:targetLength])
 	}
 
-	// Pad the string by repeating the input until reaching target length
 	idx := 0
 	for len(ps) < targetLength {
 		ps = append(ps, s[idx])
@@ -51,69 +51,66 @@ func PadKeyToLength(s string, targetLength int) string {
 	return string(ps)
 }
 
-func Encrypt(orig string, key string) string {
-	defer func() {
-		if err := recover(); err != nil {
-			//fmt.Println("Encrypt Err", orig, err)
-			return
-		}
-	}()
-	// 转成字节数组
+func Encrypt(orig string, key string) (string, error) {
 	origData := []byte(orig)
 	k := []byte(key)
-	// 分组秘钥
-	// NewCipher该函数限制了输入k的长度必须为16, 24或者32
-	block, _ := aes.NewCipher(k)
-	// 获取秘钥块的长度
+
+	block, err := aes.NewCipher(k)
+	if err != nil {
+		return "", err
+	}
 	blockSize := block.BlockSize()
-	// 补全码
 	origData = PKCS7Padding(origData, blockSize)
-	// 加密模式
-	blockMode := cipher.NewCBCEncrypter(block, k[:blockSize])
-	// 创建数组
+
+	iv := make([]byte, blockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return "", err
+	}
+
+	blockMode := cipher.NewCBCEncrypter(block, iv)
 	cryted := make([]byte, len(origData))
-	// 加密
 	blockMode.CryptBlocks(cryted, origData)
-	return base64.StdEncoding.EncodeToString(cryted)
+
+	// Prepend IV to ciphertext
+	result := append(iv, cryted...)
+	return base64.StdEncoding.EncodeToString(result), nil
 }
 
-func Decrypt(cryted string, key string) string {
-	defer func() {
-		if err := recover(); err != nil {
-			//fmt.Println("Decrypt Err", cryted, err)
-			return
-		}
-	}()
-	// 转成字节数组
-	crytedByte, _ := base64.StdEncoding.DecodeString(cryted)
+func Decrypt(cryted string, key string) (string, error) {
+	crytedByte, err := base64.StdEncoding.DecodeString(cryted)
+	if err != nil {
+		return "", err
+	}
 	k := []byte(key)
-	// 分组秘钥
-	block, _ := aes.NewCipher(k)
-	// 获取秘钥块的长度
+
+	block, err := aes.NewCipher(k)
+	if err != nil {
+		return "", err
+	}
 	blockSize := block.BlockSize()
-	// 加密模式
-	blockMode := cipher.NewCBCDecrypter(block, k[:blockSize])
-	// 创建数组
-	orig := make([]byte, len(crytedByte))
-	// 解密
-	if len(crytedByte)%block.BlockSize() != 0 {
-		return ""
+
+	if len(crytedByte) < blockSize {
+		return "", errors.New("ciphertext too short")
 	}
-	if len(orig) < len(crytedByte) {
-		return ""
-	}
-	if InexactOverlap(orig[:len(crytedByte)], crytedByte) {
-		return ""
+	iv := crytedByte[:blockSize]
+	crytedByte = crytedByte[blockSize:]
+
+	if len(crytedByte)%blockSize != 0 {
+		return "", errors.New("ciphertext is not a multiple of the block size")
 	}
 
+	blockMode := cipher.NewCBCDecrypter(block, iv)
+	orig := make([]byte, len(crytedByte))
 	blockMode.CryptBlocks(orig, crytedByte)
-	// 去补全码
-	orig = PKCS7UnPadding(orig)
-	return string(orig)
+
+	orig, err = PKCS7UnPadding(orig)
+	if err != nil {
+		return "", err
+	}
+	return string(orig), nil
 }
 
 // PKCS7Padding 补码
-// AES加密数据块分组长度必须为128bit(byte[16])，密钥长度可以是128bit(byte[16])、192bit(byte[24])、256bit(byte[32])中的任意一个。
 func PKCS7Padding(ciphertext []byte, blocksize int) []byte {
 	padding := blocksize - len(ciphertext)%blocksize
 	padText := bytes.Repeat([]byte{byte(padding)}, padding)
@@ -121,21 +118,19 @@ func PKCS7Padding(ciphertext []byte, blocksize int) []byte {
 }
 
 // PKCS7UnPadding 去码
-func PKCS7UnPadding(origData []byte) []byte {
+func PKCS7UnPadding(origData []byte) ([]byte, error) {
 	length := len(origData)
-	unPadding := int(origData[length-1])
-	return origData[:(length - unPadding)]
-}
-
-func InexactOverlap(x, y []byte) bool {
-	if len(x) == 0 || len(y) == 0 || &x[0] == &y[0] {
-		return false
+	if length == 0 {
+		return nil, errors.New("empty data")
 	}
-	return AnyOverlap(x, y)
-}
-
-func AnyOverlap(x, y []byte) bool {
-	return len(x) > 0 && len(y) > 0 &&
-		uintptr(unsafe.Pointer(&x[0])) <= uintptr(unsafe.Pointer(&y[len(y)-1])) &&
-		uintptr(unsafe.Pointer(&y[0])) <= uintptr(unsafe.Pointer(&x[len(x)-1]))
+	unPadding := int(origData[length-1])
+	if unPadding == 0 || unPadding > length {
+		return nil, errors.New("invalid padding")
+	}
+	for i := length - unPadding; i < length; i++ {
+		if int(origData[i]) != unPadding {
+			return nil, errors.New("invalid padding")
+		}
+	}
+	return origData[:(length - unPadding)], nil
 }
