@@ -58,7 +58,7 @@ func (t *token) GetIndex(s string) (int, error) {
 		return -1, ErrInvalidToken
 	}
 	if t.timeLimitation != 0 {
-		generateTime, err := time.ParseInLocation(layout, parseToken[0], time.Local)
+		generateTime, err := time.Parse(layout, parseToken[0])
 		if err != nil {
 			return -1, ErrInvalidToken
 		}
