@@ -1,6 +1,6 @@
 package window
 
-func ExampleInitWindow() {
+func ExampleNewWindow() {
 	// 初始化窗口
 	w := NewWindow()
 
