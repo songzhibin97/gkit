@@ -82,7 +82,7 @@ func (b *BackendSQLDB) GroupTaskStatus(groupID string) ([]*task.Status, error) {
 }
 
 func (b *BackendSQLDB) TriggerCompleted(groupID string) (bool, error) {
-	result := b.gClient.Debug().Model(&task.GroupMeta{}).Where("id = ? and `lock` = false", groupID).Update("`lock`", true)
+	result := b.gClient.Model(&task.GroupMeta{}).Where(map[string]interface{}{"id": groupID, "lock": false}).Update("lock", true)
 	if result.Error != nil {
 		return false, result.Error
 	}
