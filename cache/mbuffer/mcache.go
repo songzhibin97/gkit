@@ -51,11 +51,23 @@ func Malloc(size int, capacity ...int) []byte {
 	if len(capacity) > 1 {
 		panic("too many arguments to Malloc")
 	}
+	if size < 0 {
+		// uint(-1) feeds bits.Len → calcIndex → an out-of-range slice index
+		// into `caches`. Reject explicitly instead of producing a panic
+		// from deep inside the pool lookup.
+		panic("mbuffer: negative size")
+	}
 	var c = size
 	if len(capacity) > 0 && capacity[0] > size {
 		c = capacity[0]
 	}
-	var ret = caches[calcIndex(c)].Get().([]byte)
+	idx := calcIndex(c)
+	if idx >= maxSize {
+		// Requested capacity exceeds the largest cached bucket; allocate
+		// directly so callers can still get a backing array.
+		return make([]byte, size)
+	}
+	var ret = caches[idx].Get().([]byte)
 	ret = ret[:size]
 	return ret
 }
@@ -63,6 +75,12 @@ func Malloc(size int, capacity ...int) []byte {
 // Free should be called when the buf is no longer used.
 func Free(buf []byte) {
 	size := cap(buf)
+	// `isPowerOfTwo(0)` returns true because (0 & -0) == 0; combined with
+	// bsr(0) == -1 the original Free panicked on a zero-capacity slice.
+	// Reject explicitly here.
+	if size <= 0 {
+		return
+	}
 	if !isPowerOfTwo(size) {
 		return
 	}
