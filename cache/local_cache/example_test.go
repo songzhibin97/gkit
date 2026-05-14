@@ -36,7 +36,7 @@ func ExampleNewCache() {
 		}))
 }
 
-func Example_storage() {
+func ExampleCacheStorage() {
 	// Set 添加cache 无论是否存在都会覆盖
 	ch.Set("k1", "v1", DefaultExpire)
 
@@ -57,7 +57,7 @@ func Example_storage() {
 	CacheErrNoExist(err) // true
 }
 
-func Example_get() {
+func ExampleGet() {
 	// Get 根据key获取 cache 保证有效期内的kv被取出
 	v, ok := ch.Get("k1")
 	if !ok {
@@ -85,7 +85,7 @@ func Example_get() {
 	log.Println(ch.Count())
 }
 
-func Example_increment() {
+func ExampleIncrement() {
 	ch.Set("k3", 1, DefaultExpire)
 	ch.Set("k4", 1.1, DefaultExpire)
 	// Increment 为k对应的value增加n n必须为数字类型
@@ -104,7 +104,7 @@ func Example_increment() {
 	// Decrement 同理
 }
 
-func Example_delete() {
+func ExampleDelete() {
 	// Delete 如果设置了 capture 会触发不或函数
 	ch.Delete("k1")
 
@@ -112,7 +112,7 @@ func Example_delete() {
 	ch.DeleteExpire()
 }
 
-func Example_changeCapture() {
+func ExampleChangeCapture() {
 	// 提供了在运行中改变捕获函数的方法
 	// ChangeCapture
 	ch.ChangeCapture(func(k string, v interface{}) {
@@ -120,7 +120,7 @@ func Example_changeCapture() {
 	})
 }
 
-func Example_saveLoad() {
+func ExampleSaveLoad() {
 	// 写入文件采用go独有的gob协议
 
 	io := buffer.NewIoBuffer(1000)
@@ -138,12 +138,12 @@ func Example_saveLoad() {
 	_ = ch.LoadFile("path")
 }
 
-func Example_flush() {
+func ExampleFlush() {
 	// Flush 释放member成员
 	ch.Flush()
 }
 
-func Example_shutdown() {
+func ExampleShutdown() {
 	// Shutdown 释放对象
 	_ = ch.Shutdown()
 }
