@@ -2,6 +2,7 @@ package rand_string
 
 import (
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -14,7 +15,10 @@ const (
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
-var src = rand.NewSource(time.Now().UnixNano())
+var (
+	src   = rand.NewSource(time.Now().UnixNano())
+	srcMu sync.Mutex
+)
 
 func RandomLetter(n int) string {
 	return random(letterBytes, n)
@@ -30,9 +34,14 @@ func RandomBytes(bytes string, n int) string  {
 
 func random(bytes string, n int) string {
 	b := make([]byte, n)
-	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
+	srcMu.Lock()
+	cache, remain := src.Int63(), letterIdxMax
+	srcMu.Unlock()
+	for i := n - 1; i >= 0; {
 		if remain == 0 {
+			srcMu.Lock()
 			cache, remain = src.Int63(), letterIdxMax
+			srcMu.Unlock()
 		}
 		if idx := int(cache & letterIdxMask); idx < len(bytes) {
 			b[i] = bytes[idx]
