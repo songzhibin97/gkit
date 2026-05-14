@@ -2,7 +2,6 @@ package generator
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -145,7 +144,6 @@ func LocalIpToUint16() (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	fmt.Println(ip)
 	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
