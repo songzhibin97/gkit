@@ -34,6 +34,34 @@ func TestNewToken(t *testing.T) {
 	assert.Equal(t, err, ErrOverdueToken)
 }
 
+func TestGetIndex_RejectsCrossResourceToken(t *testing.T) {
+	// Both generators share the same salt (default) but identify different
+	// resources. A token minted for "alpha" must not be accepted by "beta".
+	a := NewTokenGenerate("alpha")
+	b := NewTokenGenerate("beta")
+	tok := a.ForIndex(7)
+	if _, err := b.GetIndex(tok); err != ErrInvalidToken {
+		t.Fatalf("expected ErrInvalidToken on cross-resource token, got %v", err)
+	}
+}
+
+func TestNewTokenGenerateE_RequiresExplicitSalt(t *testing.T) {
+	if _, err := NewTokenGenerateE("res"); err != ErrDefaultSalt {
+		t.Fatalf("NewTokenGenerateE without SetSalt err = %v, want ErrDefaultSalt", err)
+	}
+	pt, err := NewTokenGenerateE("res", SetSalt("strong-salt"))
+	if err != nil {
+		t.Fatalf("NewTokenGenerateE with SetSalt err = %v", err)
+	}
+	idx, err := pt.GetIndex(pt.ForIndex(42))
+	if err != nil {
+		t.Fatalf("roundtrip err = %v", err)
+	}
+	if idx != 42 {
+		t.Fatalf("idx = %d, want 42", idx)
+	}
+}
+
 func Test_token_ProcessPageTokens(t *testing.T) {
 	n := NewTokenGenerate("test")
 	s, e, tk, err := n.ProcessPageTokens(10, 1, "")

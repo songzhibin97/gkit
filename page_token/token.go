@@ -17,6 +17,12 @@ var (
 	ErrOverdueToken         = errors.New("the field `page_token` is overdue")
 	ErrOverMaxPageSizeToken = errors.New("the field `page_token` is over max page size")
 	ErrInvalidPageSize      = errors.New("the page size provided must not be negative")
+
+	// ErrDefaultSalt is returned by NewTokenGenerateE when no SetSalt option
+	// has been supplied. The default salt "gkit" is hard-coded in this package
+	// and any attacker who reads the source can forge tokens; production
+	// callers must always supply their own salt.
+	ErrDefaultSalt = errors.New("page_token: SetSalt option is required (default salt is publicly known)")
 )
 
 const (
@@ -51,6 +57,13 @@ func (t *token) GetIndex(s string) (int, error) {
 		return -1, ErrInvalidToken
 	}
 	if decrypted == "" {
+		return -1, ErrInvalidToken
+	}
+	if !strings.HasPrefix(decrypted, t.resourceIdentification) {
+		// A token whose plaintext does not start with the expected resource
+		// prefix is from a different resource (or forged). TrimPrefix silently
+		// returns the input unchanged in that case, so without this check a
+		// cross-resource token could be replayed.
 		return -1, ErrInvalidToken
 	}
 	parseToken := strings.Split(strings.TrimPrefix(decrypted, t.resourceIdentification), ":")
@@ -117,6 +130,11 @@ func min(a, b int) int {
 	return a
 }
 
+// NewTokenGenerate constructs a PageToken using the package's hard-coded
+// default salt unless overridden by SetSalt.
+//
+// Deprecated: tokens produced with the default salt are forgeable by anyone
+// who reads the gkit source. Use NewTokenGenerateE and supply SetSalt.
 func NewTokenGenerate(resourceIdentification string, options ...options.Option) PageToken {
 	t := &token{
 		maxIndex:               defaultMaxIndex,
@@ -129,4 +147,24 @@ func NewTokenGenerate(resourceIdentification string, options ...options.Option) 
 		option(t)
 	}
 	return t
+}
+
+// NewTokenGenerateE constructs a PageToken and requires the caller to provide
+// a non-default salt via SetSalt. It returns ErrDefaultSalt otherwise.
+func NewTokenGenerateE(resourceIdentification string, opts ...options.Option) (PageToken, error) {
+	defaultPadded := aes.PadKey(defaultSalt)
+	t := &token{
+		maxIndex:               defaultMaxIndex,
+		maxElements:            defaultMaxElements,
+		timeLimitation:         0,
+		salt:                   defaultPadded,
+		resourceIdentification: resourceIdentification,
+	}
+	for _, option := range opts {
+		option(t)
+	}
+	if t.salt == "" || t.salt == defaultPadded {
+		return nil, ErrDefaultSalt
+	}
+	return t, nil
 }
