@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/songzhibin97/gkit/distributed/retry"
 	"github.com/songzhibin97/gkit/options"
@@ -55,8 +56,11 @@ func NewRegisteredTask() *registeredTask {
 type Broker struct {
 	// registeredTask 注册器
 	*registeredTask
-	// retry 是否重试
-	retry bool
+	// retry 是否重试 — atomic.Bool so StopConsuming's flip and GetRetry's
+	// reads never race. Previously a plain bool produced a data race the
+	// race detector flagged whenever a consumer was stopped while workers
+	// still polled GetRetry.
+	retry atomic.Bool
 	// retryFn 重试函数
 	retryFn     func(ctx context.Context)
 	retryCtx    context.Context
@@ -66,6 +70,11 @@ type Broker struct {
 	stopCancel context.CancelFunc
 }
 
+// SetRetry is used by options.Option callbacks to seed the retry flag at
+// construction. After NewBroker returns, the flag is only mutated by
+// StopConsuming; both reads and writes go through atomic.Bool.
+func (b *Broker) SetRetry(v bool) { b.retry.Store(v) }
+
 // NewBroker 初始化 Broker
 func NewBroker(r *registeredTask, ctx context.Context, options ...options.Option) *Broker {
 	b := &Broker{
@@ -74,7 +83,7 @@ func NewBroker(r *registeredTask, ctx context.Context, options ...options.Option
 	for _, option := range options {
 		option(b)
 	}
-	if b.retry == true && b.retryFn == nil {
+	if b.retry.Load() && b.retryFn == nil {
 		b.retryFn = retry.Retry()
 	}
 	b.retryCtx, b.retryCancel = context.WithCancel(ctx)
@@ -83,7 +92,7 @@ func NewBroker(r *registeredTask, ctx context.Context, options ...options.Option
 }
 
 func (b *Broker) GetRetry() bool {
-	return b.retry
+	return b.retry.Load()
 }
 
 func (b *Broker) GetRetryFn() func(ctx context.Context) {
@@ -99,7 +108,7 @@ func (b *Broker) GetStopCtx() context.Context {
 }
 
 func (b *Broker) StopConsuming() {
-	b.retry = false
+	b.retry.Store(false)
 	b.retryCancel()
 	b.stopCancel()
 }
