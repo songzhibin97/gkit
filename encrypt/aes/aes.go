@@ -124,8 +124,13 @@ func PKCS7UnPadding(origData []byte) ([]byte, error) {
 		return nil, errors.New("empty data")
 	}
 	unPadding := int(origData[length-1])
-	if unPadding > length || unPadding == 0 {
+	if unPadding == 0 || unPadding > length {
 		return nil, errors.New("invalid padding")
+	}
+	for i := length - unPadding; i < length; i++ {
+		if int(origData[i]) != unPadding {
+			return nil, errors.New("invalid padding")
+		}
 	}
 	return origData[:(length - unPadding)], nil
 }
