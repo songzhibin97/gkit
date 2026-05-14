@@ -2,31 +2,24 @@ package egroup
 
 import (
 	"context"
-	"net"
+	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/songzhibin97/gkit/goroutine"
 )
 
+var _admin = NewLifeAdmin()
+
 func TestLifeAdmin_Start(t *testing.T) {
-	admin := NewLifeAdmin()
-
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
+	srv := &http.Server{
+		Addr: ":8080",
 	}
-	srv := &http.Server{}
-
-	admin.Add(Member{
+	_admin.Add(Member{
 		Start: func(ctx context.Context) error {
 			t.Log("http start")
 			return goroutine.Delegate(ctx, -1, func(ctx context.Context) error {
-				if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
-					return err
-				}
-				return nil
+				return srv.ListenAndServe()
 			})
 		},
 		Shutdown: func(ctx context.Context) error {
@@ -34,13 +27,13 @@ func TestLifeAdmin_Start(t *testing.T) {
 			return srv.Shutdown(context.Background())
 		},
 	})
-
-	go func() {
-		time.Sleep(200 * time.Millisecond)
-		admin.Shutdown()
-	}()
-
-	if err := admin.Start(); err != nil && err != context.Canceled {
-		t.Logf("Start returned: %v", err)
-	}
+	//_admin.Add(Member{
+	//	Start: func(ctx context.Context) error {
+	//		time.Sleep(5 * time.Second)
+	//		t.Log("error")
+	//		return errors.New("error")
+	//	},
+	//})
+	fmt.Println("error", _admin.Start())
+	defer _admin.shutdown()
 }
