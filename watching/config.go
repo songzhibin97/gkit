@@ -150,13 +150,18 @@ func defaultLogConfigs() *logConfigs {
 	}
 }
 
+// Each default constructor below previously permuted the three trigger
+// fields — `TriggerMin = defaultXxxTriggerAbs`,
+// `TriggerAbs = defaultXxxTriggerDiff`, `TriggerDiff = defaultXxxTriggerMin`
+// — so every default-config user observed wildly wrong dump thresholds.
+
 func defaultGroupConfigs() *groupConfigs {
 	return &groupConfigs{
 		typeConfig: &typeConfig{
 			Enable:      false,
-			TriggerMin:  defaultGoroutineTriggerAbs,
-			TriggerAbs:  defaultGoroutineTriggerDiff,
-			TriggerDiff: defaultGoroutineTriggerMin,
+			TriggerMin:  defaultGoroutineTriggerMin,
+			TriggerAbs:  defaultGoroutineTriggerAbs,
+			TriggerDiff: defaultGoroutineTriggerDiff,
 		},
 		GoroutineTriggerNumMax: 0,
 	}
@@ -165,36 +170,36 @@ func defaultGroupConfigs() *groupConfigs {
 func defaultGCHeapOptions() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultGCHeapTriggerAbs,
-		TriggerAbs:  defaultGCHeapTriggerDiff,
-		TriggerDiff: defaultGCHeapTriggerMin,
+		TriggerMin:  defaultGCHeapTriggerMin,
+		TriggerAbs:  defaultGCHeapTriggerAbs,
+		TriggerDiff: defaultGCHeapTriggerDiff,
 	}
 }
 
 func defaultMemConfigs() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultMemTriggerAbs,
-		TriggerAbs:  defaultMemTriggerDiff,
-		TriggerDiff: defaultMemTriggerMin,
+		TriggerMin:  defaultMemTriggerMin,
+		TriggerAbs:  defaultMemTriggerAbs,
+		TriggerDiff: defaultMemTriggerDiff,
 	}
 }
 
 func defaultCPUConfigs() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultCPUTriggerAbs,
-		TriggerAbs:  defaultCPUTriggerDiff,
-		TriggerDiff: defaultCPUTriggerMin,
+		TriggerMin:  defaultCPUTriggerMin,
+		TriggerAbs:  defaultCPUTriggerAbs,
+		TriggerDiff: defaultCPUTriggerDiff,
 	}
 }
 
 func defaultThreadConfig() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultThreadTriggerAbs,
-		TriggerAbs:  defaultThreadTriggerDiff,
-		TriggerDiff: defaultThreadTriggerMin,
+		TriggerMin:  defaultThreadTriggerMin,
+		TriggerAbs:  defaultThreadTriggerAbs,
+		TriggerDiff: defaultThreadTriggerDiff,
 	}
 }
 
