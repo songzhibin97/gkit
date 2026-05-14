@@ -8,7 +8,7 @@ import (
 
 var queue *Queue
 
-func ExampleNew() {
+func ExampleNewQueue() {
 	// 默认配置
 	// queue = NewQueue()
 
