@@ -108,7 +108,12 @@ func reflectValue(valueType string, value interface{}) (reflect.Value, error) {
 		if err != nil {
 			return reflect.Value{}, err
 		}
-
+		// Guard against silent truncation: SetInt(int64) into a narrower
+		// target (int8/int16/int32) previously stored e.g. 200 → -56
+		// with no signal to the caller.
+		if theValue.Elem().OverflowInt(intValue) {
+			return reflect.Value{}, NewErrOverflow(theType.String(), intValue)
+		}
 		theValue.Elem().SetInt(intValue)
 		return theValue.Elem(), err
 	}
@@ -119,7 +124,9 @@ func reflectValue(valueType string, value interface{}) (reflect.Value, error) {
 		if err != nil {
 			return reflect.Value{}, err
 		}
-
+		if theValue.Elem().OverflowUint(uintValue) {
+			return reflect.Value{}, NewErrOverflow(theType.String(), int64(uintValue))
+		}
 		theValue.Elem().SetUint(uintValue)
 		return theValue.Elem(), err
 	}
@@ -130,7 +137,9 @@ func reflectValue(valueType string, value interface{}) (reflect.Value, error) {
 		if err != nil {
 			return reflect.Value{}, err
 		}
-
+		if theValue.Elem().OverflowFloat(floatValue) {
+			return reflect.Value{}, NewErrOverflowFloat(theType.String(), floatValue)
+		}
 		theValue.Elem().SetFloat(floatValue)
 		return theValue.Elem(), err
 	}

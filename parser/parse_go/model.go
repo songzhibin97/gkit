@@ -377,6 +377,13 @@ func (g *GoParsePB) PileDriving(functionName string, startNotes, endNotes string
 		return err
 	}
 	startNotesPos, endNotesPos, err := g.pileFind(srcData, functionName, startNotes, endNotes)
+	if err != nil {
+		// Previously this error was silently overwritten by the next
+		// `srcData, err = g.pileDriving(...)` line, letting pileDriving
+		// run with bogus positions and the resulting corrupted bytes get
+		// written back to the user's source file via ioutil.WriteFile.
+		return err
+	}
 	srcData, err = g.pileDriving(srcData, startNotesPos, endNotesPos, insertCode)
 	if err != nil {
 		return err
