@@ -244,7 +244,7 @@ func (w *Worker) ConsumeQueue() string {
 }
 
 func (w *Worker) PreConsumeHandler() bool {
-	if w.preConsumeHandler != nil {
+	if w.preConsumeHandler == nil {
 		return true
 	}
 	return w.preConsumeHandler(w)
