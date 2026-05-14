@@ -132,7 +132,7 @@ func (l *BBR) minRT() int64 {
 	if rawMinRT > 0 && l.rtStat.Timespan() < 1 {
 		return rawMinRT
 	}
-	reduced := l.rtStat.Reduce(func(iterator stat.Iterator) float64 {
+	rawMinRT = int64(math.Ceil(l.rtStat.Reduce(func(iterator stat.Iterator) float64 {
 		result := math.MaxFloat64
 		for i := 1; iterator.Next() && i < l.conf.winBucket; i++ {
 			bucket := iterator.Bucket()
@@ -147,14 +147,9 @@ func (l *BBR) minRT() int64 {
 			result = math.Min(result, avg)
 		}
 		return result
-	})
-	if reduced >= math.MaxFloat64 {
+	})))
+	if rawMinRT <= 0 {
 		rawMinRT = 1
-	} else {
-		rawMinRT = int64(math.Ceil(reduced))
-		if rawMinRT <= 0 {
-			rawMinRT = 1
-		}
 	}
 	atomic.StoreInt64(&l.rawMinRt, rawMinRT)
 	return rawMinRT
