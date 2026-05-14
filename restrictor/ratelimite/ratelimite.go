@@ -15,7 +15,7 @@ var ErrTimeOut = errors.New("restrictor/ratelimit: 超时")
 
 func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.WaitFunc) {
 	return func(now time.Time, n int) bool {
-			return bucket.Available() >= int64(n) && bucket.TakeAvailable(int64(n)) >= int64(n)
+			return bucket.TakeAvailable(int64(n)) >= int64(n)
 		},
 		func(ctx context.Context, n int) error {
 			// 获取超时时间
