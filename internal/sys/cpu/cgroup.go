@@ -11,7 +11,7 @@ import (
 )
 
 // cGroupRootDir 目录位置
-const cGroupRootDir = "/sys/fs/cGroup"
+const cGroupRootDir = "/sys/fs/cgroup"
 
 // cGroup LinuxCGroup
 type cGroup struct {
@@ -84,7 +84,7 @@ func (c *cGroup) CPUSetCPUs() ([]uint64, error) {
 // currentcGroup 获取当当前进程的 cGroup
 func currentcGroup() (*cGroup, error) {
 	pid := os.Getpid()
-	cgroupFile := fmt.Sprintf("/proc/%d/cGroup", pid)
+	cgroupFile := fmt.Sprintf("/proc/%d/cgroup", pid)
 	cgroupSet := make(map[string]string)
 	fp, err := os.Open(cgroupFile)
 	if err != nil {
