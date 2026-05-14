@@ -27,12 +27,17 @@ func NewLimiter(options ...options.Option) middleware.MiddleWare {
 				defaultOp = v.(overload.Op)
 			}
 			limiter := g.Get(defaultKey)
-			if f, err := limiter.Allow(ctx); err != nil {
+			f, err := limiter.Allow(ctx)
+			if err != nil {
 				return nil, err
+			}
+			resp, err := next(ctx, i)
+			if err != nil {
+				f(overload.DoneInfo{Op: overload.Drop})
 			} else {
 				f(overload.DoneInfo{Op: defaultOp})
-				return next(ctx, i)
 			}
+			return resp, err
 		}
 	}
 }
