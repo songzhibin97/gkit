@@ -62,7 +62,7 @@ func (t *token) GetIndex(s string) (int, error) {
 		if err != nil {
 			return -1, ErrInvalidToken
 		}
-		if generateTime.Add(t.timeLimitation).After(time.Now()) {
+		if generateTime.Add(t.timeLimitation).Before(time.Now()) {
 			return -1, ErrOverdueToken
 		}
 	}
