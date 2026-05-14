@@ -26,7 +26,7 @@ func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.Wa
 				return nil
 			}
 			// 表示context没有设置超时时间
-			if bucket.WaitMaxDuration(int64(n), 100*time.Millisecond) {
+			if !bucket.WaitMaxDuration(int64(n), 100*time.Millisecond) {
 				return ErrTimeOut
 			}
 			return nil
