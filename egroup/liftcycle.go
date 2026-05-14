@@ -111,12 +111,13 @@ func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 
 	l := &LifeAdmin{opts: o}
 
-	ctx := context.Background()
-	ctx, l.shutdown = context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	if o.g == nil {
-		o.g = WithContext(context.Background())
+		o.g = WithContext(ctx)
 	}
+	l.g = o.g
+	l.shutdown = cancel
 
 	return l
 }
