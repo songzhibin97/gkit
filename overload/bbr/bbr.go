@@ -8,7 +8,7 @@ import (
 
 	"github.com/songzhibin97/gkit/container/group"
 	"github.com/songzhibin97/gkit/internal/stat"
-	cupstat "github.com/songzhibin97/gkit/internal/sys/cpu"
+	cupstat "github.com/songzhibin97/gkit/sys/cpu"
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/overload"

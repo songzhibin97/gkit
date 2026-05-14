@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/songzhibin97/gkit/internal/clock"
-	"github.com/songzhibin97/gkit/internal/sys/mutex"
+	"github.com/songzhibin97/gkit/sys/mutex"
 )
 
 var (
