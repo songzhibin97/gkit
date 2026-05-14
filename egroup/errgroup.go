@@ -69,7 +69,7 @@ func (g *Group) Go(f func() error) {
 		return
 	}
 	g.wg.Add(1)
-	g.goroutine.AddTask(func() {
+	ok := g.goroutine.AddTask(func() {
 		defer g.wg.Done()
 		if err := f(); err != nil {
 			g.Do(func() {
@@ -81,4 +81,7 @@ func (g *Group) Go(f func() error) {
 			})
 		}
 	})
+	if !ok {
+		g.wg.Done()
+	}
 }
