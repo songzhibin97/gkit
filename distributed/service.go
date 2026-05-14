@@ -223,7 +223,7 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 	}
 	f := func() {
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(schedule.Next(time.Now()).UnixNano()-1), key)
+		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
 		if err != nil {
 			return
 		}
@@ -232,7 +232,7 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 		// send task
 		_, err = s.SendTask(task.CopySignature(signature))
 		if err != nil {
-			s.helper.Errorf("timed task failed. task name is: %s. error is %s\", name, err.Error()\n", name, err.Error())
+			s.helper.Errorf("timed task failed. task name is: %s. error is %s", name, err.Error())
 		}
 	}
 	_, err = s.scheduler.AddFunc(spec, f)
@@ -251,7 +251,7 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 
 		// get lock
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(schedule.Next(time.Now()).UnixNano()-1), key)
+		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
 		if err != nil {
 			return
 		}
@@ -260,7 +260,7 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 		// send task
 		_, err = s.SendChain(chain)
 		if err != nil {
-			s.helper.Errorf("timed task failed. task name is: %s. error is %s\", name, err.Error()\n", name, err.Error())
+			s.helper.Errorf("timed task failed. task name is: %s. error is %s", name, err.Error())
 		}
 	}
 	_, err = s.scheduler.AddFunc(spec, f)
@@ -278,7 +278,7 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 		group, _ := task.NewGroup(groupID, name, task.CopySignatures(signatures...)...)
 		// get lock
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(schedule.Next(time.Now()).UnixNano()-1), key)
+		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
 		if err != nil {
 			return
 		}
@@ -286,7 +286,7 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 
 		_, err = s.SendGroup(group, concurrency)
 		if err != nil {
-			s.helper.Errorf("timed task failed. task name is: %s. error is %s\", name, err.Error()\n", name, err.Error())
+			s.helper.Errorf("timed task failed. task name is: %s. error is %s", name, err.Error())
 		}
 	}
 	_, err = s.scheduler.AddFunc(spec, f)
@@ -305,7 +305,7 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 		c, _ := task.NewGroupCallback(group, name, callback)
 		// get lock
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(schedule.Next(time.Now()).UnixNano()-1), key)
+		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
 		if err != nil {
 			return
 		}
@@ -313,7 +313,7 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 
 		_, err = s.SendGroupCallback(c, concurrency)
 		if err != nil {
-			s.helper.Errorf("timed task failed. task name is: %s. error is %s\", name, err.Error()\n", name, err.Error())
+			s.helper.Errorf("timed task failed. task name is: %s. error is %s", name, err.Error())
 		}
 	}
 	_, err = s.scheduler.AddFunc(spec, f)
