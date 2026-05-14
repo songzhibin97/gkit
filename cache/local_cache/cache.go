@@ -149,7 +149,6 @@ func (c *cache) get(k string) (interface{}, bool) {
 			c._delete(k)
 			return nil, false
 		}
-		c._delete(k)
 		return v.Val, true
 	}
 }
