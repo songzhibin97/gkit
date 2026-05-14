@@ -54,16 +54,9 @@ func (w *Window) sentinel() {
 	m := make(map[string]uint)
 	for {
 		select {
-		case info, ok := <-w.communication:
-			if !ok {
-				return
-			}
+		case info := <-w.communication:
 			m[info.Name] += info.Score
-		case _, ok := <-tick.C:
-			if !ok {
-				// 退出
-				return
-			}
+		case <-tick.C:
 			w.buffer[w.index].Store(m)
 			m = make(map[string]uint)
 			w.index = (w.index + 1) % w.size
@@ -79,8 +72,12 @@ func (w *Window) Shutdown() {
 		// 已经执行过close了
 		return
 	}
+	// We deliberately do NOT close w.communication. AddIndex callers race
+	// with Shutdown, and a send on a closed channel panics; relying on
+	// ctx.Done() to wake the sentinel is the only safe pattern. The
+	// communication channel becomes garbage once the sentinel exits and
+	// no senders remain.
 	w.cancel()
-	close(w.communication)
 }
 
 // AddIndex 添加指标
@@ -88,9 +85,11 @@ func (w *Window) AddIndex(k string, v uint) {
 	if atomic.LoadUint32(&w.close) == 1 {
 		return
 	}
-	w.communication <- Index{
-		Name:  k,
-		Score: v,
+	select {
+	case w.communication <- Index{Name: k, Score: v}:
+	case <-w.ctx.Done():
+		// Shutdown fired between the close-flag check above and this send;
+		// drop the index rather than block forever.
 	}
 }
 
