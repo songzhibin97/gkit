@@ -29,7 +29,7 @@ type BackendRedis struct {
 	// resultExpire 数据过期时间
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
-	// 单位为ns
+	// 单位为s
 	resultExpire int64
 }
 
@@ -46,7 +46,11 @@ func NewBackendRedis(client redis.UniversalClient, resultExpire int64) backend.B
 }
 
 // SetResultExpire 设置结果超时时间
+// expire == 0 时回落到 defaultResultExpire，与 NewBackendRedis 的语义保持一致
 func (b *BackendRedis) SetResultExpire(expire int64) {
+	if expire == 0 {
+		expire = defaultResultExpire
+	}
 	b.resultExpire = expire
 }
 
@@ -57,13 +61,14 @@ func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...str
 		return err
 	}
 	expire := b.resultExpire
+	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
 	}
 	// 避免接管任务记录被覆盖
 	var ok bool
 	for !ok {
-		ok, err = b.client.SetNX(context.Background(), groupID, body, time.Duration(expire)).Result()
+		ok, err = b.client.SetNX(context.Background(), groupID, body, time.Duration(expire)*time.Second).Result()
 		if err != nil {
 			return err
 		}
@@ -143,10 +148,11 @@ func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	group.TriggerCompleted = true
 	body, _ := json.Marshal(group)
 	expire := b.resultExpire
+	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
 	}
-	err = b.client.Set(context.Background(), groupID, body, time.Duration(expire)).Err()
+	err = b.client.Set(context.Background(), groupID, body, time.Duration(expire)*time.Second).Err()
 	if err != nil {
 		return false, err
 	}
@@ -255,10 +261,11 @@ func (b *BackendRedis) updateStatus(status *task.Status) error {
 		return err
 	}
 	expire := b.resultExpire
+	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
 	}
-	_, err = b.client.Set(context.Background(), status.TaskID, body, time.Duration(expire)).Result()
+	_, err = b.client.Set(context.Background(), status.TaskID, body, time.Duration(expire)*time.Second).Result()
 	return err
 }
 

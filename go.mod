@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
+	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/docker/go-units v0.4.0
 	github.com/emicklei/proto v1.9.2
 	github.com/go-playground/validator/v10 v10.10.0
@@ -71,6 +72,7 @@ require (
 	github.com/xdg-go/scram v1.0.2 // indirect
 	github.com/xdg-go/stringprep v1.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
