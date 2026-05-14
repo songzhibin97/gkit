@@ -91,13 +91,15 @@ func (g *Goroutine) _go() {
 
 // AddTask 添加任务
 // 直到添加成功为止
-func (g *Goroutine) AddTask(f func()) bool {
-	// 判断channel是否关闭
+func (g *Goroutine) AddTask(f func()) (ok bool) {
 	if atomic.LoadInt32(&g.close) != 0 {
 		return false
 	}
-	// 尝试直接塞入
-	// 如果阻塞尝试进行扩容
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
 	select {
 	case g.task <- f:
 	default:
@@ -110,11 +112,15 @@ func (g *Goroutine) AddTask(f func()) bool {
 }
 
 // AddTaskN 添加任务 有超时时间
-func (g *Goroutine) AddTaskN(ctx context.Context, f func()) bool {
-	// 判断channel是否关闭
+func (g *Goroutine) AddTaskN(ctx context.Context, f func()) (ok bool) {
 	if atomic.LoadInt32(&g.close) != 0 {
 		return false
 	}
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
 	if atomic.LoadInt64(&g.max) > atomic.LoadInt64(&g.n) {
 		g._go()
 	}
