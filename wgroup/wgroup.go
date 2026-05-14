@@ -18,18 +18,26 @@ func (g *Group) Wait() {
 
 func (g *Group) AddTask(f func()) bool {
 	g.wg.Add(1)
-	return g.goroutine.AddTask(func() {
+	if !g.goroutine.AddTask(func() {
 		defer g.wg.Done()
 		f()
-	})
+	}) {
+		g.wg.Done()
+		return false
+	}
+	return true
 }
 
 func (g *Group) AddTaskN(ctx context.Context, f func()) bool {
 	g.wg.Add(1)
-	return g.goroutine.AddTaskN(ctx, func() {
+	if !g.goroutine.AddTaskN(ctx, func() {
 		defer g.wg.Done()
 		f()
-	})
+	}) {
+		g.wg.Done()
+		return false
+	}
+	return true
 }
 
 func WithContextGroup(group goroutine.GGroup) *Group {
