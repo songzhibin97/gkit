@@ -218,16 +218,15 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	atomic.AddInt64(&l.inFlight, 1)
 	sTime := time.Since(initTime)
 	return func(do overload.DoneInfo) {
-		if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
-			l.rtStat.Add(rt)
-		}
 		atomic.AddInt64(&l.inFlight, -1)
-		switch do.Op {
-		case overload.Success:
+		// Only Success outcomes feed the RT distribution. Previously a
+		// Drop / fail-fast outcome also pushed its (typically very short)
+		// RT into rtStat, biasing minRT downward and inflating maxFlight.
+		if do.Op == overload.Success {
+			if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
+				l.rtStat.Add(rt)
+			}
 			l.passStat.Add(1)
-			return
-		default:
-			return
 		}
 	}, nil
 }

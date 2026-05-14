@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -42,12 +43,15 @@ func (t *Task) TransformArgs(args []Arg) error {
 
 // Call 调用方法
 func (t *Task) Call() (taskResults []*Result, err error) {
-	// 防止意外panic
+	// 防止意外panic. Capture the original panic value when the default
+	// branch fires; the previous code coerced every non-error, non-string
+	// panic into the bare ErrDispatching sentinel and dropped the actual
+	// value, leaving operators without any diagnostic.
 	defer func() {
 		if e := recover(); e != nil {
 			switch er := e.(type) {
 			default:
-				err = ErrDispatching
+				err = fmt.Errorf("%w: %v", ErrDispatching, e)
 			case error:
 				err = er
 			case string:

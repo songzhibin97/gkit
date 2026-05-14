@@ -206,16 +206,28 @@ func (r *RockSteadierSubset) AddService(ctx context.Context, ids []int) error {
 	}
 }
 
+// addService is the sentinel-goroutine-only writer for the service matrix.
+// To avoid racing with concurrent GetServices readers (which iterate the
+// inner []*int slices via the atomic.Value snapshot), we copy-on-write:
+// allocate a new outer slice, deep-copy any row we're about to mutate,
+// and Store the new matrix at the end. The previous code mutated rows
+// in place — atomic.Value only protects the outer header.
 func (r *RockSteadierSubset) addService(ids []int) {
-	matrix := r.matrixServices.Load().([][]*int)
+	old := r.matrixServices.Load().([][]*int)
+	matrix := make([][]*int, len(old))
+	copy(matrix, old)
 	defer r.matrixServices.Store(matrix)
 
 	for _, id := range ids {
-		matrix[r.appendIndex] = append(matrix[r.appendIndex], toPoint(id))
+		// Copy the affected row before append (which may also realloc).
+		row := make([]*int, len(matrix[r.appendIndex]), len(matrix[r.appendIndex])+1)
+		copy(row, matrix[r.appendIndex])
+		row = append(row, toPoint(id))
+		matrix[r.appendIndex] = row
 		x := r.appendIndex
-		y := len(matrix[r.appendIndex]) - 1
+		y := len(row) - 1
 		r.hasService[id] = [2]int{x, y}
-		r.col = max(r.col, len(matrix[r.appendIndex]))
+		r.col = max(r.col, len(row))
 		r.appendIndex = (r.appendIndex + 1) % len(matrix)
 	}
 }
@@ -235,13 +247,29 @@ func (r *RockSteadierSubset) RemoveService(ctx context.Context, ids []int) error
 	}
 }
 
+// removeService applies the same copy-on-write pattern as addService.
 func (r *RockSteadierSubset) removeService(ids []int) {
-	matrix := r.matrixServices.Load().([][]*int)
+	old := r.matrixServices.Load().([][]*int)
+	matrix := make([][]*int, len(old))
+	copy(matrix, old)
+	// Track which rows we've already cloned so we don't deep-copy twice
+	// when multiple IDs land in the same row.
+	cloned := make(map[int]bool, len(ids))
 	defer r.matrixServices.Store(matrix)
 
 	for _, id := range ids {
-		xy := r.hasService[id]
-		matrix[xy[0]][xy[1]] = nil
+		xy, ok := r.hasService[id]
+		if !ok {
+			continue
+		}
+		x := xy[0]
+		if !cloned[x] {
+			row := make([]*int, len(matrix[x]))
+			copy(row, matrix[x])
+			matrix[x] = row
+			cloned[x] = true
+		}
+		matrix[x][xy[1]] = nil
 		delete(r.hasService, id)
 	}
 }

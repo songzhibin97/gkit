@@ -1064,12 +1064,21 @@ func (c *cache) Save(w io.Writer) (err error) {
 			err = CacheGobErr
 		}
 	}()
-	c.Lock()
-	defer c.Unlock()
-	for _, iterator := range c.member {
+	// Snapshot under RLock so concurrent readers/writers are not blocked
+	// by gob.Register or by the I/O performed by Encode. The previous
+	// code took the exclusive write lock for a read-only operation and
+	// held it across both the global gob.Register registry and the
+	// (potentially slow) Encode call.
+	c.RLock()
+	snapshot := make(map[string]Iterator, len(c.member))
+	for k, v := range c.member {
+		snapshot[k] = v
+	}
+	c.RUnlock()
+	for _, iterator := range snapshot {
 		gob.Register(iterator.Val)
 	}
-	return enc.Encode(&c.member)
+	return enc.Encode(&snapshot)
 }
 
 // SaveFile 将 c.member 保存到 path 中
