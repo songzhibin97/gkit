@@ -22,7 +22,7 @@ type BackendSQLDB struct {
 	// resultExpire 数据过期时间
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
-	// 单位为ns
+	// 单位为s
 	resultExpire int64
 }
 
