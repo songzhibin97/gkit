@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/songzhibin97/gkit/internal/sys/mutex"
+	"github.com/songzhibin97/gkit/sys/mutex"
 	"github.com/stretchr/testify/assert"
 )
 
