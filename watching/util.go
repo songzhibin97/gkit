@@ -2,6 +2,7 @@ package watching
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -192,9 +193,9 @@ func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfi
 		// write to log
 		if dumpConfigs.DumpFullStack {
 			res := trimResult(data)
-			return fmt.Errorf(res) // nolint:goerr113
+			return errors.New(res) // nolint:goerr113
 		}
-		return fmt.Errorf(data.String())
+		return errors.New(data.String())
 	}
 
 	bf, _, err := getBinaryFileNameAndCreate(dumpConfigs.DumpPath, dumpType, eventID) // nolint:gosec
