@@ -1,5 +1,7 @@
 package retry
 
+import "math"
+
 // Fibonacci returns successive Fibonacci numbers starting from 1
 func Fibonacci(max ...int) func() int {
 	max = append(max, 20)
@@ -14,12 +16,25 @@ func Fibonacci(max ...int) func() int {
 	}
 }
 
-// FibonacciNext returns next number in Fibonacci sequence greater than start
+// FibonacciNext returns the next Fibonacci number strictly greater than
+// start.
+//
+// The previous implementation reused `Fibonacci()` (default cap = F(20) =
+// 6765) and looped `for num <= start { num = fib() }`. For start >= 6765
+// the generator saturated and the loop never terminated. Compute the
+// sequence inline with an explicit int-overflow guard so callers always
+// make forward progress.
 func FibonacciNext(start int) int {
-	fib := Fibonacci()
-	num := fib()
-	for num <= start {
-		num = fib()
+	a, b := 1, 1
+	for a <= start {
+		if b > math.MaxInt/2 {
+			// next addition would overflow; clamp.
+			if a < start {
+				return start + 1
+			}
+			return a
+		}
+		a, b = b, a+b
 	}
-	return num
+	return a
 }
