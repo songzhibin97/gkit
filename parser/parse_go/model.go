@@ -182,7 +182,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl) {
 							if !ok {
 								continue
 							}
-							mValue, ok := tType.Key.(*ast.Ident)
+							mValue, ok := tType.Value.(*ast.Ident)
 							if !ok {
 								continue
 							}
