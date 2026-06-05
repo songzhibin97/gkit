@@ -45,6 +45,26 @@ func TestGetIndex_RejectsCrossResourceToken(t *testing.T) {
 	}
 }
 
+func TestGetIndex_RejectsPrefixCollisionToken(t *testing.T) {
+	// "user" is a string prefix of "user_admin". With the same (default) salt,
+	// a token minted for the longer resource must NOT validate for the shorter
+	// one, and vice versa. The bug: HasPrefix with no delimiter after the
+	// resource id accepted "user_admin..." for "user".
+	short := NewTokenGenerate("user")
+	long := NewTokenGenerate("user_admin")
+
+	if _, err := short.GetIndex(long.ForIndex(7)); err != ErrInvalidToken {
+		t.Fatalf("user accepted a user_admin token: err = %v, want ErrInvalidToken", err)
+	}
+	if _, err := long.GetIndex(short.ForIndex(3)); err != ErrInvalidToken {
+		t.Fatalf("user_admin accepted a user token: err = %v, want ErrInvalidToken", err)
+	}
+	// Sanity: each still round-trips its own token.
+	if idx, err := short.GetIndex(short.ForIndex(5)); err != nil || idx != 5 {
+		t.Fatalf("user self round-trip: idx=%d err=%v", idx, err)
+	}
+}
+
 func TestNewTokenGenerateE_RequiresExplicitSalt(t *testing.T) {
 	if _, err := NewTokenGenerateE("res"); err != ErrDefaultSalt {
 		t.Fatalf("NewTokenGenerateE without SetSalt err = %v, want ErrDefaultSalt", err)

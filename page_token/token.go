@@ -30,6 +30,14 @@ const (
 	defaultMaxElements = 0
 	defaultSalt        = "gkit"
 	layout             = "2006-01-02 15-04-05"
+
+	// resourceDelim separates the resource identifier from the rest of the
+	// token plaintext. Without an unambiguous delimiter, a HasPrefix check on
+	// the resource id alone accepts a token whose resource is a string
+	// extension of this one (e.g. "user" would accept a "user_admin" token).
+	// \x1f (ASCII Unit Separator) is a control byte that does not occur in
+	// normal resource identifiers, so the prefix check is exact.
+	resourceDelim = "\x1f"
 )
 
 type token struct {
@@ -41,7 +49,7 @@ type token struct {
 }
 
 func (t *token) ForIndex(i int) string {
-	v, err := aes.Encrypt(fmt.Sprintf("%s%s:%d", t.resourceIdentification, time.Now().Format(layout), i), t.salt)
+	v, err := aes.Encrypt(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, time.Now().Format(layout), i), t.salt)
 	if err != nil {
 		return ""
 	}
@@ -59,14 +67,15 @@ func (t *token) GetIndex(s string) (int, error) {
 	if decrypted == "" {
 		return -1, ErrInvalidToken
 	}
-	if !strings.HasPrefix(decrypted, t.resourceIdentification) {
-		// A token whose plaintext does not start with the expected resource
-		// prefix is from a different resource (or forged). TrimPrefix silently
-		// returns the input unchanged in that case, so without this check a
-		// cross-resource token could be replayed.
+	prefix := t.resourceIdentification + resourceDelim
+	if !strings.HasPrefix(decrypted, prefix) {
+		// A token whose plaintext does not start with the expected
+		// "<resource>\x1f" prefix is from a different resource (or forged).
+		// The delimiter makes the match exact, so a resource that is a string
+		// prefix of another (e.g. "user" vs "user_admin") cannot be forged.
 		return -1, ErrInvalidToken
 	}
-	parseToken := strings.Split(strings.TrimPrefix(decrypted, t.resourceIdentification), ":")
+	parseToken := strings.Split(strings.TrimPrefix(decrypted, prefix), ":")
 	if len(parseToken) != 2 {
 		return -1, ErrInvalidToken
 	}
