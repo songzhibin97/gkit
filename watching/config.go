@@ -20,6 +20,12 @@ type configs struct {
 
 	LogLevel int
 	Logger   *os.File
+	// activeLog is the reference-counted handle backing Logger. writeString
+	// acquires a reference for the duration of each write; setLogger retires
+	// the old handle on rotation, and the file is closed only once the last
+	// in-flight writer releases it. Logger is kept as a plain mirror for the
+	// few direct readers.
+	activeLog *loggerRef
 
 	// interval for dump loop, default 5s
 	CollectInterval   time.Duration
@@ -213,6 +219,7 @@ func defaultConfig() *configs {
 		ThreadConfigs:     defaultThreadConfig(),
 		LogLevel:          LogLevelDebug,
 		Logger:            os.Stdout,
+		activeLog:         newLoggerRef(os.Stdout),
 		CollectInterval:   defaultInterval,
 		intervalResetting: make(chan struct{}, 1),
 		CoolDown:          defaultCooldown,
