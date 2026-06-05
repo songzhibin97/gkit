@@ -9,7 +9,7 @@ import (
 )
 
 func TestConn_Send(t *testing.T) {
-	var conn net.Conn
+	connCh := make(chan net.Conn, 1)
 	ok := make(chan struct{}, 1)
 	// run server
 	go func() {
@@ -17,8 +17,9 @@ func TestConn_Send(t *testing.T) {
 		assert.NoError(t, err)
 		defer l.Close()
 		ok <- struct{}{}
-		conn, err = l.Accept()
+		c, err := l.Accept()
 		assert.NoError(t, err)
+		connCh <- c
 	}()
 	<-ok
 	// client
@@ -30,8 +31,7 @@ func TestConn_Send(t *testing.T) {
 	assert.NoError(t, err)
 
 	readBody := make([]byte, len(body))
-	for conn == nil {
-	}
+	conn := <-connCh
 	n, err := conn.Read(readBody)
 	assert.NoError(t, err)
 	assert.Equal(t, n, len(body))
@@ -41,7 +41,7 @@ func TestConn_Send(t *testing.T) {
 }
 
 func TestConn_Recv(t *testing.T) {
-	var conn net.Conn
+	connCh := make(chan net.Conn, 1)
 	ok := make(chan struct{}, 1)
 	DefaultReadBuffer = 16
 	// run server
@@ -50,8 +50,9 @@ func TestConn_Recv(t *testing.T) {
 		assert.NoError(t, err)
 		defer l.Close()
 		ok <- struct{}{}
-		conn, err = l.Accept()
+		c, err := l.Accept()
 		assert.NoError(t, err)
+		connCh <- c
 	}()
 	<-ok
 	// client
@@ -60,8 +61,7 @@ func TestConn_Recv(t *testing.T) {
 	defer mockConn.Close()
 
 	body := []byte("hello world")
-	for conn == nil {
-	}
+	conn := <-connCh
 	{
 		// 正常一次收发
 		n, err := conn.Write(body)
@@ -158,7 +158,7 @@ func TestConn_SetDeadlineFields(t *testing.T) {
 }
 
 func TestConn_RecvLine(t *testing.T) {
-	var conn net.Conn
+	connCh := make(chan net.Conn, 1)
 	ok := make(chan struct{}, 1)
 	DefaultReadBuffer = 16
 	// run server
@@ -167,8 +167,9 @@ func TestConn_RecvLine(t *testing.T) {
 		assert.NoError(t, err)
 		defer l.Close()
 		ok <- struct{}{}
-		conn, err = l.Accept()
+		c, err := l.Accept()
 		assert.NoError(t, err)
+		connCh <- c
 	}()
 	<-ok
 
@@ -181,8 +182,7 @@ func TestConn_RecvLine(t *testing.T) {
 测试Gkit
 测试Debug
 `
-	for conn == nil {
-	}
+	conn := <-connCh
 	n, err := conn.Write([]byte(body))
 	assert.NoError(t, err)
 	assert.Equal(t, n, len(body))
