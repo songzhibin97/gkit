@@ -70,6 +70,10 @@ func (l *LifeAdmin) Start() error {
 	// 监听信号
 	signal.Notify(c, l.opts.signals...)
 	l.g.Go(func() error {
+		// Match Notify with Stop on exit. Previously the signal forwarder
+		// stayed registered for the lifetime of the process, accumulating
+		// handlers across every LifeAdmin.Start invocation.
+		defer signal.Stop(c)
 		for {
 			select {
 			case <-l.g.ctx.Done():

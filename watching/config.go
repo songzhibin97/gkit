@@ -20,6 +20,12 @@ type configs struct {
 
 	LogLevel int
 	Logger   *os.File
+	// activeLog is the reference-counted handle backing Logger. writeString
+	// acquires a reference for the duration of each write; setLogger retires
+	// the old handle on rotation, and the file is closed only once the last
+	// in-flight writer releases it. Logger is kept as a plain mirror for the
+	// few direct readers.
+	activeLog *loggerRef
 
 	// interval for dump loop, default 5s
 	CollectInterval   time.Duration
@@ -150,13 +156,18 @@ func defaultLogConfigs() *logConfigs {
 	}
 }
 
+// Each default constructor below previously permuted the three trigger
+// fields — `TriggerMin = defaultXxxTriggerAbs`,
+// `TriggerAbs = defaultXxxTriggerDiff`, `TriggerDiff = defaultXxxTriggerMin`
+// — so every default-config user observed wildly wrong dump thresholds.
+
 func defaultGroupConfigs() *groupConfigs {
 	return &groupConfigs{
 		typeConfig: &typeConfig{
 			Enable:      false,
-			TriggerMin:  defaultGoroutineTriggerAbs,
-			TriggerAbs:  defaultGoroutineTriggerDiff,
-			TriggerDiff: defaultGoroutineTriggerMin,
+			TriggerMin:  defaultGoroutineTriggerMin,
+			TriggerAbs:  defaultGoroutineTriggerAbs,
+			TriggerDiff: defaultGoroutineTriggerDiff,
 		},
 		GoroutineTriggerNumMax: 0,
 	}
@@ -165,36 +176,36 @@ func defaultGroupConfigs() *groupConfigs {
 func defaultGCHeapOptions() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultGCHeapTriggerAbs,
-		TriggerAbs:  defaultGCHeapTriggerDiff,
-		TriggerDiff: defaultGCHeapTriggerMin,
+		TriggerMin:  defaultGCHeapTriggerMin,
+		TriggerAbs:  defaultGCHeapTriggerAbs,
+		TriggerDiff: defaultGCHeapTriggerDiff,
 	}
 }
 
 func defaultMemConfigs() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultMemTriggerAbs,
-		TriggerAbs:  defaultMemTriggerDiff,
-		TriggerDiff: defaultMemTriggerMin,
+		TriggerMin:  defaultMemTriggerMin,
+		TriggerAbs:  defaultMemTriggerAbs,
+		TriggerDiff: defaultMemTriggerDiff,
 	}
 }
 
 func defaultCPUConfigs() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultCPUTriggerAbs,
-		TriggerAbs:  defaultCPUTriggerDiff,
-		TriggerDiff: defaultCPUTriggerMin,
+		TriggerMin:  defaultCPUTriggerMin,
+		TriggerAbs:  defaultCPUTriggerAbs,
+		TriggerDiff: defaultCPUTriggerDiff,
 	}
 }
 
 func defaultThreadConfig() *typeConfig {
 	return &typeConfig{
 		Enable:      false,
-		TriggerMin:  defaultThreadTriggerAbs,
-		TriggerAbs:  defaultThreadTriggerDiff,
-		TriggerDiff: defaultThreadTriggerMin,
+		TriggerMin:  defaultThreadTriggerMin,
+		TriggerAbs:  defaultThreadTriggerAbs,
+		TriggerDiff: defaultThreadTriggerDiff,
 	}
 }
 
@@ -208,6 +219,7 @@ func defaultConfig() *configs {
 		ThreadConfigs:     defaultThreadConfig(),
 		LogLevel:          LogLevelDebug,
 		Logger:            os.Stdout,
+		activeLog:         newLoggerRef(os.Stdout),
 		CollectInterval:   defaultInterval,
 		intervalResetting: make(chan struct{}, 1),
 		CoolDown:          defaultCooldown,

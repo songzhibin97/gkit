@@ -58,7 +58,45 @@ func SetLeaseMaxRetry(maxRetry int) options.Option {
 	}
 }
 
+// Lease is a renewable distributed lock acquired by NewLease. Callers must
+// either invoke Cancel to release voluntarily, or watch Lost() to detect
+// that the renew goroutine has given up — the latter is the only safe way
+// to learn that another holder may now own the key.
+type Lease struct {
+	cancel func() error
+	lost   chan struct{}
+}
+
+// Cancel releases the lock and stops the renew goroutine. Returns the
+// underlying UnLock error, or nil if the lease was already lost.
+func (l *Lease) Cancel() error { return l.cancel() }
+
+// Lost returns a channel that is closed when the renew goroutine has
+// permanently given up renewing the lease (retries exhausted). After Lost
+// fires, the caller MUST stop treating the protected section as held — the
+// underlying key may have already been acquired by another holder.
+func (l *Lease) Lost() <-chan struct{} { return l.lost }
+
+// LeaseLock acquires a renewable lock and returns a closure that releases
+// it.
+//
+// Deprecated: the returned closure cannot signal lease loss. After the
+// renew goroutine's max retries are exhausted it silently exits and the
+// closure becomes a no-op — the application keeps running its critical
+// section while another holder may have taken the key. Use NewLease, which
+// exposes a Lost() channel.
 func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option) (func() error, error) {
+	lease, err := NewLease(lock, key, expire, ops...)
+	if err != nil {
+		return nil, err
+	}
+	return lease.Cancel, nil
+}
+
+// NewLease acquires a renewable distributed lock and returns a *Lease that
+// the caller can Cancel and whose Lost() channel signals permanent renew
+// failure.
+func NewLease(lock locker.Locker, key string, expire int, ops ...options.Option) (*Lease, error) {
 	c := leaseConfig{
 		enable:    true,
 		interval:  time.Duration(expire) * time.Millisecond / 3, // expire单位是毫秒
@@ -80,7 +118,8 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 	}
 
 	var cls atomic.Bool
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	lost := make(chan struct{})
 
 	if c.enable {
 		go func() {
@@ -95,7 +134,6 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 					if cls.Load() {
 						return
 					}
-					// 续约
 					err := lock.Renew(key, expire, mark)
 					if err != nil {
 						retryCount++
@@ -103,8 +141,10 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 							if c.logger != nil {
 								_ = c.logger.Log(log.LevelError, "key", key, "msg", "lease retry exceeded, auto unlocking", "retryCount", retryCount)
 							}
-							// 自动释放锁，避免死锁
 							_ = lock.UnLock(key, mark)
+							// Signal lost BEFORE setting cls so observers can
+							// distinguish "we cancelled" from "we lost".
+							close(lost)
 							cls.Store(true)
 							return
 						}
@@ -112,7 +152,6 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 							_ = c.logger.Log(log.LevelError, "key", key, "err", err, "retryCount", retryCount)
 						}
 					} else {
-						// 续约成功，重置计数
 						retryCount = 0
 					}
 				}
@@ -120,12 +159,15 @@ func LeaseLock(lock locker.Locker, key string, expire int, ops ...options.Option
 		}()
 	}
 
-	return func() error {
-		if cls.Load() {
-			return nil
-		}
-		cls.Store(true)
-		defer cancel()
-		return lock.UnLock(key, mark)
+	return &Lease{
+		lost: lost,
+		cancel: func() error {
+			if cls.Load() {
+				return nil
+			}
+			cls.Store(true)
+			cancelCtx()
+			return lock.UnLock(key, mark)
+		},
 	}, nil
 }

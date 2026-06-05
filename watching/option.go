@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/docker/go-units"
 	"github.com/songzhibin97/gkit/options"
@@ -25,7 +24,16 @@ func WithCollectInterval(interval string) options.Option {
 			return
 		}
 		opts.config.CollectInterval = newInterval
-		opts.config.intervalResetting <- struct{}{}
+		// Non-blocking send: the channel has cap=1 and only one reader
+		// (startDumpLoop, which runs after Start()). A second
+		// WithCollectInterval invocation before Start() — or two rapid
+		// calls between ticks — would otherwise wedge here forever.
+		// Coalescing repeated reset signals into the buffered slot is
+		// correct since the reader only needs to know "interval changed".
+		select {
+		case opts.config.intervalResetting <- struct{}{}:
+		default:
+		}
 		return
 	}
 }
@@ -73,12 +81,11 @@ func WithDumpPath(dumpPath string, loginfo ...string) options.Option {
 				return
 			}
 		}
-		old := opts.config.Logger
-		if atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&opts.config.Logger)), unsafe.Pointer(opts.config.Logger), unsafe.Pointer(logger)) {
-			if old != os.Stdout {
-				_ = old.Close()
-			}
-		}
+		// Swap under the config RWMutex. The previous broken pattern
+		// (unsafe CompareAndSwapPointer with an unprotected read of
+		// `opts.config.Logger` as the expected-old-value) gave no atomicity
+		// guarantee and tripped the race detector.
+		opts.setLogger(logger)
 		return
 	}
 }

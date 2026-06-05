@@ -30,9 +30,10 @@ func siftupDelayed(d []Delayed, i int) int {
 		d[i] = d[p]
 		i = p
 	}
-	if tmp != d[i] {
-		d[i] = tmp
-	}
+	// Always write tmp back to its final slot. The original `if tmp != d[i]`
+	// micro-optimisation compared two Delayed values with ==, which panics for
+	// any uncomparable Delayed implementation (one carrying a func/slice/map).
+	d[i] = tmp
 	return i
 }
 
@@ -76,7 +77,7 @@ func siftdownDelayed(d []Delayed, i int) {
 		d[i] = d[c]
 		i = c
 	}
-	if tmp != d[i] {
-		d[i] = tmp
-	}
+	// Always write tmp back (see siftupDelayed): avoids comparing uncomparable
+	// Delayed values with ==.
+	d[i] = tmp
 }
