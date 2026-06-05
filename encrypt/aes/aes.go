@@ -19,8 +19,22 @@ import (
 // attacker probe ciphertext byte-by-byte.
 var ErrDecryptionFailed = errors.New("aes: decryption failed")
 
+// defaultKey is the legacy fallback used when callers pass an empty key.
+// Anyone reading the source can derive the resulting key, so it MUST NOT be
+// used in production. Retained only because removing it would change the
+// behaviour of the deprecated PadKey / PadKeyToLength helpers.
 const defaultKey = "gkit"
 
+// ErrEmptyKey is returned by PadKeyE / PadKeyToLengthE when the caller passes
+// an empty string. The previous helpers silently substituted a hard-coded
+// fallback ("gkit"), which produced a publicly-known KDF.
+var ErrEmptyKey = errors.New("aes: empty key")
+
+// PadKey pads s to a valid AES key length (16, 24, or 32 bytes).
+//
+// Deprecated: PadKey("") silently substitutes the hard-coded "gkit" default,
+// producing a publicly-known key. New code should call PadKeyE and handle
+// ErrEmptyKey explicitly.
 func PadKey(s string) string {
 	if s == "" {
 		s = defaultKey
@@ -40,6 +54,19 @@ func PadKey(s string) string {
 	return string(ps)
 }
 
+// PadKeyE pads s to a valid AES key length (16, 24, or 32 bytes). It returns
+// ErrEmptyKey when s is empty.
+func PadKeyE(s string) (string, error) {
+	if s == "" {
+		return "", ErrEmptyKey
+	}
+	return PadKey(s), nil
+}
+
+// PadKeyToLength pads s to targetLength bytes.
+//
+// Deprecated: PadKeyToLength("") silently substitutes "gkit". Use
+// PadKeyToLengthE instead.
 func PadKeyToLength(s string, targetLength int) string {
 	if s == "" {
 		s = defaultKey
@@ -58,6 +85,15 @@ func PadKeyToLength(s string, targetLength int) string {
 	}
 
 	return string(ps)
+}
+
+// PadKeyToLengthE pads s to targetLength bytes. It returns ErrEmptyKey when s
+// is empty.
+func PadKeyToLengthE(s string, targetLength int) (string, error) {
+	if s == "" {
+		return "", ErrEmptyKey
+	}
+	return PadKeyToLength(s, targetLength), nil
 }
 
 func Encrypt(orig string, key string) (string, error) {
