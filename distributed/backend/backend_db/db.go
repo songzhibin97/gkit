@@ -97,8 +97,12 @@ func (b *BackendSQLDB) TriggerCompleted(groupID string) (bool, error) {
 // RecordNotFound and both Create, hitting a unique-key violation; or
 // Update could run on a row deleted between SELECT and UPDATE.
 func (b *BackendSQLDB) upsertStatus(s *task.Status, updateColumns []string) error {
+	// Conflict target is the DB column TaskID maps to (`id`, uniqueIndex), NOT
+	// the field name. GORM writes the conflict column verbatim, so `task_id`
+	// (no such column) errored on Postgres; and the column must be a UNIQUE
+	// index for ON CONFLICT / ON DUPLICATE KEY to dedupe at all.
 	return b.gClient.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "task_id"}},
+		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(updateColumns),
 	}).Create(s).Error
 }
@@ -175,13 +179,26 @@ func (b *BackendSQLDB) GetStatus(taskID string) (*task.Status, error) {
 }
 
 func (b *BackendSQLDB) ResetTask(taskIDs ...string) error {
-	return b.gClient.Where("id in ?", taskIDs).Delete(&task.Status{}).Error
+	// Hard delete (Unscoped): Status has gorm.DeletedAt, so a soft delete leaves
+	// the row physically present. With TaskID now a unique index, a later
+	// SetStateX would upsert-conflict with that soft-deleted row and update it
+	// without clearing deleted_at, so GetStatus could never see the reused task.
+	return b.gClient.Unscoped().Where("id in ?", taskIDs).Delete(&task.Status{}).Error
 }
 
 func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
-	return b.gClient.Where("id in ?", groupIDs).Delete(&task.GroupMeta{}).Error
+	return b.gClient.Unscoped().Where("id in ?", groupIDs).Delete(&task.GroupMeta{}).Error
 }
 
+// autoMigrate creates/updates the schema.
+//
+// NOTE: GORM's AutoMigrate will not convert a pre-existing non-unique index on
+// Status.TaskID into a unique one (it only creates the index when absent). The
+// unique index is therefore given a distinct name so AutoMigrate creates it on
+// older schemas — but that CREATE fails loudly if the `id` column already holds
+// duplicate task IDs. Deployments upgrading from a schema that allowed
+// duplicate task IDs must de-duplicate first; otherwise the upsert
+// (ON CONFLICT id) cannot dedupe.
 func (b *BackendSQLDB) autoMigrate() error {
 	return b.gClient.AutoMigrate(
 		task.GroupMeta{},
@@ -189,15 +206,16 @@ func (b *BackendSQLDB) autoMigrate() error {
 	)
 }
 
-// NewBackendSQLDB constructs a SQL-backed Backend. Returns nil on failure.
+// NewBackendSQLDB constructs a SQL-backed Backend. Returns nil on failure
+// (the underlying error is swallowed), preserving the original contract.
 //
-// Deprecated: panics on unsupported dbType or AutoMigrate failure, which
-// crashes any service whose config is wrong at startup. Use
-// NewBackendSQLDBE instead, which returns an error.
+// Deprecated: a nil return hides why construction failed (unsupported dbType,
+// the connection, or the schema migration). Use NewBackendSQLDBE, which
+// returns the error.
 func NewBackendSQLDB(db *sql.DB, resultExpire int64, dbType string, config *gorm.Config) backend.Backend {
 	b, err := NewBackendSQLDBE(db, resultExpire, dbType, config)
 	if err != nil {
-		panic(err)
+		return nil
 	}
 	return b
 }
