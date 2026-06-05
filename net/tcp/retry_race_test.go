@@ -1,38 +1,40 @@
 package tcp
 
 import (
+	"net"
 	"sync"
 	"testing"
-	"time"
 )
 
-// TestNilRetry_NoGlobalMutation covers I-ff: previously when callers passed
-// nil retry, Send/Recv took the address of a package global and mutated
-// retry.Count / retry.Interval through it. Two concurrent nil-retry callers
-// would race on that global.
+// TestNilRetry_ConcurrentRealPath covers I-ff: when a caller passes a nil
+// retry, Send/Recv must use a fresh per-call zero Retry rather than the
+// address of a shared package global (`retry = &defaultRetry`). This drives
+// the REAL Send/Recv nil-retry branch over a closed net.Pipe from many
+// goroutines under -race, asserting the path is concurrency-safe and returns
+// promptly (a zero retry means no retry, so a failed write returns at once).
 //
-// The fix is to allocate a per-call zero Retry on the stack. This test
-// exercises the code path without needing a live network: it only checks
-// that the default Retry is unaffected after some calls would have mutated
-// it under the old behaviour.
-func TestNilRetry_NoGlobalMutation(t *testing.T) {
+// Note: the original global was a zero-value `var defaultRetry Retry`, and the
+// only writes to it (`retry.Count--`, `retry.Interval=...`) sit behind a
+// `Count > 0` guard that a nil caller never satisfies. The shared-global race
+// is therefore latent rather than live, so this test guards the changed code
+// path and its concurrency-safety, not a reproducible data race.
+func TestNilRetry_ConcurrentRealPath(t *testing.T) {
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 16; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Construct a Conn-less retry path: the Retry handling lives in
-			// the early `if retry == nil { ... }` branch which we can hit by
-			// calling Send via a closed connection. Easier and identical for
-			// our purposes is to just confirm that two nil-retry calls don't
-			// share state — by inspecting the zero-value Retry we now use
-			// instead of the deleted package global.
-			var r Retry
-			r.Count = 3
-			r.Interval = time.Millisecond
-			if r.Count != 3 {
-				t.Error("local retry corrupted")
+			client, server := net.Pipe()
+			_ = server.Close() // make the peer dead so writes fail
+			c := NewConnByNetConn(client)
+			// nil retry -> fresh zero Retry -> no retry -> prompt error.
+			if err := c.Send([]byte("ping"), nil); err == nil {
+				t.Error("Send to closed pipe: want error, got nil")
 			}
+			// Exercise the Recv nil-retry branch too; a closed pipe yields EOF
+			// which Recv treats as a clean end, so we only require no hang/panic.
+			_, _ = c.Recv(0, nil)
+			_ = client.Close()
 		}()
 	}
 	wg.Wait()
