@@ -10,41 +10,51 @@ import (
 	"github.com/songzhibin97/gkit/timeout"
 )
 
-// TestAddTask_ShutdownRace stresses the AddTask vs Shutdown path that used
-// to race (close(g.task) concurrent with send) and the wg.Add/wg.Wait race.
+// TestAddTask_ShutdownRace stresses the AddTask vs Shutdown path that used to
+// race (close(g.task) concurrent with send) and the wg.Add (AddTask->_go pool
+// growth) vs wg.Wait (Shutdown) race the growMu guard fixes. A single
+// create/shutdown cycle rarely hits the window, so amplify across many fresh
+// pools. Run under -race; reverting the growMu guard reproduces the race here.
 func TestAddTask_ShutdownRace(t *testing.T) {
-	g := NewGoroutine(context.Background(), SetMax(8), SetIdle(2))
-
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 200; j++ {
-				g.AddTask(func() {})
-			}
-		}()
+	for k := 0; k < 100; k++ {
+		// Start small (SetIdle 1) with room to grow (SetMax 16) and submit
+		// briefly-busy tasks, so the pool keeps calling _go (g.wait.Add) to
+		// grow while Shutdown calls g.wait.Wait — the window the growMu guard
+		// closes. Instant tasks never fill the channel, so the pool never grows
+		// and the race stays hidden.
+		g := NewGoroutine(context.Background(), SetMax(16), SetIdle(1))
+		var wg sync.WaitGroup
+		for i := 0; i < 16; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < 20; j++ {
+					g.AddTask(func() { time.Sleep(20 * time.Microsecond) })
+				}
+			}()
+		}
+		time.Sleep(100 * time.Microsecond) // let the pool start growing first
+		_ = g.Shutdown()
+		wg.Wait()
 	}
-	time.Sleep(1 * time.Millisecond)
-	_ = g.Shutdown()
-	wg.Wait()
 }
 
-// TestDelegate_PropagatesTimeoutToInner verifies the fix to C6 — that f
-// receives a context that already carries the requested timeout, so f's
-// own ctx-aware logic honours the deadline.
+// TestDelegate_PropagatesTimeoutToInner verifies C6: f receives a context that
+// already carries the requested timeout. f returns immediately based on whether
+// its ctx has a deadline, so its result wins the outer select deterministically
+// (no race with the 20ms outer deadline). The previous assertion was satisfied
+// by Delegate's own outer-timeout path and passed even when f got a
+// deadline-less context.
 func TestDelegate_PropagatesTimeoutToInner(t *testing.T) {
-	sentinel := errors.New("inner deadline observed")
+	sentinel := errors.New("inner saw deadline")
 	err := Delegate(context.Background(), 20*time.Millisecond, func(ctx context.Context) error {
-		select {
-		case <-time.After(200 * time.Millisecond):
-			return errors.New("inner did not see deadline")
-		case <-ctx.Done():
+		if _, ok := ctx.Deadline(); ok {
 			return sentinel
 		}
+		return errors.New("inner context had no deadline")
 	})
-	if !errors.Is(err, context.DeadlineExceeded) && err != sentinel {
-		t.Fatalf("expected inner to observe ctx.Done; outer err = %v", err)
+	if err != sentinel {
+		t.Fatalf("f did not receive a deadline-bearing context: %v", err)
 	}
 }
 

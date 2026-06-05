@@ -2,6 +2,7 @@ package window
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -42,6 +43,10 @@ type Window struct {
 	// communication: 通讯 channel 将kv数据发送到临界区
 	communication chan Index
 
+	// mu serialises the sentinel's map mutations/stores against Show's reads
+	// of the buffered maps; without it Show ranges a map the sentinel mutates.
+	mu sync.Mutex
+
 	// buffer: 根据窗口大小生成的buffer数组
 	// map[string]uint
 	buffer []atomic.Value
@@ -55,11 +60,15 @@ func (w *Window) sentinel() {
 	for {
 		select {
 		case info := <-w.communication:
+			w.mu.Lock()
 			m[info.Name] += info.Score
+			w.mu.Unlock()
 		case <-tick.C:
+			w.mu.Lock()
 			w.buffer[w.index].Store(m)
 			m = make(map[string]uint)
 			w.index = (w.index + 1) % w.size
+			w.mu.Unlock()
 		case <-w.ctx.Done():
 			return
 		}
@@ -96,12 +105,14 @@ func (w *Window) AddIndex(k string, v uint) {
 // Show 展示total
 func (w *Window) Show() []interface{} {
 	m := make(map[string]uint)
+	w.mu.Lock()
 	for _, v := range w.buffer {
 		buf := v.Load().(map[string]uint)
 		for s, u := range buf {
 			m[s] += u
 		}
 	}
+	w.mu.Unlock()
 	res := make([]interface{}, 0, len(m))
 	for s, u := range m {
 		res = append(res, Index{
