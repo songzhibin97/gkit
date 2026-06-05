@@ -38,6 +38,13 @@ func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.Wa
 			} else {
 				maxWait = defaultWaitWhenNoDeadline
 			}
+			// NOTE: TakeMaxDuration reserves n tokens from the bucket up front,
+			// and juju/ratelimit takes are irrevocable (there is no return API).
+			// So if ctx is cancelled during the wait below, this returns
+			// ctx.Err() but the reserved tokens stay consumed — a cancelled Wait
+			// still counts against the rate. This differs from x/time/rate
+			// (Reservation.Cancel restores the tokens); it is an accepted
+			// tradeoff of this juju-backed limiter.
 			d, ok := bucket.TakeMaxDuration(int64(n), maxWait)
 			if !ok {
 				return ErrTimeOut

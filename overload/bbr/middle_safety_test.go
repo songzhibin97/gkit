@@ -11,37 +11,38 @@ import (
 
 func doneSuccess() overload.DoneInfo { return overload.DoneInfo{Op: overload.Success} }
 
-// TestMiddleware_ReleasesOnPanic covers C12: previously a panic in any
-// downstream middleware bypassed the inline f(...) call, leaking
-// inFlight permanently.
+// TestMiddleware_ReleasesOnPanic covers C12: a panic in any downstream
+// middleware must still release the inFlight slot. We drive the middleware over
+// a Group we control (newLimiterWithGroup) so we can read the same limiter's
+// inFlight afterwards: a leak leaves it elevated, the defer's f(Drop) returns it
+// to zero. Asserting calls==5 (the old test) proved nothing — the slot could
+// leak on every call and `next` would still be reached.
 func TestMiddleware_ReleasesOnPanic(t *testing.T) {
-	limiter := NewLimiter()
-	calls := int32(0)
-	wrapped := limiter(func(ctx context.Context, req interface{}) (interface{}, error) {
-		atomic.AddInt32(&calls, 1)
+	g := NewGroup()
+	mw := newLimiterWithGroup(g)
+	wrapped := mw(func(ctx context.Context, req interface{}) (interface{}, error) {
 		panic("downstream blew up")
 	})
+	ctx := context.WithValue(context.Background(), LimitKey, "k")
 	for i := 0; i < 5; i++ {
 		func() {
 			defer func() { _ = recover() }()
-			_, _ = wrapped(context.Background(), nil)
+			_, _ = wrapped(ctx, nil)
 		}()
 	}
-	// If the middleware leaked inFlight, the bbr Group's only limiter would
-	// eventually drop everything. We don't assert maxFlight directly (would
-	// be flaky on a quiet CPU); the fact that all 5 calls reached `next` is
-	// sufficient evidence the middleware did not leak between calls.
-	if got := atomic.LoadInt32(&calls); got != 5 {
-		t.Fatalf("calls = %d, want 5 — middleware leaked inFlight", got)
+	l := g.Get("k").(*BBR)
+	if got := atomic.LoadInt64(&l.inFlight); got != 0 {
+		t.Fatalf("inFlight = %d, want 0 — middleware leaked the slot on panic", got)
 	}
 	_ = middleware.MiddleWare(nil) // ensure middleware import is used
 }
 
-// TestAllow_ClosureIdempotent covers I-p: double-calling the returned
-// closure must not drive inFlight negative.
+// TestAllow_ClosureIdempotent covers I-p: double-calling the returned closure
+// must not drive inFlight negative. Asserting only that Allow returned no error
+// (the old test) missed the bug; assert inFlight returns to zero.
 func TestAllow_ClosureIdempotent(t *testing.T) {
 	g := NewGroup()
-	l := g.Get("k")
+	l := g.Get("k").(*BBR)
 	for i := 0; i < 10; i++ {
 		f, err := l.Allow(context.Background())
 		if err != nil {
@@ -50,5 +51,8 @@ func TestAllow_ClosureIdempotent(t *testing.T) {
 		f(doneSuccess())
 		f(doneSuccess()) // second call must be a no-op
 		f(doneSuccess()) // third too
+	}
+	if got := atomic.LoadInt64(&l.inFlight); got != 0 {
+		t.Fatalf("inFlight = %d, want 0 — non-idempotent release drove it negative", got)
 	}
 }

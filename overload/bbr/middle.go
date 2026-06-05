@@ -14,7 +14,13 @@ const (
 )
 
 func NewLimiter(options ...options.Option) middleware.MiddleWare {
-	g := NewGroup(options...)
+	return newLimiterWithGroup(NewGroup(options...))
+}
+
+// newLimiterWithGroup builds the limiter middleware around a caller-provided
+// Group, so tests can inspect the same Group's per-key limiter (e.g. its
+// inFlight) that the middleware drives.
+func newLimiterWithGroup(g *Group) middleware.MiddleWare {
 	return func(next middleware.Endpoint) middleware.Endpoint {
 		return func(ctx context.Context, i interface{}) (resp interface{}, err error) {
 			defaultKey := "default"
