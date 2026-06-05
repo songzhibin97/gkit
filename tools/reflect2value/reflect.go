@@ -200,7 +200,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 			if err != nil {
 				return reflect.Value{}, err
 			}
-
+			if theValue.Index(i).OverflowInt(intValue) {
+				return reflect.Value{}, NewErrOverflow(theValue.Index(i).Type().String(), intValue)
+			}
 			theValue.Index(i).SetInt(intValue)
 		}
 
@@ -229,7 +231,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 			if err != nil {
 				return reflect.Value{}, err
 			}
-
+			if theValue.Index(i).OverflowUint(uintValue) {
+				return reflect.Value{}, NewErrOverflow(theValue.Index(i).Type().String(), int64(uintValue))
+			}
 			theValue.Index(i).SetUint(uintValue)
 		}
 
@@ -246,7 +250,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 			if err != nil {
 				return reflect.Value{}, err
 			}
-
+			if theValue.Index(i).OverflowFloat(floatValue) {
+				return reflect.Value{}, NewErrOverflowFloat(theValue.Index(i).Type().String(), floatValue)
+			}
 			theValue.Index(i).SetFloat(floatValue)
 		}
 
