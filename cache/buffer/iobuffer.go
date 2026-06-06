@@ -215,16 +215,20 @@ func (i *ioBuffer) ReadFrom(r io.Reader) (n int64, err error) {
 		i.buffer = i.buffer[0 : len(i.buffer)+m]
 		n += int64(m)
 
-		if err == io.EOF || m == 0 {
-			break
+		// The previous code compared the named-return `err` (always nil
+		// inside this loop) instead of the inner read error `e`, so the
+		// io.EOF case fell through and re-returned io.EOF as an error —
+		// violating io.ReaderFrom's "MUST NOT return io.EOF" contract.
+		if e == io.EOF {
+			return n, nil
 		}
-
 		if e != nil {
 			return n, e
 		}
+		if m == 0 {
+			return n, nil
+		}
 	}
-
-	return
 }
 
 // Grow 扩张

@@ -2,8 +2,8 @@
 package fastrand
 
 import (
+	"encoding/binary"
 	"math/bits"
-	"unsafe"
 
 	"github.com/songzhibin97/gkit/internal/runtimex"
 )
@@ -97,6 +97,7 @@ func Float32() float32 {
 }
 
 // Uint32n returns a pseudo-random number in [0,n).
+//
 //go:nosplit
 func Uint32n(n uint32) uint32 {
 	// This is similar to Uint32() % n, but faster.
@@ -147,12 +148,17 @@ func Read(p []byte) (int, error) {
 
 	r := wyrand(Uint32())
 
+	// Write 8 bytes at a time using encoding/binary so we don't depend on
+	// the backing array being 8-byte aligned. The previous code did
+	// `*(*[]uint64)(unsafe.Pointer(&p))` which reinterpreted a []byte
+	// slice header as []uint64 — Len/Cap stayed in byte units (bogus) and
+	// on strict-alignment ISAs (arm64 / mips) an unaligned 8-byte store
+	// could trap. binary.LittleEndian.PutUint64 always works.
 	if l >= 8 {
-		var i int
-		uint64p := *(*[]uint64)(unsafe.Pointer(&p))
+		off := 0
 		for l >= 8 {
-			uint64p[i] = r.Uint64()
-			i++
+			binary.LittleEndian.PutUint64(p[off:], r.Uint64())
+			off += 8
 			l -= 8
 		}
 	}
