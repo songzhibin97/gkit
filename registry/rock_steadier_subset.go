@@ -172,6 +172,12 @@ func NewRockSteadierSubset(ctx context.Context, clients, services []int, magicNu
 		command: make(chan command, cfg.buf),
 	}
 	r.matrixServices.Store(matrix)
+	// Start the command consumer. Without this the buffered command channel
+	// filled up after cfg.buf AddService/RemoveService calls and every
+	// subsequent call blocked forever — the dynamic add/remove path never ran.
+	// Now that addService/removeService publish via copy-on-write, this single
+	// writer is safe against concurrent GetServices readers.
+	r.sentinel()
 	return r
 }
 

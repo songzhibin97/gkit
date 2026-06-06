@@ -4,13 +4,9 @@ package fastrand
 import (
 	"encoding/binary"
 	"math/bits"
-	"unsafe"
 
 	"github.com/songzhibin97/gkit/internal/runtimex"
 )
-
-// keep the unsafe import alive (used elsewhere in the package).
-var _ = unsafe.Sizeof(0)
 
 // Uint32 returns a pseudo-random 32-bit value as a uint32.
 var Uint32 = runtimex.Fastrand
@@ -101,6 +97,7 @@ func Float32() float32 {
 }
 
 // Uint32n returns a pseudo-random number in [0,n).
+//
 //go:nosplit
 func Uint32n(n uint32) uint32 {
 	// This is similar to Uint32() % n, but faster.
