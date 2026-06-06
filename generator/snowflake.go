@@ -147,20 +147,39 @@ func LocalIpToUint16() (uint16, error) {
 	return uint16(ip[2])<<8 + uint16(ip[3]), nil
 }
 
+// ErrStartTimeInFuture is returned by NewSnowflakeE when startTime is later
+// than the current wall clock.
+var ErrStartTimeInFuture = errors.New("generator: startTime is in the future")
+
 // NewSnowflake 初始化
 // StartTime 起始时间
 // NodeID 服务器ID
+//
+// Deprecated: returns an untyped nil interface when startTime is in the
+// future, which causes a nil-pointer panic on the first NextID call. Use
+// NewSnowflakeE, which returns ErrStartTimeInFuture instead.
 func NewSnowflake(startTime time.Time, nodeID uint16) Generator {
+	sf, err := NewSnowflakeE(startTime, nodeID)
+	if err != nil {
+		return nil
+	}
+	return sf
+}
+
+// NewSnowflakeE constructs a Snowflake generator and returns an error when
+// startTime is in the future (rather than the deprecated nil-interface
+// return that causes a nil-pointer panic on the caller's next NextID).
+func NewSnowflakeE(startTime time.Time, nodeID uint16) (Generator, error) {
+	if startTime.After(time.Now()) {
+		return nil, ErrStartTimeInFuture
+	}
 	sf := new(Snowflake)
 	sf.sequence = uint16(1<<SequenceBit - 1)
 	sf.node = nodeID
-	if startTime.After(time.Now()) {
-		return nil
-	}
 	if startTime.IsZero() {
 		sf.startTime = toSnowflakeTime(time.Date(2014, 9, 1, 0, 0, 0, 0, time.UTC))
 	} else {
 		sf.startTime = toSnowflakeTime(startTime)
 	}
-	return sf
+	return sf, nil
 }

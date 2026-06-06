@@ -146,6 +146,25 @@ func TestDecryptInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestPadKeyE_EmptyReturnsError(t *testing.T) {
+	if _, err := PadKeyE(""); err != ErrEmptyKey {
+		t.Fatalf("PadKeyE(\"\") err = %v, want ErrEmptyKey", err)
+	}
+	got, err := PadKeyE("abc")
+	if err != nil {
+		t.Fatalf("PadKeyE(\"abc\") err = %v", err)
+	}
+	if got != "abcabcabcabcabca" {
+		t.Fatalf("PadKeyE(\"abc\") = %q", got)
+	}
+}
+
+func TestPadKeyToLengthE_EmptyReturnsError(t *testing.T) {
+	if _, err := PadKeyToLengthE("", 16); err != ErrEmptyKey {
+		t.Fatalf("PadKeyToLengthE(\"\", 16) err = %v, want ErrEmptyKey", err)
+	}
+}
+
 func TestPKCS7UnPadding(t *testing.T) {
 	if _, err := PKCS7UnPadding(nil); err == nil {
 		t.Error("expected error for empty input")

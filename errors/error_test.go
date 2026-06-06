@@ -48,6 +48,27 @@ func TestError(t *testing.T) {
 	}
 }
 
+func TestHelpers_TreatMessageAsLiteralNotFormat(t *testing.T) {
+	// Regression: the HTTP-code helpers previously routed `message` through
+	// fmt.Sprintf, so a `%` in user-supplied text produced corrupted output.
+	cases := map[string]*Error{
+		"BadRequest":         BadRequest("r", "100% wrong %s"),
+		"Unauthorized":       Unauthorized("r", "100% wrong %s"),
+		"Forbidden":          Forbidden("r", "100% wrong %s"),
+		"NotFound":           NotFound("r", "100% wrong %s"),
+		"Conflict":           Conflict("r", "100% wrong %s"),
+		"InternalServer":     InternalServer("r", "100% wrong %s"),
+		"ServiceUnavailable": ServiceUnavailable("r", "100% wrong %s"),
+		"GatewayTimeout":     GatewayTimeout("r", "100% wrong %s"),
+		"ClientClosed":       ClientClosed("r", "100% wrong %s"),
+	}
+	for name, e := range cases {
+		if e.Message != "100% wrong %s" {
+			t.Errorf("%s: Message = %q, want literal (no fmt interpretation)", name, e.Message)
+		}
+	}
+}
+
 func TestCode(t *testing.T) {
 	var (
 		input = []error{

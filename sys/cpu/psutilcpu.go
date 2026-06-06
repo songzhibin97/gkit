@@ -22,15 +22,23 @@ func newPsutilCPU(interval time.Duration) (cpu *psutilCPU, err error) {
 func (ps *psutilCPU) Usage() (u uint64, err error) {
 	var percents []float64
 	percents, err = c.Percent(ps.interval, false)
-	if err == nil {
-		u = uint64(percents[0] * 10)
+	if err != nil {
+		return 0, err
 	}
+	// gopsutil contracts to return one element when percpu=false, but exotic
+	// environments (containerized arm boards, virtualized hosts without
+	// /proc/stat) can hand back an empty slice with no error. Indexing [0]
+	// there would panic the background sampling goroutine in cpu.go.
+	if len(percents) == 0 {
+		return 0, nil
+	}
+	u = uint64(percents[0] * 10)
 	return
 }
 
 func (ps *psutilCPU) Info() (info Info) {
 	stats, err := c.Info()
-	if err != nil {
+	if err != nil || len(stats) == 0 {
 		return
 	}
 	cores, err := c.Counts(true)

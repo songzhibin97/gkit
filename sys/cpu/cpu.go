@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"fmt"
+	"runtime"
 	"sync/atomic"
 	"time"
 )
@@ -11,8 +12,9 @@ const (
 )
 
 var (
-	stats CPU
-	usage uint64
+	stats   CPU
+	usage   uint64
+	initErr error
 )
 
 // CPU interface 定义CPU用法
@@ -21,18 +23,45 @@ type CPU interface {
 	Info() Info
 }
 
+// noopCPU is used when both cgroup and psutil probes fail. It lets the
+// process keep running in restricted environments (sandboxes, distroless,
+// containers with no /proc) where the previous init() panic would abort
+// every importing binary at startup.
+type noopCPU struct{}
+
+func (noopCPU) Usage() (uint64, error) { return 0, nil }
+func (noopCPU) Info() Info             { return Info{} }
+
+// InitErr returns nil on success or the underlying error that caused CPU
+// stats to fall back to a no-op source. Callers that need to fail loudly on
+// missing CPU stats can check this at startup.
+func InitErr() error { return initErr }
+
 func init() {
-	var err error
 	// 判断操作系统使用的是cGroup,如果不是cGroup退化为Psutil
+	var err error
 	stats, err = newCGroupCPU()
 	if err != nil {
-		stats, err = newPsutilCPU(interval)
-		if err != nil {
-			panic(fmt.Sprintf("cGroup cpu init failed!err:=%v", err))
+		var perr error
+		stats, perr = newPsutilCPU(interval)
+		if perr != nil {
+			initErr = fmt.Errorf("cgroup init failed (%v) and psutil init failed (%v)", err, perr)
+			stats = noopCPU{}
+			return
 		}
 	}
 	// 开启定时任务
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// A panic in the sampling goroutine (e.g. an empty slice
+				// indexed by an underlying probe) would otherwise kill the
+				// whole process. Print a stack and stop sampling instead.
+				buf := make([]byte, 64<<10)
+				n := runtime.Stack(buf, false)
+				fmt.Printf("sys/cpu: sampling goroutine panicked: %v\n%s\n", r, buf[:n])
+			}
+		}()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
