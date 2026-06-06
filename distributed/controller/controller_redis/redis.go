@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"runtime"
 	"strconv"
 	"sync"
@@ -13,10 +12,9 @@ import (
 	json "github.com/json-iterator/go"
 
 	"github.com/songzhibin97/gkit/distributed/broker"
-
-	"github.com/songzhibin97/gkit/distributed/task"
-
 	"github.com/songzhibin97/gkit/distributed/controller"
+	"github.com/songzhibin97/gkit/distributed/task"
+	"github.com/songzhibin97/gkit/log"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redsync/redsync/v4"
@@ -30,7 +28,10 @@ type ControllerRedis struct {
 	// lock 分布式锁
 	lock *redsync.Redsync
 
-	// wg
+	// helper drives structured logs from the consumer / popDelayedTask
+	// paths. Previously these printed errors via fmt.Println, which made
+	// operational issues invisible to anyone consuming structured logs.
+	helper *log.Helper
 
 	// consumingWg 确保消费组并发完成
 	consumingWg sync.WaitGroup
@@ -42,6 +43,15 @@ type ControllerRedis struct {
 	consumingQueue string
 	// delayedQueue  延迟队列名称
 	delayedQueue string
+}
+
+// SetHelper installs the structured-log helper used for operational
+// messages. If not called, the default helper backed by log.DefaultLogger
+// is used.
+func (c *ControllerRedis) SetHelper(h *log.Helper) {
+	if h != nil {
+		c.helper = h
+	}
 }
 
 // SetConsumingQueue 设置消费队列名称
@@ -89,7 +99,7 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 		pool <- struct{}{}
 	}
 	go func() {
-		fmt.Println("[*] Waiting for messages. To exit press CTRL+C")
+		c.helper.Info("[*] Waiting for messages. To exit press CTRL+C")
 		for {
 			select {
 			case <-c.GetStopCtx().Done():
@@ -100,8 +110,10 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 					return
 				}
 				tByte, err := c.popTask(c.consumingQueue, 0)
-				if err != nil && !errors.Is(err, redis.Nil) {
-					fmt.Println("popTask err:", err)
+				// context.Canceled is the normal stop signal; don't log it as an
+				// error on every clean shutdown (the delayed path already filters it).
+				if err != nil && !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
+					c.helper.Errorf("popTask err: %v", err)
 				}
 				// 如果是有效数据,发送给worker
 				if len(tByte) > 0 {
@@ -120,8 +132,8 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 				return
 			default:
 				tBody, err := c.popDelayedTask(c.delayedQueue, 0)
-				if err != nil {
-					fmt.Println("popDelayedTask err:", err)
+				if err != nil && !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
+					c.helper.Errorf("popDelayedTask err: %v", err)
 					continue
 				}
 				if tBody == nil {
@@ -129,11 +141,11 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 				}
 				t := task.Signature{}
 				if err = json.Unmarshal(tBody, &t); err != nil {
-					fmt.Println("unmarshal err:", err)
+					c.helper.Errorf("unmarshal err: %v", err)
 					continue
 				}
 				if err = c.Publish(c.GetStopCtx(), &t); err != nil {
-					fmt.Println("publish err:", err)
+					c.helper.Errorf("publish err: %v", err)
 					continue
 				}
 			}
@@ -152,7 +164,10 @@ func (c *ControllerRedis) popTask(queue string, blockTime int64) ([]byte, error)
 	if blockTime <= 0 {
 		blockTime = int64(1000 * time.Millisecond)
 	}
-	items, err := c.client.BLPop(context.Background(), time.Duration(blockTime), queue).Result()
+	// Use the broker's stop context so BLPOP unblocks promptly when
+	// StopConsuming fires. The previous context.Background() left workers
+	// parked on Redis for up to `blockTime` after shutdown was signalled.
+	items, err := c.client.BLPop(c.GetStopCtx(), time.Duration(blockTime), queue).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -165,18 +180,27 @@ func (c *ControllerRedis) popTask(queue string, blockTime int64) ([]byte, error)
 	return result, nil
 }
 
-// popDelayedTask 弹出延时任务,因为延时任务是使用Redis ZSet
+// popDelayedTask pulls the oldest task that is due (smallest ETA-unixnano
+// score in [0, now]). The previous implementation used ZRevRangeByScore,
+// which returns the NEWEST due task — the oldest task starved until the
+// queue drained.
 func (c *ControllerRedis) popDelayedTask(queue string, blockTime int64) ([]byte, error) {
 	if blockTime <= 0 {
 		blockTime = int64(1000 * time.Millisecond)
 	}
 	var result []byte
 	for {
-		time.Sleep(time.Duration(blockTime))
+		// Honor stop ctx instead of blindly sleeping a full blockTime.
+		select {
+		case <-c.GetStopCtx().Done():
+			return nil, c.GetStopCtx().Err()
+		case <-time.After(time.Duration(blockTime)):
+		}
 		watchFn := func(tx *redis.Tx) error {
 			now := time.Now().Local().UnixNano()
 			max := strconv.FormatInt(now, 10)
-			items, err := tx.ZRevRangeByScore(c.GetStopCtx(), queue, &redis.ZRangeBy{Min: "0", Max: max, Offset: 0, Count: 1}).Result()
+			// Ascending: smallest score (earliest ETA) first → FIFO by due time.
+			items, err := tx.ZRangeByScore(c.GetStopCtx(), queue, &redis.ZRangeBy{Min: "0", Max: max, Offset: 0, Count: 1}).Result()
 			if err != nil {
 				return err
 			}
@@ -190,11 +214,26 @@ func (c *ControllerRedis) popDelayedTask(queue string, blockTime int64) ([]byte,
 			})
 			return err
 		}
-		if err := c.client.Watch(c.GetStopCtx(), watchFn, queue); err != nil {
-			break
+		err := c.client.Watch(c.GetStopCtx(), watchFn, queue)
+		switch {
+		case err == nil:
+			// Success — `result` was populated by the watchFn.
+			return result, nil
+		case errors.Is(err, redis.Nil):
+			// No task ready; try again on the next tick.
+			continue
+		case errors.Is(err, redis.TxFailedErr):
+			// Optimistic-tx conflict; retry.
+			continue
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			return nil, err
+		default:
+			// Real error — propagate. Previously this was silently swallowed
+			// via `break` + `return result, nil`, making caller's hot-loop
+			// indistinguishable from "no task ready".
+			return nil, err
 		}
 	}
-	return result, nil
 }
 
 // consume 消费
@@ -315,6 +354,7 @@ func NewControllerRedis(broker *broker.Broker, client redis.UniversalClient, con
 		Broker:         broker,
 		client:         client,
 		lock:           redsync.New(goredis.NewPool(client)),
+		helper:         log.NewHelper(log.DefaultLogger),
 		consumingQueue: consumingQueue,
 		delayedQueue:   delayedQueue,
 	}

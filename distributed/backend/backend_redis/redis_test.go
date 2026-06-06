@@ -1,6 +1,7 @@
 package backend_redis
 
 import (
+	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -20,6 +21,12 @@ func InitBackend() backend.Backend {
 	}
 	client := redis.NewUniversalClient(&opt)
 	if client == nil {
+		return nil
+	}
+	// The client is created lazily; Ping so the live-Redis tests t.Skip()
+	// (via a nil return) instead of failing with "connection refused".
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		_ = client.Close()
 		return nil
 	}
 	return NewBackendRedis(client, -1)
