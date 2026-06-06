@@ -3,15 +3,16 @@ package bbr
 import (
 	"context"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/songzhibin97/gkit/container/group"
 	"github.com/songzhibin97/gkit/internal/stat"
-	cupstat "github.com/songzhibin97/gkit/sys/cpu"
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/overload"
+	cupstat "github.com/songzhibin97/gkit/sys/cpu"
 )
 
 // package bbr: bbr 限流
@@ -217,17 +218,26 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	}
 	atomic.AddInt64(&l.inFlight, 1)
 	sTime := time.Since(initTime)
+	// Wrap the released callback in sync.Once so a buggy caller that
+	// double-calls it cannot drive inFlight negative, and a caller that
+	// forgets to call it is at least bounded (the wrapped closure body
+	// runs at most once).
+	var once sync.Once
 	return func(do overload.DoneInfo) {
-		atomic.AddInt64(&l.inFlight, -1)
-		// Only Success outcomes feed the RT distribution. Previously a
-		// Drop / fail-fast outcome also pushed its (typically very short)
-		// RT into rtStat, biasing minRT downward and inflating maxFlight.
-		if do.Op == overload.Success {
-			if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
-				l.rtStat.Add(rt)
+		// sync.Once (from the idempotent-release fix) makes a double-call a
+		// no-op so it cannot drive inFlight negative. Only Success outcomes feed
+		// the RT distribution and the pass counter: a Drop / fail-fast outcome's
+		// (typically very short) RT would bias minRT downward and inflate
+		// maxFlight. inFlight is always released.
+		once.Do(func() {
+			atomic.AddInt64(&l.inFlight, -1)
+			if do.Op == overload.Success {
+				if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
+					l.rtStat.Add(rt)
+				}
+				l.passStat.Add(1)
 			}
-			l.passStat.Add(1)
-		}
+		})
 	}, nil
 }
 
@@ -287,9 +297,26 @@ func newLimiter(options ...options.Option) overload.Limiter {
 	for _, opt := range options {
 		opt(conf)
 	}
+	// SetWinBucket and SetWindow accept any int / time.Duration with no
+	// validation; previously a caller passing winBucket=0 (or window so
+	// small that `window/winBucket == 0`) panicked here with integer
+	// divide-by-zero. Fall back to defaults rather than panicking so a
+	// misconfigured limiter degrades to known-good behaviour.
+	def := defaultConf()
+	if conf.winBucket <= 0 {
+		conf.winBucket = def.winBucket
+	}
+	if conf.window <= 0 {
+		conf.window = def.window
+	}
+	bucketDuration := conf.window / time.Duration(conf.winBucket)
+	if bucketDuration <= 0 {
+		conf.window = def.window
+		conf.winBucket = def.winBucket
+		bucketDuration = conf.window / time.Duration(conf.winBucket)
+	}
 
 	size := conf.winBucket
-	bucketDuration := conf.window / time.Duration(conf.winBucket)
 	passStat := stat.NewRollingCounter(size, bucketDuration)
 	rtStat := stat.NewRollingCounter(size, bucketDuration)
 	cpu := func() int64 {
@@ -300,7 +327,7 @@ func newLimiter(options ...options.Option) overload.Limiter {
 		conf:            conf,
 		passStat:        passStat,
 		rtStat:          rtStat,
-		winBucketPerSec: int64(time.Second) / (int64(conf.window) / int64(conf.winBucket)),
+		winBucketPerSec: int64(time.Second) / int64(bucketDuration),
 	}
 	return limiter
 }

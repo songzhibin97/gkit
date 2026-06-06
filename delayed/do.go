@@ -43,6 +43,10 @@ type DispatchingDelayed struct {
 	isClose        int32
 	pool           goroutine.GGroup // 并发内部使用的pool // min 1
 	refresh        chan struct{}    // 强行刷新
+	sentinelDone   chan struct{}    // sentinel 退出信号
+	closeCtx       context.Context  // 取消后唤醒 sentinel 卡在 AddTaskN 的提交
+	closeCancel    context.CancelFunc
+	shutdownErr    error // pool.Shutdown 结果；sentinel 写、Close 读（经 sentinelDone 同步）
 }
 
 // AddDelayed 添加延时任务
@@ -57,6 +61,12 @@ func (d *DispatchingDelayed) AddDelayed(delayed Delayed) {
 
 	d.Lock()
 	defer d.Unlock()
+	// Re-check under the lock: Close() may have set isClose (and the sentinel
+	// may have cleared d.delays) between the atomic check above and this lock;
+	// appending now would re-populate — leak into — a closed dispatcher.
+	if atomic.LoadInt32(&d.isClose) == 1 {
+		return
+	}
 
 	i := len(d.delays)
 	d.delays = append(d.delays, delayed)
@@ -155,8 +165,15 @@ func (d *DispatchingDelayed) Close() error {
 	if !atomic.CompareAndSwapInt32(&d.isClose, 0, 1) {
 		return ErrorRepeatShutdown
 	}
+	// The sentinel is the SOLE owner of the pool's AddTask/Shutdown, so it must
+	// be the one to shut the pool down (a Shutdown here would race the
+	// sentinel's in-flight AddTaskN send vs close(g.task)). Cancel closeCtx to
+	// unblock any submit stuck on the unbuffered task channel, signal the
+	// sentinel to drain, then wait for it and surface its shutdown error.
+	d.closeCancel()
 	close(d.close)
-	return d.pool.Shutdown()
+	<-d.sentinelDone
+	return d.shutdownErr
 }
 
 // Refresh 刷新
@@ -170,20 +187,30 @@ func (d *DispatchingDelayed) Refresh() {
 // sentinel 启动
 func (d *DispatchingDelayed) sentinel() {
 	go func() {
+		// Signal Close() that the sentinel has fully drained, shut the pool
+		// down, and returned. The sentinel is the only goroutine that calls
+		// pool.AddTaskN / pool.Shutdown, so those can never race each other.
+		defer close(d.sentinelDone)
+		// Stop the ticker on exit; previously it kept firing for the lifetime
+		// of the process on every DispatchingDelayed close.
 		timer := time.NewTicker(d.checkTime)
+		defer timer.Stop()
 		for {
 			select {
 			case <-timer.C:
 			case <-d.refresh:
 			case <-d.close:
-				// 关闭流程：pop 驱动，避免无锁读 len(d.delays)
-				for {
-					pop := d.delDelayedTop()
-					if d.IsInvalid(pop) {
-						break
-					}
-					d.pool.AddTask(pop.Do)
-				}
+				// 关闭流程：丢弃尚未提交的待执行任务并关闭 pool。
+				// On close, drop any pending (not-yet-submitted) tasks and shut
+				// the pool down. The sentinel is the sole owner of the pool's
+				// AddTaskN/Shutdown, so Shutdown here can't race a submit, and
+				// already-submitted tasks finish under the pool's stop timeout.
+				// Release the dropped tasks' references so a closed dispatcher
+				// doesn't retain every queued closure.
+				d.Lock()
+				d.delays = nil
+				d.Unlock()
+				d.shutdownErr = d.pool.Shutdown()
 				return
 			}
 			now := time.Now().Unix()
@@ -192,7 +219,10 @@ func (d *DispatchingDelayed) sentinel() {
 				if d.IsInvalid(top) {
 					break
 				}
-				d.pool.AddTask(top.Do)
+				// Cancellable submit: Close() cancels closeCtx so a send stuck
+				// on the unbuffered task channel (all workers busy) unblocks and
+				// the sentinel can always reach the close branch.
+				d.pool.AddTaskN(d.closeCtx, top.Do)
 			}
 		}
 	}()
@@ -207,10 +237,11 @@ func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 		signalCallback: func(signal os.Signal, d *DispatchingDelayed) {
 			_ = d.Close()
 		},
-		close:   make(chan struct{}, 1),
-		pool:    goroutine.NewGoroutine(context.Background(), goroutine.SetMax(1), goroutine.SetIdle(1)),
-		refresh: make(chan struct{}, 1),
+		close:        make(chan struct{}, 1),
+		refresh:      make(chan struct{}, 1),
+		sentinelDone: make(chan struct{}),
 	}
+	dispatchingDelayed.closeCtx, dispatchingDelayed.closeCancel = context.WithCancel(context.Background())
 	for _, option := range o {
 		option(dispatchingDelayed)
 	}
@@ -220,13 +251,23 @@ func NewDispatchingDelayed(o ...options.Option) *DispatchingDelayed {
 	if dispatchingDelayed.Worker <= 0 {
 		dispatchingDelayed.Worker = 1
 	}
-	if dispatchingDelayed.Worker != 1 {
-		dispatchingDelayed.pool = goroutine.NewGoroutine(context.Background(), goroutine.SetMax(dispatchingDelayed.Worker), goroutine.SetIdle(dispatchingDelayed.Worker))
-	}
+	// Create the pool exactly once with the resolved Worker count. The
+	// previous code allocated a Worker=1 pool unconditionally inside the
+	// struct literal, then discarded it (along with its idle goroutines,
+	// ticker, and chan) when Worker != 1.
+	dispatchingDelayed.pool = goroutine.NewGoroutine(
+		context.Background(),
+		goroutine.SetMax(dispatchingDelayed.Worker),
+		goroutine.SetIdle(dispatchingDelayed.Worker),
+	)
 	if len(dispatchingDelayed.signal) != 0 && dispatchingDelayed.signalCallback != nil {
 		sign := make(chan os.Signal, 1)
 		signal.Notify(sign, dispatchingDelayed.signal...)
 		go func() {
+			// Match Notify with Stop on goroutine exit; the previous code
+			// leaked the signal forwarder for every DispatchingDelayed
+			// instance, accumulating handlers across the process lifetime.
+			defer signal.Stop(sign)
 			for {
 				select {
 				case <-dispatchingDelayed.close:

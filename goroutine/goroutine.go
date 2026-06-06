@@ -35,9 +35,17 @@ type Goroutine struct {
 	cancel context.CancelFunc
 	// task
 	task chan func()
+	// growMu serialises pool growth (_go's wg.Add) against Shutdown's
+	// wg.Wait — without it, wg.Add can race with wg.Wait and trip
+	// `sync: WaitGroup misuse`. It also guards the close flag flip so that
+	// no new worker can be spawned after Shutdown has begun waiting.
+	growMu sync.Mutex
 }
 
-// _go 封装goroutine 使其安全执行
+// _go must be called with g.growMu held; it bumps the WaitGroup and spawns a
+// worker. Workers exit on ctx cancellation; we deliberately do NOT close
+// g.task because Shutdown could otherwise race with AddTask's send and
+// panic.
 func (g *Goroutine) _go() {
 	atomic.AddInt64(&g.n, 1)
 	g.wait.Add(1)
@@ -48,7 +56,6 @@ func (g *Goroutine) _go() {
 				buf := buffer.GetBytes(64 << 10)
 				n := runtime.Stack(*buf, false)
 				defer buffer.PutBytes(buf)
-				// recover panic
 				if g.logger == nil {
 					fmt.Println("\nrecover go func,", "panic:", err, "\n\npanic stack:\n", string((*buf)[:n]))
 					return
@@ -66,23 +73,15 @@ func (g *Goroutine) _go() {
 			case <-t.C:
 				// 当前的g的个数大于设置的闲置值,则退出
 				if atomic.LoadInt64(&g.n) > atomic.LoadInt64(&g.idle) {
-					// 闲置数超过预期
 					return
 				}
-			case f, ok := <-g.task:
-				// channel已经被关闭
-				if !ok {
-					return
-				}
-				// 执行函数
+			case f := <-g.task:
 				f()
 				if atomic.LoadInt64(&g.n) > atomic.LoadInt64(&g.max) {
-					// 如果已经超出预定值,则该goroutine退出
 					return
 				}
 				t.Reset(g.checkTime)
 			case <-g.ctx.Done():
-				// 触发ctx退出
 				return
 			}
 		}
@@ -90,42 +89,48 @@ func (g *Goroutine) _go() {
 }
 
 // AddTask 添加任务
-// 直到添加成功为止
 func (g *Goroutine) AddTask(f func()) (ok bool) {
+	g.growMu.Lock()
 	if atomic.LoadInt32(&g.close) != 0 {
+		g.growMu.Unlock()
 		return false
 	}
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
+	// Fast path: a worker is already parked.
 	select {
 	case g.task <- f:
+		g.growMu.Unlock()
+		return true
 	default:
-		if atomic.LoadInt64(&g.n) < atomic.LoadInt64(&g.max) {
-			g._go()
-		}
-		g.task <- f
 	}
-	return true
+	// Slow path: grow the pool if we still can, then hand off outside the lock
+	// so other AddTask callers don't block on us.
+	if atomic.LoadInt64(&g.n) < atomic.LoadInt64(&g.max) {
+		g._go()
+	}
+	g.growMu.Unlock()
+	select {
+	case g.task <- f:
+		return true
+	case <-g.ctx.Done():
+		return false
+	}
 }
 
 // AddTaskN 添加任务 有超时时间
 func (g *Goroutine) AddTaskN(ctx context.Context, f func()) (ok bool) {
+	g.growMu.Lock()
 	if atomic.LoadInt32(&g.close) != 0 {
+		g.growMu.Unlock()
 		return false
 	}
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
 	if atomic.LoadInt64(&g.max) > atomic.LoadInt64(&g.n) {
 		g._go()
 	}
+	g.growMu.Unlock()
 	select {
 	case <-ctx.Done():
+		return false
+	case <-g.ctx.Done():
 		return false
 	case g.task <- f:
 		return true
@@ -140,11 +145,15 @@ func (g *Goroutine) ChangeMax(m int64) {
 // Shutdown 优雅关闭
 // 符合幂等性
 func (g *Goroutine) Shutdown() error {
+	g.growMu.Lock()
 	if !atomic.CompareAndSwapInt32(&g.close, 0, 1) {
+		g.growMu.Unlock()
 		return ErrRepeatClose
 	}
+	g.growMu.Unlock()
 	g.cancel()
-	close(g.task)
+	// Workers exit via ctx.Done(); we never close g.task because AddTask
+	// callers may still be racing to send and would otherwise panic.
 	err := Delegate(context.TODO(), g.stopTimeout, func(context.Context) error {
 		g.wait.Wait()
 		return nil
@@ -166,34 +175,33 @@ func (g *Goroutine) Trick() string {
 // Delegate 委托执行 一般用于回收函数超时控制
 func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) error) error {
 	ch := make(chan error, 1)
-	fctx := c
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				// panic兜底
-				switch e := err.(type) {
-				case string:
-					ch <- errors.New(e)
-				case error:
-					ch <- e
-				default:
-					ch <- errors.New(fmt.Sprintf("%+v\n", err))
-				}
-				return
-			}
-		}()
-		ch <- f(fctx)
-	}()
-	// 增加优雅退出超时控制
-	var (
-		cancel context.CancelFunc
-	)
+	var cancel context.CancelFunc
 	if t > 0 {
 		_, c, cancel = timeout.Shrink(c, t)
 	} else {
 		c, cancel = context.WithCancel(c)
 	}
 	defer cancel()
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				switch e := err.(type) {
+				case string:
+					ch <- errors.New(e)
+				case error:
+					ch <- e
+				default:
+					ch <- fmt.Errorf("%+v", err)
+				}
+				return
+			}
+		}()
+		// Pass the shrunk context to f so f's own ctx-aware code honours the
+		// caller-requested timeout. Previously fctx captured the un-shrunk
+		// context and the deadline was visible only on Delegate's outer
+		// select, letting f outlive its timeout.
+		ch <- f(c)
+	}()
 	select {
 	case <-c.Done():
 		return c.Err()
@@ -226,8 +234,10 @@ func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 		o.idle = o.max
 	}
 	// 预加载出idle池,避免阻塞在buffer中
+	g.growMu.Lock()
 	for i := int64(0); i < o.idle; i++ {
 		g._go()
 	}
+	g.growMu.Unlock()
 	return g
 }

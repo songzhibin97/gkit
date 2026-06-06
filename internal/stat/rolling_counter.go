@@ -51,7 +51,7 @@ func (r *rollingCounter) Value() int64 {
 }
 
 func (r *rollingCounter) Timespan() int {
-	return r.policy.timespan()
+	return r.policy.Timespan()
 }
 
 // NewRollingCounter 实例化 RollingCounter 方法

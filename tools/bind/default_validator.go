@@ -38,6 +38,15 @@ func (v *defaultValidator) ValidateStruct(obj interface{}) error {
 	value := reflect.ValueOf(obj)
 	switch value.Kind() {
 	case reflect.Ptr:
+		if value.IsNil() {
+			// Typed nil pointers reach this branch through the top-level
+			// `obj == nil` check (which only catches untyped nil). The
+			// previous code unconditionally dereferenced with .Elem() and
+			// then .Interface(), panicking with "reflect: call of
+			// reflect.Value.Interface on zero Value" — a direct violation
+			// of the bind contract ("should never panic").
+			return nil
+		}
 		return v.ValidateStruct(value.Elem().Interface())
 	case reflect.Struct:
 		return v.validateStruct(obj)
