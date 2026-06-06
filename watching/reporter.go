@@ -7,7 +7,14 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
+	"time"
 )
+
+// defaultReporterTimeout bounds outbound profile uploads. Without it,
+// a slow or hung backend stalls the reporter goroutine for the lifetime
+// of its connect+read, which serialises behind it and blocks every
+// subsequent dump.
+const defaultReporterTimeout = 30 * time.Second
 
 type ProfileReporter interface {
 	Report(pType string, buf []byte, reason string, eventID string) error
@@ -51,7 +58,7 @@ func (r *HttpReporter) Report(ptype string, buf []byte, reason string, eventID s
 	}
 
 	request.Header.Add("Content-Type", writer.FormDataContentType())
-	client := &http.Client{}
+	client := &http.Client{Timeout: defaultReporterTimeout}
 	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("do Request err: %v", err)

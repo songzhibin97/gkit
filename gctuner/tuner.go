@@ -3,15 +3,17 @@ package gctuner
 
 import (
 	"fmt"
-	"github.com/docker/go-units"
-	mem_util "github.com/shirou/gopsutil/mem"
 	"io/ioutil"
 	"math"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
+
+	"github.com/docker/go-units"
+	mem_util "github.com/shirou/gopsutil/mem"
 )
 
 var (
@@ -30,10 +32,19 @@ func init() {
 	defaultGCPercent = uint32(gogc)
 }
 
+// tuningMu serialises Tuning's globalTuner installs and teardowns.
+// Previously Tuning read and wrote globalTuner without synchronisation,
+// racing with GetGCPercent and with concurrent Tuning calls — the race
+// detector flagged it under any test that exercised more than one
+// goroutine.
+var tuningMu sync.Mutex
+
 // Tuning sets the threshold of heap which will be respect by gc tuner.
 // When Tuning, the env GOGC will not be take effect.
 // threshold: disable tuning if threshold == 0
 func Tuning(threshold uint64) {
+	tuningMu.Lock()
+	defer tuningMu.Unlock()
 	// disable gc tuner if percent is zero
 	if threshold <= 0 && globalTuner != nil {
 		globalTuner.stop()
@@ -50,10 +61,13 @@ func Tuning(threshold uint64) {
 
 // GetGCPercent returns the current GCPercent.
 func GetGCPercent() uint32 {
-	if globalTuner == nil {
+	tuningMu.Lock()
+	t := globalTuner
+	tuningMu.Unlock()
+	if t == nil {
 		return defaultGCPercent
 	}
-	return globalTuner.getGCPercent()
+	return t.getGCPercent()
 }
 
 // GetMaxGCPercent returns the max gc percent value.

@@ -718,7 +718,10 @@ func (w *Watching) initEnvironment() {
 
 func (w *Watching) EnableDump(curCPU int) (err error) {
 	if w.config.CPUMaxPercent != 0 && curCPU >= w.config.CPUMaxPercent {
-		return fmt.Errorf("current cpu percent [%v] is greater than the CPUMaxPercent [%v]", cpu, w.config.CPUMaxPercent)
+		// Bug fix C29: the previous format passed the package constant
+		// `cpu` (configureType iota = 1) instead of the parameter, so the
+		// error message always reported "current cpu percent [1]".
+		return fmt.Errorf("current cpu percent [%v] is greater than the CPUMaxPercent [%v]", curCPU, w.config.CPUMaxPercent)
 	}
 	return nil
 }

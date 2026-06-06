@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/songzhibin97/gkit/options"
+	"github.com/songzhibin97/gkit/tools/rand_string"
 
 	"github.com/songzhibin97/gkit/log"
 
@@ -21,6 +22,24 @@ import (
 	"github.com/songzhibin97/gkit/distributed/controller"
 	"github.com/songzhibin97/gkit/distributed/locker"
 )
+
+// minLockTTLMs is the floor we apply when computing a timed-task lock TTL.
+// `int(time.Until(next).Milliseconds())` can be negative (next already
+// passed) or zero (sub-millisecond cadence), and Redis PEXPIRE rejects
+// non-positive values — the SET fails, the cron fire skips, every
+// subsequent fire repeats the failure. Clamping guarantees the lock
+// genuinely tries to acquire.
+const minLockTTLMs = 100
+
+// timedTaskLockTTL clamps the user-requested TTL into a Redis-acceptable
+// positive integer.
+func timedTaskLockTTL(d time.Duration) int {
+	ms := int(d.Milliseconds())
+	if ms < minLockTTLMs {
+		return minLockTTLMs
+	}
+	return ms
+}
 
 // Config distributed service配置文件
 type Config struct {
@@ -223,11 +242,18 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 	}
 	f := func() {
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
+		// Each fire generates its own random mark so that this instance's
+		// UnLock cannot release a lock that another instance happened to
+		// acquire under the same key after our TTL expired. Previously the
+		// mark was the deterministic key string itself, so any instance
+		// could steal any other's lock.
+		mark := rand_string.RandomLetter(16)
+		ttl := timedTaskLockTTL(time.Until(schedule.Next(time.Now())))
+		err := s.lock.Lock(key, ttl, mark)
 		if err != nil {
 			return
 		}
-		defer s.lock.UnLock(key, key)
+		defer s.lock.UnLock(key, mark)
 
 		// send task
 		_, err = s.SendTask(task.CopySignature(signature))
@@ -251,11 +277,13 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 
 		// get lock
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
+		mark := rand_string.RandomLetter(16)
+		ttl := timedTaskLockTTL(time.Until(schedule.Next(time.Now())))
+		err := s.lock.Lock(key, ttl, mark)
 		if err != nil {
 			return
 		}
-		defer s.lock.UnLock(key, key)
+		defer s.lock.UnLock(key, mark)
 
 		// send task
 		_, err = s.SendChain(chain)
@@ -278,11 +306,13 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 		group, _ := task.NewGroup(groupID, name, task.CopySignatures(signatures...)...)
 		// get lock
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
+		mark := rand_string.RandomLetter(16)
+		ttl := timedTaskLockTTL(time.Until(schedule.Next(time.Now())))
+		err := s.lock.Lock(key, ttl, mark)
 		if err != nil {
 			return
 		}
-		defer s.lock.UnLock(key, key)
+		defer s.lock.UnLock(key, mark)
 
 		_, err = s.SendGroup(group, concurrency)
 		if err != nil {
@@ -305,11 +335,13 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 		c, _ := task.NewGroupCallback(group, name, callback)
 		// get lock
 		key := getLockName(name, spec)
-		err := s.lock.Lock(key, int(time.Until(schedule.Next(time.Now())).Milliseconds()), key)
+		mark := rand_string.RandomLetter(16)
+		ttl := timedTaskLockTTL(time.Until(schedule.Next(time.Now())))
+		err := s.lock.Lock(key, ttl, mark)
 		if err != nil {
 			return
 		}
-		defer s.lock.UnLock(key, key)
+		defer s.lock.UnLock(key, mark)
 
 		_, err = s.SendGroupCallback(c, concurrency)
 		if err != nil {
@@ -354,6 +386,20 @@ func (s *Server) EnforcementConf() {
 	s.backend.SetResultExpire(s.config.ResultExpire)
 	s.controller.SetConsumingQueue(s.config.ConsumeQueue)
 	s.controller.SetDelayedQueue(s.config.DelayedQueue)
+}
+
+// Shutdown stops the scheduler started by NewServer and waits up to the
+// supplied context's deadline for any in-flight cron jobs to finish. Without
+// this, the goroutine launched by `go server.scheduler.Run()` survives until
+// process exit, holding timers for every registered job.
+func (s *Server) Shutdown(ctx context.Context) error {
+	stopCtx := s.scheduler.Stop()
+	select {
+	case <-stopCtx.Done():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (s *Server) NewWorker(consumerTag string, concurrency int, queue string) *Worker {

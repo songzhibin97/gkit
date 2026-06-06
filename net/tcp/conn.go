@@ -11,8 +11,6 @@ import (
 	"github.com/songzhibin97/gkit/cache/buffer"
 )
 
-var defaultRetry Retry
-
 // Conn 封装原始 net.conn 对象
 type Conn struct {
 	// net.conn: 原始的conn对象
@@ -43,7 +41,12 @@ type Retry struct {
 // Send 发送数据至对端,有重试机制
 func (c *Conn) Send(data []byte, retry *Retry) error {
 	if retry == nil {
-		retry = &defaultRetry
+		// Take a per-call zero-value Retry rather than mutating a package
+		// global. The previous code stored `&defaultRetry` and then wrote
+		// `retry.Count--` through it, corrupting state for every concurrent
+		// caller that also passed nil.
+		var local Retry
+		retry = &local
 	}
 	for {
 		_, err := c.Write(data)
@@ -70,7 +73,8 @@ func (c *Conn) Send(data []byte, retry *Retry) error {
 // length > 0 从 Conn 接收到对应的数据返回
 func (c *Conn) Recv(length int, retry *Retry) ([]byte, error) {
 	if retry == nil {
-		retry = &defaultRetry
+		var local Retry
+		retry = &local
 	}
 	var (
 		// err: error
