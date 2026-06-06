@@ -9,10 +9,10 @@ import (
 
 	"github.com/songzhibin97/gkit/container/group"
 	"github.com/songzhibin97/gkit/internal/stat"
-	cupstat "github.com/songzhibin97/gkit/sys/cpu"
 	"github.com/songzhibin97/gkit/log"
 	"github.com/songzhibin97/gkit/options"
 	"github.com/songzhibin97/gkit/overload"
+	cupstat "github.com/songzhibin97/gkit/sys/cpu"
 )
 
 // package bbr: bbr 限流
@@ -224,12 +224,17 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	// runs at most once).
 	var once sync.Once
 	return func(do overload.DoneInfo) {
+		// sync.Once (from the idempotent-release fix) makes a double-call a
+		// no-op so it cannot drive inFlight negative. Only Success outcomes feed
+		// the RT distribution and the pass counter: a Drop / fail-fast outcome's
+		// (typically very short) RT would bias minRT downward and inflate
+		// maxFlight. inFlight is always released.
 		once.Do(func() {
-			if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
-				l.rtStat.Add(rt)
-			}
 			atomic.AddInt64(&l.inFlight, -1)
 			if do.Op == overload.Success {
+				if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
+					l.rtStat.Add(rt)
+				}
 				l.passStat.Add(1)
 			}
 		})
