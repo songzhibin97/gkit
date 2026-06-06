@@ -3,6 +3,7 @@ package bbr
 import (
 	"context"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -217,18 +218,21 @@ func (l *BBR) Allow(ctx context.Context, opts ...overload.AllowOption) (func(inf
 	}
 	atomic.AddInt64(&l.inFlight, 1)
 	sTime := time.Since(initTime)
+	// Wrap the released callback in sync.Once so a buggy caller that
+	// double-calls it cannot drive inFlight negative, and a caller that
+	// forgets to call it is at least bounded (the wrapped closure body
+	// runs at most once).
+	var once sync.Once
 	return func(do overload.DoneInfo) {
-		if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
-			l.rtStat.Add(rt)
-		}
-		atomic.AddInt64(&l.inFlight, -1)
-		switch do.Op {
-		case overload.Success:
-			l.passStat.Add(1)
-			return
-		default:
-			return
-		}
+		once.Do(func() {
+			if rt := int64((time.Since(initTime) - sTime) / time.Millisecond); rt > 0 {
+				l.rtStat.Add(rt)
+			}
+			atomic.AddInt64(&l.inFlight, -1)
+			if do.Op == overload.Success {
+				l.passStat.Add(1)
+			}
+		})
 	}, nil
 }
 
@@ -288,9 +292,26 @@ func newLimiter(options ...options.Option) overload.Limiter {
 	for _, opt := range options {
 		opt(conf)
 	}
+	// SetWinBucket and SetWindow accept any int / time.Duration with no
+	// validation; previously a caller passing winBucket=0 (or window so
+	// small that `window/winBucket == 0`) panicked here with integer
+	// divide-by-zero. Fall back to defaults rather than panicking so a
+	// misconfigured limiter degrades to known-good behaviour.
+	def := defaultConf()
+	if conf.winBucket <= 0 {
+		conf.winBucket = def.winBucket
+	}
+	if conf.window <= 0 {
+		conf.window = def.window
+	}
+	bucketDuration := conf.window / time.Duration(conf.winBucket)
+	if bucketDuration <= 0 {
+		conf.window = def.window
+		conf.winBucket = def.winBucket
+		bucketDuration = conf.window / time.Duration(conf.winBucket)
+	}
 
 	size := conf.winBucket
-	bucketDuration := conf.window / time.Duration(conf.winBucket)
 	passStat := stat.NewRollingCounter(size, bucketDuration)
 	rtStat := stat.NewRollingCounter(size, bucketDuration)
 	cpu := func() int64 {
@@ -301,7 +322,7 @@ func newLimiter(options ...options.Option) overload.Limiter {
 		conf:            conf,
 		passStat:        passStat,
 		rtStat:          rtStat,
-		winBucketPerSec: int64(time.Second) / (int64(conf.window) / int64(conf.winBucket)),
+		winBucketPerSec: int64(time.Second) / int64(bucketDuration),
 	}
 	return limiter
 }
