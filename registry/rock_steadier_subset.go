@@ -67,8 +67,14 @@ func (r *RockSteadierSubset) Close() {
 	if !atomic.CompareAndSwapInt32(&r.close, 0, 1) {
 		return
 	}
+	// Cancel the context to stop the sentinel; do NOT close(r.command).
+	// The closed flag and the send are not atomic in AddService/RemoveService,
+	// so a sender can pass the flag check and then send — closing the channel
+	// here would panic that sender ("send on closed channel"). Senders instead
+	// observe r.ctx.Done() in their select and return ErrorHasBeenClosed; the
+	// sentinel exits on the same signal. Any command already buffered is
+	// dropped, which is the intended close-time behaviour.
 	r.cancel()
-	close(r.command)
 }
 
 func (r *RockSteadierSubset) sentinel() {
@@ -204,6 +210,10 @@ func (r *RockSteadierSubset) AddService(ctx context.Context, ids []int) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-r.ctx.Done():
+		// Close() cancelled us between the flag check and the send; bail out
+		// instead of sending (the channel is never closed, so this can't panic).
+		return ErrorHasBeenClosed
 	case r.command <- command{
 		ids:  ids,
 		code: 1,
@@ -245,6 +255,10 @@ func (r *RockSteadierSubset) RemoveService(ctx context.Context, ids []int) error
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-r.ctx.Done():
+		// Close() cancelled us between the flag check and the send; bail out
+		// instead of sending (the channel is never closed, so this can't panic).
+		return ErrorHasBeenClosed
 	case r.command <- command{
 		ids:  ids,
 		code: 2,

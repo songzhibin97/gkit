@@ -48,3 +48,33 @@ func TestRockSteadierSubset_ConcurrentGetServicesNoRace(t *testing.T) {
 
 	wg.Wait()
 }
+
+// TestRockSteadierSubset_CloseDuringSendNoPanic guards the Close() fix: the
+// closed-flag check and the channel send in AddService/RemoveService are not
+// atomic, so a sender could pass the flag check and then send. The old Close()
+// did close(r.command), which made that late send panic ("send on closed
+// channel"). Close() now only cancels the context and senders bail out on
+// r.ctx.Done(). Reverting Close() to close(r.command) makes this test panic and
+// crash the run.
+func TestRockSteadierSubset_CloseDuringSendNoPanic(t *testing.T) {
+	clients := []int{0, 1, 2, 3}
+	services := []int{10, 11, 12}
+	for iter := 0; iter < 50; iter++ {
+		r := NewRockSteadierSubset(context.Background(), clients, services, func() int64 { return 1 })
+		var wg sync.WaitGroup
+		for g := 0; g < 8; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for i := 0; i < 100; i++ {
+					// Must never panic regardless of when Close() lands.
+					_ = r.AddService(context.Background(), []int{i})
+					_ = r.RemoveService(context.Background(), []int{i})
+				}
+			}()
+		}
+		// Close concurrently with the in-flight senders.
+		r.Close()
+		wg.Wait()
+	}
+}
