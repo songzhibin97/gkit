@@ -8,7 +8,7 @@ import (
 
 func SetRetry(retry bool) options.Option {
 	return func(c interface{}) {
-		c.(*Broker).retry = retry
+		c.(*Broker).SetRetry(retry)
 	}
 }
 

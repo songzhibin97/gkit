@@ -15,6 +15,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redsync/redsync/v4"
 	"github.com/songzhibin97/gkit/distributed/backend"
+	"github.com/songzhibin97/gkit/log"
 )
 
 var defaultResultExpire int64 = 3600
@@ -26,6 +27,8 @@ type BackendRedis struct {
 	client redis.UniversalClient
 	// lock 分布式锁
 	lock *redsync.Redsync
+	// helper 结构化日志，TriggerCompleted 等路径会用它记录不可降级的运行时错误
+	helper *log.Helper
 	// resultExpire 数据过期时间
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
@@ -33,10 +36,19 @@ type BackendRedis struct {
 	resultExpire int64
 }
 
+// SetHelper installs the structured-log helper. Defaults to log.DefaultLogger
+// if not called.
+func (b *BackendRedis) SetHelper(h *log.Helper) {
+	if h != nil {
+		b.helper = h
+	}
+}
+
 func NewBackendRedis(client redis.UniversalClient, resultExpire int64) backend.Backend {
 	b := &BackendRedis{
 		client:       client,
 		lock:         redsync.New(goredis.NewPool(client)),
+		helper:       log.NewHelper(log.DefaultLogger),
 		resultExpire: resultExpire,
 	}
 	if b.resultExpire == 0 {
@@ -137,7 +149,15 @@ func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	if err := l.Lock(); err != nil {
 		return false, err
 	}
-	defer l.Unlock()
+	// redsync.Mutex.Unlock returns (bool, error); the bare `defer l.Unlock()`
+	// silently dropped both. An Unlock failure (clock-skew, owner-mark
+	// mismatch) is genuinely operational — surface it through the logger
+	// rather than vanishing.
+	defer func() {
+		if _, err := l.Unlock(); err != nil {
+			b.helper.Errorf("redsync unlock TriggerCompleted/%s: %v", groupID, err)
+		}
+	}()
 	group, err := b.getGroup(groupID)
 	if err != nil {
 		return false, err
