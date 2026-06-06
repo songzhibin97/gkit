@@ -16,7 +16,8 @@ type RollingPolicy struct {
 	lastAppendTime time.Time
 }
 
-// timespan 时间跨度
+// timespan 时间跨度. The caller MUST hold r.mu (read or write): it reads
+// r.lastAppendTime, which add() mutates under the write lock.
 func (r *RollingPolicy) timespan() int {
 	v := int(time.Since(r.lastAppendTime) / r.bucketDuration)
 	if v > -1 {
@@ -24,6 +25,14 @@ func (r *RollingPolicy) timespan() int {
 		return v
 	}
 	return r.size
+}
+
+// Timespan returns timespan() under the read lock, for external callers that
+// do not already hold r.mu (e.g. rollingCounter.Timespan()).
+func (r *RollingPolicy) Timespan() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.timespan()
 }
 
 // add
