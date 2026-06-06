@@ -125,30 +125,40 @@ func (c *cache) SetNoExpire(k string, v interface{}) {
 // Get 根据key获取 cache
 func (c *cache) Get(k string) (interface{}, bool) {
 	c.RLock()
-	if v, ok := c.member[k]; !ok {
+	v, ok := c.member[k]
+	if !ok {
 		c.RUnlock()
 		return nil, false
-	} else {
-		if v.Expired() {
-			c.RUnlock()
-			c.Delete(k)
-			return nil, false
-		} else {
-			c.RUnlock()
-			return v.Val, true
-		}
 	}
+	if !v.Expired() {
+		c.RUnlock()
+		return v.Val, true
+	}
+	c.RUnlock()
+	// Re-acquire the write lock and re-check expiry. The previous code
+	// released the read lock and called the public `Delete` (which retakes
+	// the write lock), creating a TOCTOU window where a concurrent Set
+	// could install a fresh value that Delete would then wipe.
+	c.Lock()
+	if cur, ok := c.member[k]; ok && cur.Expired() {
+		c.expireEvictUnlock(k) // deletes, unlocks, then captures off-lock
+		return nil, false
+	}
+	c.Unlock()
+	return nil, false
 }
 
-// get 根据key获取 cache
+// get 根据key获取 cache (内部无锁, caller holds the lock).
+//
+// Expired entries are reported as absent but NOT evicted here: this runs under
+// the caller's write lock, and evicting would invoke the capture callback under
+// the lock (capture may re-enter the cache; the RWMutex is non-reentrant).
+// Expired entries are reclaimed off-lock by Get/GetWithExpire and the janitor
+// (DeleteExpire).
 func (c *cache) get(k string) (interface{}, bool) {
-	if v, ok := c.member[k]; !ok {
+	if v, ok := c.member[k]; !ok || v.Expired() {
 		return nil, false
 	} else {
-		if v.Expired() {
-			c._delete(k)
-			return nil, false
-		}
 		return v.Val, true
 	}
 }
@@ -156,21 +166,27 @@ func (c *cache) get(k string) (interface{}, bool) {
 // GetWithExpire 根据key获取 cache 并带出超时时间
 func (c *cache) GetWithExpire(k string) (interface{}, time.Time, bool) {
 	c.RLock()
-	if v, ok := c.member[k]; !ok {
+	v, ok := c.member[k]
+	if !ok {
 		c.RUnlock()
 		return nil, time.Time{}, false
-	} else {
-		if v.Expired() {
-			c.RUnlock()
-			c.Delete(k)
-			return nil, time.Time{}, false
-		}
+	}
+	if !v.Expired() {
 		c.RUnlock()
 		if v.Expire > 0 {
 			return v.Val, time.Unix(0, v.Expire), true
 		}
 		return v.Val, time.Time{}, true
 	}
+	c.RUnlock()
+	// Same TOCTOU fix as Get: re-acquire write lock and verify before delete.
+	c.Lock()
+	if cur, ok := c.member[k]; ok && cur.Expired() {
+		c.expireEvictUnlock(k) // deletes, unlocks, then captures off-lock
+		return nil, time.Time{}, false
+	}
+	c.Unlock()
+	return nil, time.Time{}, false
 }
 
 // Add 添加cache 如果存在则抛出异常
@@ -205,8 +221,10 @@ func (c *cache) Increment(k string, n int64) error {
 		return CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the write lock we already hold;
+			// previously the lock was released and re-acquired via the
+			// public Delete(), letting a concurrent Set wipe a fresh value.
+			c.expireEvictUnlock(k)
 			return CacheExpire
 		}
 		switch v.Val.(type) {
@@ -254,8 +272,10 @@ func (c *cache) IncrementFloat(k string, n float64) error {
 		return CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the write lock we already hold;
+			// previously the lock was released and re-acquired via the
+			// public Delete(), letting a concurrent Set wipe a fresh value.
+			c.expireEvictUnlock(k)
 			return CacheExpire
 		}
 		switch v.Val.(type) {
@@ -281,8 +301,8 @@ func (c *cache) IncrementInt(k string, n int) (int, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int); !ok {
@@ -306,8 +326,8 @@ func (c *cache) IncrementInt8(k string, n int8) (int8, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int8); !ok {
@@ -331,8 +351,8 @@ func (c *cache) IncrementInt16(k string, n int16) (int16, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int16); !ok {
@@ -356,8 +376,8 @@ func (c *cache) IncrementInt32(k string, n int32) (int32, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int32); !ok {
@@ -381,8 +401,8 @@ func (c *cache) IncrementInt64(k string, n int64) (int64, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int64); !ok {
@@ -406,8 +426,8 @@ func (c *cache) IncrementUint(k string, n uint) (uint, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint); !ok {
@@ -431,8 +451,8 @@ func (c *cache) IncrementUint8(k string, n uint8) (uint8, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint8); !ok {
@@ -456,8 +476,8 @@ func (c *cache) IncrementUint16(k string, n uint16) (uint16, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint16); !ok {
@@ -481,8 +501,8 @@ func (c *cache) IncrementUint32(k string, n uint32) (uint32, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint32); !ok {
@@ -506,8 +526,8 @@ func (c *cache) IncrementUint64(k string, n uint64) (uint64, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint64); !ok {
@@ -531,8 +551,8 @@ func (c *cache) IncrementUintPtr(k string, n uintptr) (uintptr, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uintptr); !ok {
@@ -556,8 +576,8 @@ func (c *cache) IncrementFloat32(k string, n float32) (float32, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(float32); !ok {
@@ -581,8 +601,8 @@ func (c *cache) IncrementFloat64(k string, n float64) (float64, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(float64); !ok {
@@ -606,8 +626,10 @@ func (c *cache) Decrement(k string, n int64) error {
 		return CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the write lock we already hold;
+			// previously the lock was released and re-acquired via the
+			// public Delete(), letting a concurrent Set wipe a fresh value.
+			c.expireEvictUnlock(k)
 			return CacheExpire
 		}
 		switch v.Val.(type) {
@@ -655,8 +677,10 @@ func (c *cache) DecrementFloat(k string, n float64) error {
 		return CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the write lock we already hold;
+			// previously the lock was released and re-acquired via the
+			// public Delete(), letting a concurrent Set wipe a fresh value.
+			c.expireEvictUnlock(k)
 			return CacheExpire
 		}
 		switch v.Val.(type) {
@@ -682,8 +706,8 @@ func (c *cache) DecrementInt(k string, n int) (int, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int); !ok {
@@ -707,8 +731,8 @@ func (c *cache) DecrementInt8(k string, n int8) (int8, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int8); !ok {
@@ -732,8 +756,8 @@ func (c *cache) DecrementInt16(k string, n int16) (int16, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int16); !ok {
@@ -757,8 +781,8 @@ func (c *cache) DecrementInt32(k string, n int32) (int32, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int32); !ok {
@@ -782,8 +806,8 @@ func (c *cache) DecrementInt64(k string, n int64) (int64, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(int64); !ok {
@@ -807,8 +831,8 @@ func (c *cache) DecrementUint(k string, n uint) (uint, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint); !ok {
@@ -832,8 +856,8 @@ func (c *cache) DecrementUint8(k string, n uint8) (uint8, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint8); !ok {
@@ -857,8 +881,8 @@ func (c *cache) DecrementUint16(k string, n uint16) (uint16, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint16); !ok {
@@ -882,8 +906,8 @@ func (c *cache) DecrementUint32(k string, n uint32) (uint32, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint32); !ok {
@@ -907,8 +931,8 @@ func (c *cache) DecrementUint64(k string, n uint64) (uint64, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uint64); !ok {
@@ -932,8 +956,8 @@ func (c *cache) DecrementUintPtr(k string, n uintptr) (uintptr, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(uintptr); !ok {
@@ -957,8 +981,8 @@ func (c *cache) DecrementFloat32(k string, n float32) (float32, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(float32); !ok {
@@ -982,8 +1006,8 @@ func (c *cache) DecrementFloat64(k string, n float64) (float64, error) {
 		return 0, CacheNoExist
 	} else {
 		if v.Expired() {
-			c.Unlock()
-			c.Delete(k)
+			// Fix I-e TOCTOU: delete under the held write lock.
+			c.expireEvictUnlock(k)
 			return 0, CacheExpire
 		}
 		if i, ok := v.Val.(float64); !ok {
@@ -1011,6 +1035,19 @@ func (c *cache) Delete(k string) {
 
 func (c *cache) _delete(k string) {
 	v, ok := c.delete(k)
+	if ok {
+		c.capture(k, v)
+	}
+}
+
+// expireEvictUnlock removes an expired entry while the caller's write lock is
+// held, RELEASES the lock, then runs the capture callback OFF-lock. capture may
+// re-enter the cache (Set/Get/...) and the RWMutex is non-reentrant, so running
+// it under the lock would deadlock. Mirrors the public Delete's ordering. The
+// caller must hold c's write lock and must not touch c after calling this.
+func (c *cache) expireEvictUnlock(k string) {
+	v, ok := c.delete(k)
+	c.Unlock()
 	if ok {
 		c.capture(k, v)
 	}
