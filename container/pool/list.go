@@ -172,9 +172,13 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 				return nil, ErrPoolNewFuncIsNull
 			}
 			newItem := l.f
-			l.mu.Unlock()
+			// Bump the active counter under the lock so two concurrent
+			// Gets that both pass the capacity check cannot also both
+			// increment past `conf.active`. The previous code released
+			// the lock first, then `atomic.AddUint64`, allowing N goroutines
+			// to all observe pre-increment values.
 			atomic.AddUint64(&l.active, 1)
-			// 新增:
+			l.mu.Unlock()
 			c, err := newItem(ctx)
 			if err != nil {
 				l.release()
@@ -236,18 +240,25 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 func (l *List) Shutdown() error {
 	l.mu.Lock()
 	if atomic.SwapUint32(&l.closed, 1) == 1 {
+		l.mu.Unlock()
 		return ErrPoolClosed
 	}
-	idles := l.idles
-	// .Init 重新初始化链表 快速清空
-	l.idles.Init()
-	if idles.Len() > 0 {
-		atomic.AddUint64(&l.active, ^uint64(idles.Len()-1))
+	// container/list.List does not support copy-by-value: a copy of the
+	// sentinel root carries pointers back to elements whose `list` field
+	// still references the original. Snapshot the IShutdowns into a slice
+	// while we hold the lock, then Init the live list. Iterating the
+	// slice afterwards is safe without locks.
+	shutdowns := make([]IShutdown, 0, l.idles.Len())
+	for e := l.idles.Front(); e != nil; e = e.Next() {
+		shutdowns = append(shutdowns, e.Value.(item).s)
 	}
+	if len(shutdowns) > 0 {
+		atomic.AddUint64(&l.active, ^uint64(len(shutdowns)-1))
+	}
+	l.idles.Init()
 	l.mu.Unlock()
-	// 在循环旧链表进行资源回收
-	for e := idles.Front(); e != nil; e = e.Next() {
-		_ = e.Value.(item).s.Shutdown()
+	for _, s := range shutdowns {
+		_ = s.Shutdown()
 	}
 	return nil
 }

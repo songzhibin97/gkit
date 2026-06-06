@@ -101,7 +101,12 @@ func newBytePool() *bytePool {
 		minSize:  1 << minShift,
 		maxSize:  1 << maxShift,
 	}
-	for i := (uint)(0); i < maxShift-minShift; i++ {
+	// slot() returns indices 0..(maxShift-minShift) inclusive — for size
+	// 1<<maxShift the value is exactly maxShift-minShift, so we need that
+	// many + 1 buckets. Previously the loop ran with `<` instead of `<=`,
+	// allocating only maxShift-minShift buckets, and `get`/`put` panicked
+	// with index-out-of-range for sizes in (1<<(maxShift-1), 1<<maxShift].
+	for i := (uint)(0); i <= maxShift-minShift; i++ {
 		slot := &byteSlot{defaultSize: 1 << (i + minShift)}
 		b.pool = append(b.pool, slot)
 	}
