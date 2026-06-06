@@ -110,7 +110,9 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 					return
 				}
 				tByte, err := c.popTask(c.consumingQueue, 0)
-				if err != nil && !errors.Is(err, redis.Nil) {
+				// context.Canceled is the normal stop signal; don't log it as an
+				// error on every clean shutdown (the delayed path already filters it).
+				if err != nil && !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
 					c.helper.Errorf("popTask err: %v", err)
 				}
 				// 如果是有效数据,发送给worker

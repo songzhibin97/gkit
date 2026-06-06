@@ -21,6 +21,14 @@ func InitController() controller.Controller {
 	if client == nil {
 		return nil
 	}
+	// Without a live Redis the client is created lazily but StartConsuming
+	// panics in the Ping-failure retry path; skip instead. The FIFO and
+	// watch-error behaviour is covered deterministically by fifo_test.go via
+	// miniredis.
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		_ = client.Close()
+		return nil
+	}
 	bk := broker.NewBroker(broker.NewRegisteredTask(), context.Background())
 	go func() {
 		n := 0
@@ -56,6 +64,9 @@ func (p processor) PreConsumeHandler() bool {
 
 func TestControllerRedis_StartConsuming(t *testing.T) {
 	ct := InitController()
+	if ct == nil {
+		t.Skip("no live Redis at 127.0.0.1:6379")
+	}
 	ct.RegisterTask("test_task")
 	go func() {
 		time.Sleep(10 * time.Second)
