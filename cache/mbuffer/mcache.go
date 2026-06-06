@@ -64,8 +64,9 @@ func Malloc(size int, capacity ...int) []byte {
 	idx := calcIndex(c)
 	if idx >= maxSize {
 		// Requested capacity exceeds the largest cached bucket; allocate
-		// directly so callers can still get a backing array.
-		return make([]byte, size)
+		// directly so callers can still get a backing array. Honour the
+		// requested capacity c (>= size) so cap(ret) >= cap as documented.
+		return make([]byte, size, c)
 	}
 	var ret = caches[idx].Get().([]byte)
 	ret = ret[:size]
