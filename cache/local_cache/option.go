@@ -21,7 +21,8 @@ type Config struct {
 	member map[string]Iterator
 }
 
-// SetInternal 设置间隔时间
+// SetInternal sets the janitor interval. If interval is positive, the caller
+// must call Cache.Shutdown when the cache is no longer used.
 func SetInternal(interval time.Duration) options.Option {
 	return func(c interface{}) {
 		c.(*Config).interval = interval
