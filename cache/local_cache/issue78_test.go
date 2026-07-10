@@ -78,6 +78,10 @@ func TestCaptureConcurrentChangeAndDelete(t *testing.T) {
 			c.DeleteExpire()
 			c.Set("deleted", i, NoExpire)
 			c.Delete("deleted")
+			c.Set("expired-get", i, time.Nanosecond)
+			_, _ = c.Get("expired-get")
+			c.Set("expired-iterator", i, time.Nanosecond)
+			_ = c.Iterator()
 		}
 	}()
 
