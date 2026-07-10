@@ -139,7 +139,7 @@ func Rotate(s string, shift int) string {
 	if shift == 0 {
 		return s
 	}
-	sLen := len(s)
+	sLen := utf8.RuneCountInString(s)
 	if sLen == 0 {
 		return s
 	}
@@ -166,7 +166,7 @@ func Sub(s string, start, end int) string {
 // SubStart returns substring from specified string avoiding panics with start.
 // start, end are based on unicode(utf8) count.
 func SubStart(s string, start int) string {
-	return sub(s, start, math.MaxInt64)
+	return sub(s, start, math.MaxInt)
 }
 
 func sub(s string, start, end int) string {
