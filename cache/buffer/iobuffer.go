@@ -103,7 +103,8 @@ func (p *pipe) Write(buffer []byte) (int, error) {
 	return len(buffer), p.IoBuffer.Append(buffer)
 }
 
-// CloseWithError 使下一次读取(如果需要,唤醒当前阻止的读取)在所有数据都已经完成后返回提供错误
+// CloseWithError closes the pipe and wakes all blocked readers. After buffered
+// data is consumed, reads return err; a nil err is converted to io.EOF.
 func (p *pipe) CloseWithError(err error) {
 	if err == nil {
 		err = io.EOF
@@ -112,7 +113,7 @@ func (p *pipe) CloseWithError(err error) {
 	defer p.mu.Unlock()
 	p.checkCond()
 	p.err = err
-	defer p.c.Signal()
+	defer p.c.Broadcast()
 }
 
 // checkCond 检查 Cond 是否初始化, 否则赋值锁
@@ -122,7 +123,9 @@ func (p *pipe) checkCond() {
 	}
 }
 
-// NewPipe 初始化 pipe IoBuffer
+// NewPipe initializes a buffered pipe. Read, Write, CloseWithError, and Len
+// may be called concurrently. Callers must provide their own synchronization
+// before mixing any other IoBuffer method with concurrent pipe operations.
 func NewPipe(cap int) IoBuffer {
 	return &pipe{
 		IoBuffer: newIoBuffer(cap),
@@ -146,9 +149,11 @@ type ioBuffer struct {
 
 // Read 从缓冲区读取拷贝到 p
 func (i *ioBuffer) Read(p []byte) (n int, err error) {
-	if i.off > 0 && i.off >= len(i.buffer) {
+	if i.off >= len(i.buffer) {
 		// off已经漂移到buffer末尾或越界
-		i.Reset()
+		if i.off > 0 {
+			i.Reset()
+		}
 		if len(p) == 0 {
 			return
 		}
@@ -233,8 +238,14 @@ func (i *ioBuffer) ReadFrom(r io.Reader) (n int64, err error) {
 
 // Grow 扩张
 func (i *ioBuffer) Grow(n int) error {
-	if _, ok := i.tryGrowByRelies(n); !ok {
-		i.grow(n)
+	start, ok := i.tryGrowByRelies(n)
+	if !ok {
+		start = i.grow(n)
+	}
+	if n > 0 {
+		for j := start; j < len(i.buffer); j++ {
+			i.buffer[j] = 0
+		}
 	}
 	return nil
 }

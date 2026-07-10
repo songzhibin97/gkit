@@ -47,6 +47,7 @@ func calcIndex(size int) int {
 // Malloc supports one or two integer argument.
 // The size specifies the length of the returned slice, which means len(ret) == size.
 // A second integer argument may be provided to specify the minimum capacity, which means cap(ret) >= cap.
+// The returned contents are unspecified and are not guaranteed to be zeroed.
 func Malloc(size int, capacity ...int) []byte {
 	if len(capacity) > 1 {
 		panic("too many arguments to Malloc")

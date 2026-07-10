@@ -21,6 +21,8 @@ type Cache struct {
 	*cache
 }
 
+// NewCache creates a cache. If a positive janitor interval is configured with
+// SetInternal, the caller must call Shutdown when the cache is no longer used.
 func NewCache(options ...options.Option) Cache {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Config{
@@ -1026,17 +1028,11 @@ func (c *cache) DecrementFloat64(k string, n float64) (float64, error) {
 // Delete 删除k的cache 如果 capture != nil 会调用 capture 函数 将 kv传入
 func (c *cache) Delete(k string) {
 	c.Lock()
+	capture := c.capture
 	v, ok := c.delete(k)
 	c.Unlock()
-	if ok {
-		c.capture(k, v)
-	}
-}
-
-func (c *cache) _delete(k string) {
-	v, ok := c.delete(k)
-	if ok {
-		c.capture(k, v)
+	if ok && capture != nil {
+		capture(k, v)
 	}
 }
 
@@ -1046,43 +1042,60 @@ func (c *cache) _delete(k string) {
 // it under the lock would deadlock. Mirrors the public Delete's ordering. The
 // caller must hold c's write lock and must not touch c after calling this.
 func (c *cache) expireEvictUnlock(k string) {
+	capture := c.capture
 	v, ok := c.delete(k)
 	c.Unlock()
-	if ok {
-		c.capture(k, v)
+	if ok && capture != nil {
+		capture(k, v)
 	}
 }
 
-// delete 删除k的cache 如果具有 capture != nil 则会携带v返回
+// delete removes k and returns its value. The caller must hold c's write lock.
 func (c *cache) delete(k string) (interface{}, bool) {
-	if c.capture != nil {
-		if v, ok := c.member[k]; ok {
-			delete(c.member, k)
-			return v.Val, true
-		}
+	if v, ok := c.member[k]; ok {
+		delete(c.member, k)
+		return v.Val, true
 	}
-	delete(c.member, k)
 	return nil, false
+}
+
+// deleteExpired removes k only when the value observed under the write lock is
+// still expired. The capture handler is snapshotted under the same lock and is
+// invoked after unlocking so it may safely re-enter the cache.
+func (c *cache) deleteExpired(k string) {
+	c.Lock()
+	v, ok := c.member[k]
+	if !ok || !v.Expired() {
+		c.Unlock()
+		return
+	}
+	capture := c.capture
+	delete(c.member, k)
+	c.Unlock()
+	if capture != nil {
+		capture(k, v.Val)
+	}
 }
 
 // DeleteExpire 删除已经过期的kv
 func (c *cache) DeleteExpire() {
+	c.Lock()
+	capture := c.capture
 	var kvList []kv
-	if c.capture != nil {
+	if capture != nil {
 		kvList = make([]kv, 0, len(c.member)/4)
 	}
-	c.Lock()
 	t := time.Now().UnixNano()
 	for k, v := range c.member {
 		if v.Expired(t) {
-			if vv, ok := c.delete(k); ok && c.capture != nil {
+			if vv, ok := c.delete(k); ok && capture != nil {
 				kvList = append(kvList, kv{k, vv})
 			}
 		}
 	}
 	c.Unlock()
 	for _, v := range kvList {
-		c.capture(v.key, v.value)
+		capture(v.key, v.value)
 	}
 }
 
@@ -1172,7 +1185,7 @@ func (c *cache) Iterator() map[string]Iterator {
 	c.RUnlock()
 	// 清除过期key
 	for _, key := range keys {
-		c.Delete(key)
+		c.deleteExpired(key)
 	}
 	return ret
 }
@@ -1191,6 +1204,7 @@ func (c *cache) Flush() {
 	c.member = make(map[string]Iterator)
 }
 
+// Shutdown stops the janitor and releases the cache's members.
 func (c *cache) Shutdown() error {
 	c.Flush()
 	c.cancel()
