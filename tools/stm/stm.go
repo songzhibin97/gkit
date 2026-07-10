@@ -17,7 +17,13 @@ func StructToMapExtraExport(val interface{}, tag string) map[string]interface{} 
 
 func structToMap(val interface{}, tag string, extraExport bool) map[string]interface{} {
 	t, v := reflect.TypeOf(val), reflect.ValueOf(val)
+	if !v.IsValid() {
+		return nil
+	}
 	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return nil
+		}
 		return structToMap(v.Elem().Interface(), tag, extraExport)
 	}
 	if v.Kind() != reflect.Struct {

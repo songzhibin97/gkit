@@ -2,6 +2,8 @@ package deepcopy
 
 import (
 	"reflect"
+	"time"
+	"unsafe"
 
 	"github.com/songzhibin97/gkit/tools"
 )
@@ -18,6 +20,22 @@ type visitKey struct {
 	ptr uintptr
 	len int
 	cap int
+}
+
+var timeType = reflect.TypeOf(time.Time{})
+
+func isSynchronizationPrimitive(t reflect.Type) bool {
+	return t.Kind() == reflect.Struct && (t.PkgPath() == "sync" || t.PkgPath() == "sync/atomic")
+}
+
+// accessibleField returns a settable view of an unexported field. The unsafe
+// operation is deliberately constrained to addressable fields of the same
+// source/destination type: it neither retains the raw pointer nor exposes it
+// outside this recursive copy. This is required to deep-copy private reference
+// state such as math/big.Int's internal word slice instead of shallow-copying
+// it with the enclosing struct.
+func accessibleField(value reflect.Value) reflect.Value {
+	return reflect.NewAt(value.Type(), unsafe.Pointer(value.UnsafeAddr())).Elem()
 }
 
 // deepCopy recursively copies src into dst. The visited map tracks
@@ -84,14 +102,45 @@ func deepCopy(dst, src reflect.Value, visited map[visitKey]reflect.Value) {
 		for i := 0; i < src.Len(); i++ {
 			deepCopy(dst.Index(i), src.Index(i), visited)
 		}
+	case reflect.Array:
+		for i := 0; i < src.Len(); i++ {
+			deepCopy(dst.Index(i), src.Index(i), visited)
+		}
 	case reflect.Struct:
 		typeSrc := src.Type()
+		if typeSrc == timeType {
+			dst.Set(src)
+			return
+		}
+		if isSynchronizationPrimitive(typeSrc) {
+			// Synchronization state must never be copied after first use. A
+			// containing struct is still traversed so its unrelated private
+			// fields are preserved, while the primitive itself stays reset.
+			dst.Set(reflect.Zero(typeSrc))
+			return
+		}
+
+		// reflect.ValueOf(valueStruct) is not addressable. Materialize an
+		// addressable read-only copy so its unexported fields can be traversed
+		// with the narrowly-scoped accessibleField helper below.
+		addressableSrc := src
+		if !addressableSrc.CanAddr() {
+			addressableSrc = reflect.New(typeSrc).Elem()
+			addressableSrc.Set(src)
+		}
 		for i := 0; i < src.NumField(); i++ {
-			value := src.Field(i)
-			tag := typeSrc.Field(i).Tag
-			if value.CanSet() && tag.Get("gkit") != "-" {
-				deepCopy(dst.Field(i), value, visited)
+			field := typeSrc.Field(i)
+			if field.Tag.Get("gkit") == "-" {
+				continue
 			}
+
+			srcField := addressableSrc.Field(i)
+			dstField := dst.Field(i)
+			if !field.IsExported() {
+				srcField = accessibleField(srcField)
+				dstField = accessibleField(dstField)
+			}
+			deepCopy(dstField, srcField, visited)
 		}
 	default:
 		dst.Set(src)
@@ -102,6 +151,9 @@ func DeepCopy(dst, src interface{}) error {
 	dstT, srcT := reflect.TypeOf(dst), reflect.TypeOf(src)
 	if dstT != srcT {
 		return tools.ErrorNoEquals
+	}
+	if srcT == nil {
+		return tools.ErrorInvalidValue
 	}
 	if srcT.Kind() != reflect.Ptr {
 		return tools.ErrorMustPtr
@@ -116,6 +168,9 @@ func DeepCopy(dst, src interface{}) error {
 
 func Clone(v interface{}) interface{} {
 	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return nil
+	}
 	visited := map[visitKey]reflect.Value{}
 	if rv.Kind() == reflect.Ptr && !rv.IsNil() {
 		// Allocate a new *T, register it in the visited map BEFORE

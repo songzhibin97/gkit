@@ -31,6 +31,9 @@ type ModelParameters struct {
 // 支持简单的 default模式 在基础类型增加default可以指定默认值
 func VoToDo(dst interface{}, src interface{}) error {
 	dstT, srcT := reflect.TypeOf(dst), reflect.TypeOf(src)
+	if dstT == nil || srcT == nil {
+		return tools.ErrorInvalidValue
+	}
 	if dstT.Kind() != srcT.Kind() {
 		return tools.ErrorNoEquals
 	}
@@ -41,7 +44,11 @@ func VoToDo(dst interface{}, src interface{}) error {
 	if dstT.Kind() != reflect.Struct || srcT.Kind() != reflect.Struct {
 		return tools.ErrorMustStructPtr
 	}
-	dstV, srcV := reflect.ValueOf(dst).Elem(), reflect.ValueOf(src).Elem()
+	dstPtr, srcPtr := reflect.ValueOf(dst), reflect.ValueOf(src)
+	if dstPtr.IsNil() || srcPtr.IsNil() {
+		return tools.ErrorInvalidValue
+	}
+	dstV, srcV := dstPtr.Elem(), srcPtr.Elem()
 	for i := 0; i < dstT.NumField(); i++ {
 		field := dstT.Field(i)
 		if !field.IsExported() {
@@ -55,6 +62,9 @@ func VoToDo(dst interface{}, src interface{}) error {
 		s := srcV.FieldByName(field.Name)
 		for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
 			s = s.Elem()
+		}
+		if !s.IsValid() {
+			continue
 		}
 
 		if d.Kind() != s.Kind() && !d.CanConvert(s.Type()) {
@@ -103,6 +113,9 @@ func VoToDo(dst interface{}, src interface{}) error {
 // ModelParameters: 模式匹配
 func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 	dstT, srcT := reflect.TypeOf(dst), reflect.TypeOf(src)
+	if dstT == nil || srcT == nil {
+		return tools.ErrorInvalidValue
+	}
 	if dstT.Kind() != srcT.Kind() {
 		return tools.ErrorNoEquals
 	}
@@ -113,7 +126,11 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 	if dstT.Kind() != reflect.Struct || srcT.Kind() != reflect.Struct {
 		return tools.ErrorMustStructPtr
 	}
-	dstV, srcV := reflect.ValueOf(dst).Elem(), reflect.ValueOf(src).Elem()
+	dstPtr, srcPtr := reflect.ValueOf(dst), reflect.ValueOf(src)
+	if dstPtr.IsNil() || srcPtr.IsNil() {
+		return tools.ErrorInvalidValue
+	}
+	dstV, srcV := dstPtr.Elem(), srcPtr.Elem()
 
 	if model.Model&TagBind == TagBind && len(model.Tag) == 0 {
 		model.Tag = "json"
@@ -143,6 +160,9 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 			s := srcV.FieldByName(field.Name)
 			for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
 				s = s.Elem()
+			}
+			if !s.IsValid() {
+				continue
 			}
 			if d.Kind() != s.Kind() && !d.CanConvert(s.Type()) {
 				continue
@@ -213,6 +233,9 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				ss := srcV.FieldByName(srcField.Name)
 				for ss.Kind() == reflect.Ptr && d.Kind() != ss.Kind() {
 					ss = ss.Elem()
+				}
+				if !ss.IsValid() {
+					continue
 				}
 				if d.Kind() != ss.Kind() {
 					continue

@@ -28,15 +28,14 @@ func deepMatch(str, pattern string) bool {
 			// 如果大于 0x7f 使用 utf-8 rune解析
 			return deepMatchRune(str, pattern)
 		}
+		if len(str) > 0 && str[0] > 0x7f {
+			return deepMatchRune(str, pattern)
+		}
 		switch pattern[0] {
 		default:
 			// 如果 待匹配 str 为空 匹配失败
 			if len(str) == 0 {
 				return false
-			}
-			// 如果非ASCII进行rune解析
-			if str[0] > 0x7f {
-				return deepMatchRune(str, pattern)
 			}
 			// 判断str[0] 与 pattern[0] 是否相同
 			if str[0] != pattern[0] {
@@ -94,11 +93,11 @@ func deepMatchRune(str, pattern string) bool {
 		pr, prsz = utf8.RuneError, 0
 	}
 	// done reading
-	for pr != utf8.RuneError {
+	for prsz > 0 {
 		switch pr {
 		default:
 			// 如果另外一个已经读空了 直接返回
-			if srsz == utf8.RuneError {
+			if srsz == 0 {
 				return false
 			}
 			// 判断两个字节是否相同
@@ -107,7 +106,7 @@ func deepMatchRune(str, pattern string) bool {
 			}
 		case '?':
 			// ? 如果另外一个已经读空了 直接返回
-			if srsz == utf8.RuneError {
+			if srsz == 0 {
 				return false
 			}
 		case '*':

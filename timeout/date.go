@@ -20,7 +20,7 @@ func (d Date) MarshalJSON() ([]byte, error) {
 }
 
 func (d *Date) UnmarshalText(value string) error {
-	dd, err := time.Parse(DateFormat, value)
+	dd, err := time.ParseInLocation(DateFormat, value, time.Local)
 	if err != nil {
 		return err
 	}
