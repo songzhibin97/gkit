@@ -34,6 +34,36 @@ func TestDeleteNodePreservesNonEmptyTopLevel(t *testing.T) {
 	}
 }
 
+func TestDeleteNodeShrinksAllEmptyTopLevels(t *testing.T) {
+	list := newFloat64List()
+	only := newFloat64ListNode(1, "only", 4)
+	var update [maxLevel]*float64ListNode
+	for level := 0; level < 4; level++ {
+		list.header.storeNextAndSpan(level, only, 1)
+		update[level] = list.header
+	}
+	list.tail = only
+	list.length = 1
+	list.highestLevel = 4
+
+	list.deleteNode(only, &update)
+
+	if list.highestLevel != 1 {
+		t.Fatalf("highestLevel after deleting only level-4 node = %d, want 1", list.highestLevel)
+	}
+	if list.length != 0 || list.tail != nil {
+		t.Fatalf("list after final delete = length %d, tail %p; want empty", list.length, list.tail)
+	}
+	for level := 0; level < 4; level++ {
+		if next, span := list.header.loadNextAndSpan(level); next != nil || span != 0 {
+			t.Fatalf("header level %d after final delete = next %p, span %d; want nil, 0", level, next, span)
+		}
+	}
+	if node := list.GetNodeByRank(1); node != nil {
+		t.Fatalf("GetNodeByRank(1) after final delete = %q, want nil", node.value)
+	}
+}
+
 func TestRangeBoundariesNeverExposeHeader(t *testing.T) {
 	set := NewFloat64()
 	set.Add(1, "a")
