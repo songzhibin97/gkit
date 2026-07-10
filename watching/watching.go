@@ -67,61 +67,58 @@ type rptEvent struct {
 
 // EnableThreadDump enables the goroutine dump.
 func (w *Watching) EnableThreadDump() *Watching {
-	w.config.ThreadConfigs.Enable = true
-	return w
+	return w.setDumpEnabled(w.config.ThreadConfigs, true)
 }
 
 // DisableThreadDump disables the goroutine dump.
 func (w *Watching) DisableThreadDump() *Watching {
-	w.config.ThreadConfigs.Enable = false
-	return w
+	return w.setDumpEnabled(w.config.ThreadConfigs, false)
 }
 
 // EnableGoroutineDump enables the goroutine dump.
 func (w *Watching) EnableGoroutineDump() *Watching {
-	w.config.GroupConfigs.Enable = true
-	return w
+	return w.setDumpEnabled(w.config.GroupConfigs.typeConfig, true)
 }
 
 // DisableGoroutineDump disables the goroutine dump.
 func (w *Watching) DisableGoroutineDump() *Watching {
-	w.config.GroupConfigs.Enable = false
-	return w
+	return w.setDumpEnabled(w.config.GroupConfigs.typeConfig, false)
 }
 
 // EnableCPUDump enables the CPU dump.
 func (w *Watching) EnableCPUDump() *Watching {
-	w.config.CpuConfigs.Enable = true
-	return w
+	return w.setDumpEnabled(w.config.CpuConfigs, true)
 }
 
 // DisableCPUDump disables the CPU dump.
 func (w *Watching) DisableCPUDump() *Watching {
-	w.config.CpuConfigs.Enable = false
-	return w
+	return w.setDumpEnabled(w.config.CpuConfigs, false)
 }
 
 // EnableMemDump enables the mem dump.
 func (w *Watching) EnableMemDump() *Watching {
-	w.config.MemConfigs.Enable = true
-	return w
+	return w.setDumpEnabled(w.config.MemConfigs, true)
 }
 
 // DisableMemDump disables the mem dump.
 func (w *Watching) DisableMemDump() *Watching {
-	w.config.MemConfigs.Enable = false
-	return w
+	return w.setDumpEnabled(w.config.MemConfigs, false)
 }
 
 // EnableGCHeapDump enables the GC heap dump.
 func (w *Watching) EnableGCHeapDump() *Watching {
-	w.config.GCHeapConfigs.Enable = true
-	return w
+	return w.setDumpEnabled(w.config.GCHeapConfigs, true)
 }
 
 // DisableGCHeapDump disables the GC heap dump.
 func (w *Watching) DisableGCHeapDump() *Watching {
-	w.config.GCHeapConfigs.Enable = false
+	return w.setDumpEnabled(w.config.GCHeapConfigs, false)
+}
+
+func (w *Watching) setDumpEnabled(config *typeConfig, enabled bool) *Watching {
+	w.config.L.Lock()
+	config.Enable = enabled
+	w.config.L.Unlock()
 	return w
 }
 
@@ -318,6 +315,10 @@ func (w *Watching) startReporter(ch chan rptEvent) {
 	}()
 }
 
+func (w *Watching) logDumpTrigger(action string, dumpType configureType, min, diff, abs, max int, previous interface{}, current int) {
+	w.logf(UniformLogFormat, action, type2name[dumpType], min, diff, abs, max, previous, current)
+}
+
 // goroutine start.
 func (w *Watching) goroutineCheckAndDump(gNum int) {
 	// get a copy instead of locking it
@@ -346,8 +347,7 @@ func (w *Watching) goroutineProfile(gNum int, c groupConfigs) bool {
 			c.GoroutineTriggerNumMax, w.grNumStats.data, gNum)
 		return false
 	}
-	w.logf("watching.goroutine", UniformLogFormat, "pprof", type2name[goroutine],
-		c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+	w.logDumpTrigger("pprof", goroutine, c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
 		c.GoroutineTriggerNumMax, w.grNumStats.data, gNum)
 
 	var buf bytes.Buffer
@@ -388,9 +388,8 @@ func (w *Watching) memProfile(rss int, c typeConfig) bool {
 		return false
 	}
 
-	w.logf("watching.memory", UniformLogFormat, "pprof", type2name[mem],
-		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
-		w.memStats.data, rss)
+	w.logDumpTrigger("pprof", mem, c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+		NotSupportTypeMaxConfig, w.memStats.data, rss)
 
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck
@@ -490,8 +489,7 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 		return false
 	}
 
-	w.logf("watching.thread", UniformLogFormat, "pprof", type2name[thread],
-		c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+	w.logDumpTrigger("pprof", thread, c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
 		NotSupportTypeMaxConfig, w.threadStats, curThreadNum)
 
 	eventID := fmt.Sprintf("thr-%d", w.threadTriggerCount)
@@ -568,9 +566,8 @@ func (w *Watching) cpuProfile(curCPUUsage int, c typeConfig) bool {
 		return false
 	}
 
-	w.logf("watching.cpu", UniformLogFormat, "pprof dump", type2name[cpu],
-		c.TriggerMin, c.TriggerDiff, c.TriggerAbs, NotSupportTypeMaxConfig,
-		w.cpuStats.data, curCPUUsage)
+	w.logDumpTrigger("pprof dump", cpu, c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+		NotSupportTypeMaxConfig, w.cpuStats.data, curCPUUsage)
 
 	bf, binFileName, err := getBinaryFileNameAndCreate(w.config.DumpPath, cpu, "")
 	if err != nil {
@@ -689,8 +686,7 @@ func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
 		return false
 	}
 
-	w.logf("watching.gcheap", UniformLogFormat, "pprof", type2name[gcHeap],
-		c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
+	w.logDumpTrigger("pprof", gcHeap, c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
 		NotSupportTypeMaxConfig, w.gcHeapStats, gc)
 	// gcTriggerCount only increased after got both two profiles
 	eventID := fmt.Sprintf("heap-%d", w.grTriggerCount)

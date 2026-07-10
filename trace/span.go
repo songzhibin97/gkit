@@ -134,6 +134,9 @@ func parseTarget(endpoint string) (address string, err error) {
 		}
 		return u.Host, nil
 	}
+	if u.Host != "" {
+		return u.Host, nil
+	}
 	if len(u.Path) > 1 {
 		return u.Path[1:], nil
 	}
