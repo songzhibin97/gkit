@@ -11,7 +11,7 @@
 3. `stringx.Rotate` 以 rune 数规范化 shift，多字节字符串与 ASCII 使用相同字符语义。
 4. `sys/stringx` 在 linux/386 可编译，并保持现有 substring 行为。
 5. `sys/xxhash3` 在 linux/386 可编译；同一输入的 64/128 位 hash 与 64 位平台结果一致，不发生 uintptr 截断。
-6. 公共和 internal CPU reader 支持 cgroup v1 与 unified cgroup v2：v2 从 `cpu.max`、`cpu.stat` 和 `cpuset.cpus.effective`（必要时回退 `cpuset.cpus`）读取 quota、usage 与 CPU set，而不是静默回退宿主机指标。
+6. 公共和 internal CPU reader 联合 `/proc/<pid>/cgroup` 与 `mountinfo` 解析 cgroup v1/v2：membership 按 mount root 映射到真实 mountpoint（包括 bind root 与转义路径）；hybrid 中存在 v1 `cpu` membership 时选择 v1，而不因同时存在 `0::` 就误用 unified hierarchy。v2 从 `cpu.max`、`cpu.stat` 和 `cpuset.cpus.effective`（必要时回退 `cpuset.cpus`）读取指标；quota 从当前 cgroup 向可见 cgroup2 mount root 遍历，取最严格的有限 `quota/period`，`max` 不施加限制。遍历不越出 mount root，任一层 `cpu.max` 缺失、不可读或格式错误都返回错误，不能静默忽略潜在祖先限制或回退宿主机指标。
 7. cgroup CPU usage 在 quota 为零、system/usage counter 未前进或回退时返回 0，不产生 Inf 转换或 uint64 下溢；正常单调样本保持原公式。
 
 ## Non-goals
