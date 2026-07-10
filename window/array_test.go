@@ -39,11 +39,16 @@ func TestBucketSize(t *testing.T) {
 		Start: clock.GetTimeMillis(),
 		Value: atomic.Value{},
 	}
-	if !assert.Equal(t, int(unsafe.Sizeof(*b)), 24) {
-		t.Errorf("the size of Bucket is not equal 24.\n")
+	wantBucketSize := unsafe.Sizeof(uint64(0)) + unsafe.Sizeof(atomic.Value{})
+	if !assert.Equal(t, wantBucketSize, unsafe.Sizeof(*b)) {
+		t.Errorf("the size of Bucket is not equal to its fields.\n")
 	}
-	if !assert.Equal(t, int(unsafe.Sizeof(b)), 8) {
-		t.Errorf("the size of Bucket pointer is not equal 8.\n")
+	wantPointerSize := unsafe.Sizeof(uintptr(0))
+	if !assert.Equal(t, wantPointerSize, unsafe.Sizeof(b)) {
+		t.Errorf("the size of Bucket pointer is not native pointer size.\n")
+	}
+	if !assert.Equal(t, uint64(wantPointerSize), PtrOffSize) {
+		t.Errorf("PtrOffSize is not native pointer size.\n")
 	}
 }
 

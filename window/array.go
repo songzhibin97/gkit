@@ -5,7 +5,6 @@ import (
 	"unsafe"
 
 	"github.com/songzhibin97/gkit/internal/clock"
-	"github.com/songzhibin97/gkit/sys/safe"
 )
 
 // AtomicArray 封装原子操作, 底层维护 []*Bucket
@@ -13,19 +12,16 @@ type AtomicArray struct {
 	// length: array长度
 	length uint64
 
-	// base: 数据基地址
-	base unsafe.Pointer
 	data []*Bucket
 }
 
 // offset 根据index获取底层的桶
 func (a *AtomicArray) offset(index uint64) (unsafe.Pointer, bool) {
-	if index < 0 {
+	if a.length == 0 {
 		return nil, false
 	}
 	index = index % a.length
-	base := a.base
-	return unsafe.Pointer(uintptr(base) + uintptr(index*PtrOffSize)), true
+	return unsafe.Pointer(&a.data[index]), true
 }
 
 // getBucket 根据index获取底层bucket
@@ -71,8 +67,6 @@ func NewAtomicArrayWithTime(length uint64, bucketSize uint64, now uint64, Builde
 		array.data[i] = b
 		startTime += bucketSize
 	}
-	header := (*safe.SliceModel)(unsafe.Pointer(&array.data))
-	array.base = header.Data
 	return array
 }
 

@@ -42,7 +42,6 @@ type Queue struct {
 	// dropping: 是否处于降级状态
 	dropping bool
 
-	pool    sync.Pool
 	packets chan packet
 
 	mux      sync.RWMutex
@@ -78,15 +77,14 @@ func (q *Queue) Stat() Stat {
 // 如果返回错误为nil，则在完成请求处理后，调用方必须调用q.Done()
 func (q *Queue) Push(ctx context.Context) (err error) {
 	r := packet{
-		ch: q.pool.Get().(chan bool),
+		ch: make(chan bool, 1),
 		ts: time.Now().UnixNano() / int64(time.Millisecond),
 	}
 	select {
 	case q.packets <- r:
 	default:
-		// 如果缓冲区阻塞,直接将 err 赋值,并且将资源放回pool中
+		// 如果缓冲区阻塞,直接将 err 赋值
 		err = bbr.LimitExceed
-		q.pool.Put(r.ch)
 	}
 	// 判断是否发送到缓冲区
 	if err == nil {
@@ -96,7 +94,6 @@ func (q *Queue) Push(ctx context.Context) (err error) {
 			if drop {
 				err = bbr.LimitExceed
 			}
-			q.pool.Put(r.ch)
 		case <-ctx.Done():
 			err = ctx.Err()
 		}
@@ -110,13 +107,9 @@ func (q *Queue) Pop() {
 		select {
 		case p := <-q.packets:
 			drop := q.judge(p)
-			select {
-			case p.ch <- drop:
-				if !drop {
-					return
-				}
-			default:
-				q.pool.Put(p.ch)
+			p.ch <- drop
+			if !drop {
+				return
 			}
 		default:
 			return
@@ -212,9 +205,6 @@ func NewQueue(options ...options.Option) *Queue {
 	}
 	for _, option := range options {
 		option(q.conf)
-	}
-	q.pool.New = func() interface{} {
-		return make(chan bool)
 	}
 	return q
 }
