@@ -195,6 +195,7 @@ func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, co
 	publishErrs := make([]error, len(group.Tasks))
 	pool := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
+	startedPublishers := 0
 
 	markCanceled := func(start int, err error) {
 		for index := start; index < len(group.Tasks); index++ {
@@ -223,6 +224,7 @@ admission:
 		}
 
 		wg.Add(1)
+		startedPublishers++
 		go func(t *task.Signature, index int) {
 			defer wg.Done()
 			defer func() { <-pool }()
@@ -237,15 +239,55 @@ admission:
 	// The result and error slices are caller-owned after return, so every writer
 	// must be joined before either slice is inspected or returned.
 	wg.Wait()
+	var primaryErr error
 	for _, err := range publishErrs {
 		if err != nil {
-			return asyncResults, err
+			primaryErr = err
+			break
 		}
 	}
+	if primaryErr != nil {
+		// No call to Publish means no queue side effect can have occurred, so the
+		// complete initialization is safe to roll back and the caller can retry
+		// the same group ID. Once a publish attempt starts, retain the group and
+		// converge every unsuccessful or unadmitted member to a terminal failure;
+		// confirmed successful publishers are never touched.
+		if startedPublishers == 0 {
+			return asyncResults, s.withGroupInitializationCleanup(primaryErr, group.GroupID, initializedTaskIDs)
+		}
+		if convergenceErr := s.convergeGroupPublicationFailures(group, publishErrs); convergenceErr != nil {
+			return asyncResults, stderrors.Join(primaryErr, convergenceErr)
+		}
+		return asyncResults, primaryErr
+	}
 	if err := ctx.Err(); err != nil {
+		if startedPublishers == 0 {
+			return asyncResults, s.withGroupInitializationCleanup(err, group.GroupID, initializedTaskIDs)
+		}
 		return asyncResults, err
 	}
 	return asyncResults, nil
+}
+
+func (s *Server) convergeGroupPublicationFailures(group *task.Group, publishErrs []error) error {
+	var convergenceErrs []error
+	for index, publishErr := range publishErrs {
+		if publishErr == nil {
+			continue
+		}
+		failureMessage := "group publication failed before task execution"
+		if stderrors.Is(publishErr, context.Canceled) || stderrors.Is(publishErr, context.DeadlineExceeded) {
+			failureMessage = "group publication canceled before task execution"
+		}
+		if err := s.backend.SetStateFailure(group.Tasks[index], failureMessage); err != nil {
+			convergenceErrs = append(convergenceErrs, fmt.Errorf(
+				"converge group task %s after publication failure: %w",
+				group.Tasks[index].ID,
+				err,
+			))
+		}
+	}
+	return stderrors.Join(convergenceErrs...)
 }
 
 func (s *Server) withGroupInitializationCleanup(primaryErr error, groupID string, taskIDs []string) error {
