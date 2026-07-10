@@ -16,10 +16,21 @@ const cGroupRootDir = "/sys/fs/cgroup"
 // cGroup LinuxCGroup
 type cGroup struct {
 	cGroupSet map[string]string
+	unified   bool
 }
 
 // CPUCFSQuotaUs 获取 cpu.cfs_quota_us 调度周期控制组被允许运行的时间
 func (c *cGroup) CPUCFSQuotaUs() (int64, error) {
+	if c.unified {
+		fields, err := c.cpuMax()
+		if err != nil {
+			return 0, err
+		}
+		if fields[0] == "max" {
+			return -1, nil
+		}
+		return strconv.ParseInt(fields[0], 10, 64)
+	}
 	data, err := readFile(path.Join(c.cGroupSet["cpu"], "cpu.cfs_quota_us"))
 	if err != nil {
 		return 0, err
@@ -29,6 +40,13 @@ func (c *cGroup) CPUCFSQuotaUs() (int64, error) {
 
 // CPUCFSPeriodUs 获取 cpu.cfs_period_us 调度周期
 func (c *cGroup) CPUCFSPeriodUs() (uint64, error) {
+	if c.unified {
+		fields, err := c.cpuMax()
+		if err != nil {
+			return 0, err
+		}
+		return parseUint(fields[1])
+	}
 	data, err := readFile(path.Join(c.cGroupSet["cpu"], "cpu.cfs_period_us"))
 	if err != nil {
 		return 0, err
@@ -38,6 +56,27 @@ func (c *cGroup) CPUCFSPeriodUs() (uint64, error) {
 
 // CPUAcctUsage cpuacct.usage CPU使用率
 func (c *cGroup) CPUAcctUsage() (uint64, error) {
+	if c.unified {
+		data, err := readFile(path.Join(c.cGroupSet[""], "cpu.stat"))
+		if err != nil {
+			return 0, err
+		}
+		for _, line := range strings.Split(data, "\n") {
+			fields := strings.Fields(line)
+			if len(fields) != 2 || fields[0] != "usage_usec" {
+				continue
+			}
+			usage, err := parseUint(fields[1])
+			if err != nil {
+				return 0, err
+			}
+			if usage > ^uint64(0)/1000 {
+				return 0, fmt.Errorf("cgroup v2 usage_usec overflows nanoseconds: %d", usage)
+			}
+			return usage * 1000, nil
+		}
+		return 0, fmt.Errorf("cgroup v2 cpu.stat has no usage_usec")
+	}
 	data, err := readFile(path.Join(c.cGroupSet["cpuacct"], "cpuacct.usage"))
 	if err != nil {
 		return 0, err
@@ -47,6 +86,9 @@ func (c *cGroup) CPUAcctUsage() (uint64, error) {
 
 // CPUAcctUsagePerCPU cpuacct.usage_percpu cGroup中所有任务消耗的cpu时间
 func (c *cGroup) CPUAcctUsagePerCPU() ([]uint64, error) {
+	if c.unified {
+		return c.CPUSetCPUs()
+	}
 	data, err := readFile(path.Join(c.cGroupSet["cpuacct"], "cpuacct.usage_percpu"))
 	if err != nil {
 		return nil, err
@@ -66,7 +108,16 @@ func (c *cGroup) CPUAcctUsagePerCPU() ([]uint64, error) {
 
 // CPUSetCPUs cpuset.cpus 获取核心数
 func (c *cGroup) CPUSetCPUs() ([]uint64, error) {
-	data, err := readFile(path.Join(c.cGroupSet["cpuset"], "cpuset.cpus"))
+	base := c.cGroupSet["cpuset"]
+	filename := "cpuset.cpus"
+	if c.unified {
+		base = c.cGroupSet[""]
+		filename = "cpuset.cpus.effective"
+	}
+	data, err := readFile(path.Join(base, filename))
+	if c.unified && (err != nil || data == "") {
+		data, err = readFile(path.Join(base, "cpuset.cpus"))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -85,42 +136,60 @@ func (c *cGroup) CPUSetCPUs() ([]uint64, error) {
 func currentcGroup() (*cGroup, error) {
 	pid := os.Getpid()
 	cgroupFile := fmt.Sprintf("/proc/%d/cgroup", pid)
-	cgroupSet := make(map[string]string)
 	fp, err := os.Open(cgroupFile)
 	if err != nil {
 		return nil, err
 	}
 	defer fp.Close()
-	buf := bufio.NewReader(fp)
-	for {
-		line, err := buf.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
+	return parseCGroup(fp, cGroupRootDir)
+}
+
+func parseCGroup(r io.Reader, root string) (*cGroup, error) {
+	cgroupSet := make(map[string]string)
+	unified := false
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
 		}
-		col := strings.Split(strings.TrimSpace(line), ":")
+		col := strings.SplitN(line, ":", 3)
 		if len(col) != 3 {
 			return nil, fmt.Errorf("invalid cGroup format %s", line)
 		}
-		dir := col[2]
-		// 如果dir不是 "/" 则必须在docker中
-		if dir != "/" {
-			cgroupSet[col[1]] = path.Join(cGroupRootDir, col[1])
-			if strings.Contains(col[1], ",") {
-				for _, k := range strings.Split(col[1], ",") {
-					cgroupSet[k] = path.Join(cGroupRootDir, k)
-				}
-			}
-		} else {
-			cgroupSet[col[1]] = path.Join(cGroupRootDir, col[1], col[2])
-			if strings.Contains(col[1], ",") {
-				for _, k := range strings.Split(col[1], ",") {
-					cgroupSet[k] = path.Join(cGroupRootDir, k, col[2])
-				}
-			}
+		controllers := col[1]
+		if controllers == "" {
+			unified = true
+			dir := strings.TrimPrefix(col[2], "/")
+			cgroupSet[""] = path.Join(root, dir)
+			continue
+		}
+		// Preserve the package's existing cgroup v1 mount mapping. Controller
+		// names and membership paths do not identify the actual v1 mountpoint;
+		// changing this requires parsing mountinfo rather than guessing from the
+		// /proc membership line.
+		cgroupSet[controllers] = path.Join(root, controllers)
+		for _, controller := range strings.Split(controllers, ",") {
+			cgroupSet[controller] = path.Join(root, controller)
 		}
 	}
-	return &cGroup{cGroupSet: cgroupSet}, nil
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read cgroup membership: %w", err)
+	}
+	if len(cgroupSet) == 0 {
+		return nil, fmt.Errorf("no cgroup membership found")
+	}
+	return &cGroup{cGroupSet: cgroupSet, unified: unified}, nil
+}
+
+func (c *cGroup) cpuMax() ([]string, error) {
+	data, err := readFile(path.Join(c.cGroupSet[""], "cpu.max"))
+	if err != nil {
+		return nil, err
+	}
+	fields := strings.Fields(data)
+	if len(fields) != 2 {
+		return nil, fmt.Errorf("invalid cgroup v2 cpu.max format %q", data)
+	}
+	return fields, nil
 }

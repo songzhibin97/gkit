@@ -60,7 +60,7 @@ func xxh3HashLarge(xinput unsafe.Pointer, l int) (acc uint64) {
 	length := uintptr(l)
 
 	if length <= 128 {
-		acc := uint64(length * prime64_1)
+		acc := uint64(length) * prime64_1
 		if length > 32 {
 			if length > 64 {
 				if length > 96 {
@@ -79,7 +79,7 @@ func xxh3HashLarge(xinput unsafe.Pointer, l int) (acc uint64) {
 		return xxh3Avalanche(acc)
 
 	} else if length <= 240 {
-		acc := uint64(length * prime64_1)
+		acc := uint64(length) * prime64_1
 
 		acc += mix(runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+16*0))^xsecret_000, runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+16*0+8))^xsecret_008)
 		acc += mix(runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+16*1))^xsecret_016, runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+16*1+8))^xsecret_024)
@@ -106,7 +106,7 @@ func xxh3HashLarge(xinput unsafe.Pointer, l int) (acc uint64) {
 		prime32_3, prime64_1, prime64_2, prime64_3,
 		prime64_4, prime32_2, prime64_5, prime32_1}
 
-	acc = uint64(length * prime64_1)
+	acc = uint64(length) * prime64_1
 
 	accum(&xacc, xinput, xsecret, length)
 

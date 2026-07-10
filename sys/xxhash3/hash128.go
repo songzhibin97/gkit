@@ -97,7 +97,7 @@ func xxh3HashLarge128(xinput unsafe.Pointer, l int) (acc [2]uint64) {
 	if length <= 128 {
 
 		accHigh := uint64(0)
-		accLow := uint64(length * prime64_1)
+		accLow := uint64(length) * prime64_1
 
 		if length > 32 {
 			if length > 64 {
@@ -124,14 +124,14 @@ func xxh3HashLarge128(xinput unsafe.Pointer, l int) (acc [2]uint64) {
 		accHigh ^= runtimex.ReadUnaligned64(xinput) + runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+8))
 
 		h128Low := accHigh + accLow
-		h128High := (accLow * prime64_1) + (accHigh * prime64_4) + uint64(length*prime64_2)
+		h128High := (accLow * prime64_1) + (accHigh * prime64_4) + uint64(length)*prime64_2
 
 		h128Low = xxh3Avalanche(h128Low)
 		h128High = -xxh3Avalanche(h128High)
 
 		return [2]uint64{h128High, h128Low}
 	} else if length <= 240 {
-		accLow64 := uint64(length * prime64_1)
+		accLow64 := uint64(length) * prime64_1
 		accHigh64 := uint64(0)
 
 		accLow64 += mix(runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+32*0))^xsecret_000, runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+8))^xsecret_008)
@@ -172,7 +172,7 @@ func xxh3HashLarge128(xinput unsafe.Pointer, l int) (acc [2]uint64) {
 		accHigh64 += mix(runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+length-32))^xsecret_119, runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+length-24))^xsecret_127)
 		accHigh64 ^= runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+length-16)) + runtimex.ReadUnaligned64(unsafe.Pointer(uintptr(xinput)+length-8))
 
-		accHigh64, accLow64 = (accLow64*prime64_1)+(accHigh64*prime64_4)+uint64(length*prime64_2), accHigh64+accLow64
+		accHigh64, accLow64 = (accLow64*prime64_1)+(accHigh64*prime64_4)+uint64(length)*prime64_2, accHigh64+accLow64
 
 		accLow64 = xxh3Avalanche(accLow64)
 		accHigh64 = -xxh3Avalanche(accHigh64)
@@ -184,8 +184,8 @@ func xxh3HashLarge128(xinput unsafe.Pointer, l int) (acc [2]uint64) {
 		prime32_3, prime64_1, prime64_2, prime64_3,
 		prime64_4, prime32_2, prime64_5, prime32_1}
 
-	acc[1] = uint64(length * prime64_1)
-	acc[0] = uint64(^(length * prime64_2))
+	acc[1] = uint64(length) * prime64_1
+	acc[0] = ^(uint64(length) * prime64_2)
 
 	accum(&xacc, xinput, xsecret, length)
 

@@ -87,12 +87,17 @@ func (cpu *cGroupCPU) Usage() (u uint64, err error) {
 	if err != nil {
 		return
 	}
-	if system != cpu.preSystem {
-		u = uint64(float64((total-cpu.preTotal)*cpu.cores*1e3) / (float64(system-cpu.preSystem) * cpu.quota))
-	}
+	u = calculateCGroupCPUUsage(total, cpu.preTotal, system, cpu.preSystem, cpu.cores, cpu.quota)
 	cpu.preSystem = system
 	cpu.preTotal = total
 	return
+}
+
+func calculateCGroupCPUUsage(total, preTotal, system, preSystem, cores uint64, quota float64) uint64 {
+	if quota <= 0 || cores == 0 || total < preTotal || system <= preSystem {
+		return 0
+	}
+	return uint64(float64(total-preTotal) * float64(cores) * 1e3 / (float64(system-preSystem) * quota))
 }
 
 func (cpu *cGroupCPU) Info() Info {

@@ -119,6 +119,9 @@ func TestRotate(t *testing.T) {
 
 	is.Equal("cab", Rotate("abc", 1))
 	is.Equal("bca", Rotate("abc", -1))
+
+	is.Equal("世界你好", Rotate("你好世界", 6))
+	is.Equal("好世界你", Rotate("你好世界", -5))
 }
 
 func TestReverse(t *testing.T) {
