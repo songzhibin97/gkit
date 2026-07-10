@@ -2,14 +2,14 @@
 
 ## Summary
 
-修复 DB 时间类型的驱动契约与往返、通用反射工具的 nil/类型/递归边界，以及 ternary 代码生成的稳定构建，使公开的 error 返回通道真正承载无效输入，而不是静默丢值、清零或 panic。
+修复 DB 时间类型的驱动契约与往返、通用反射工具的 nil/类型/递归边界，以及 ternary 代码生成的稳定构建；对本 issue 明确列出的无效输入，通过公开的 error 返回通道报告错误，并消除这些边界中的静默丢值、清零或 panic。
 
 ## Behavior
 
 1. `timeout.Stamp` 的值和指针形态满足 `driver.Valuer`；`Value` 保持返回对应的 `time.Time`，并增加 nil error。
 2. `Stamp.Scan` 接受驱动常见的 `int64`、`[]byte`、`string` 与 `time.Time`；不支持的类型返回 error，绝不静默保留旧值。
 3. `Date`、`DateTime` 与 `DTime` 是无时区 wall-clock 类型：文本和 DB 值统一按 `time.Local` 解析，因此在非 UTC local zone 中 `Value → Scan` 保持相同 wall-clock 与瞬时时间。
-4. `deepcopy.DeepCopy` 与 `Clone` 保留不可寻址源 struct 的导出及普通未导出状态，深拷贝包括 `math/big.Int` 内部存储在内的未导出引用；`time.Time` 保持完整值语义，`sync`/`sync/atomic` 同步原语重置而不复制使用中状态，且所有可深拷贝引用均不与源别名。
+4. `deepcopy.DeepCopy` 与 `Clone` 保留不可寻址源 struct 的导出及普通未导出状态，深拷贝包括 `math/big.Int` 内部存储在内的未导出引用；`time.Time` 保持完整值语义，`sync`/`sync/atomic` 同步原语重置而不复制使用中状态；本项覆盖的 struct 指针/slice 字段及未导出字段引用不与源别名，不扩展 map key 等未在 issue #84 中列出的既有复制语义。
 5. `VoToDo` 与带 `FieldBind` 的 `VoToDoPlus` 遇到 nil 源指针字段时跳过该字段，不 panic，也不破坏目标字段已有值。
 6. protobuf body binder 对非 `proto.Message` 及 typed-nil message 目标返回明确错误；合法 message 仍正常反序列化。
 7. form/query binder 处理自引用指针类型时只为实际出现输入的路径分配对象；空输入面对 nil 类型环或预先存在的对象指针环都不会无限递归或栈溢出，既有非环链仍正常遍历。

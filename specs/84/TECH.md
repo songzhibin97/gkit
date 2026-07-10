@@ -14,7 +14,7 @@
 
 ### B. Deepcopy 与转换（Behavior 4–5、9、11）
 
-- struct copy 将不可寻址 source 转为临时可寻址值，并通过最小受控的 `reflect.NewAt` + `unsafe` 仅访问同类型的未导出字段，使普通私有值与私有引用也进入 visited graph 深拷贝；`time.Time` 作为稳定值整体保留，`sync`/`sync/atomic` 原语保持零值，`gkit:"-"` 仍保留 destination 原值。
+- struct copy 将不可寻址 source 转为临时可寻址值，并通过最小受控的 `reflect.NewAt` + `unsafe` 仅访问同类型的未导出字段，使普通私有值与私有引用也进入 visited graph 深拷贝；`time.Time` 作为稳定值整体保留，`sync`/`sync/atomic` 原语保持零值，`gkit:"-"` 仍保留 destination 原值；map key 等未在 Behavior 4 中列出的既有复制语义不变。
 - vto 在指针解引用后先检查 `IsValid`。
 - stm 在 typed-nil 指针 `Elem` 前返回 nil。
 - reflect2value 的所有 slice 分支在 `.Len()` 前验证 Slice/Array kind，并走现有 type-conversion error。
@@ -27,7 +27,7 @@
 
 ### D. Match 与 ternary（Behavior 8、13）
 
-- rune 路径比较 decoded rune `sr` 与 `utf8.RuneError`，不再把字节宽度与 rune 常量比较。
+- rune 路径用 decoded rune 的字节宽度是否为 0 判断输入或模式已经耗尽，不再把字节宽度与 `utf8.RuneError` 常量比较，也不把合法的 U+FFFD 当作耗尽标记。
 - ternary generator 在 package 声明后输出 `import "time"`，再执行模板与 `format.Source`。
 
 ## Behavior-to-test mapping
@@ -35,7 +35,7 @@
 1. Stamp Valuer 接口断言与对应 `time.Time` Value。
 2. Stamp 各 Scan 输入及 unsupported error。
 3. 临时设置 `time.Local` 为固定 UTC+8，分别验证三类 `Value → Scan`。
-4. 同时覆盖 `Clone(valueStruct)`、`time.Time`、`math/big.Int` 内部 slice、带锁 struct 的私有标量/引用 alias independence 与锁状态重置。
+4. 同时覆盖 `Clone(valueStruct)`、`time.Time`、`math/big.Int` 内部 slice、带锁 struct 的私有标量/引用 alias independence 与锁状态重置；不将 map key 纳入本项契约。
 5. VoToDo 两条入口的 nil pointer field。
 6. protobuf 非 message、typed-nil message error 与合法 control。
 7. 在子进程/受控测试中绑定 nil 自引用类型及预先存在的对象环并及时返回，同时覆盖实际键能分配一层和既有非环链正常遍历。
@@ -43,7 +43,7 @@
 9. StructToMap typed-nil 与 non-nil control。
 10. 三种 codec 的 typed-nil error 和 `**T` allocation control。
 11. 每个支持的 slice 类型至少用一个 scalar 错误输入，并覆盖合法 slice。
-12. DateStruct/DateTimeStruct 值和指针 JSON 相等且可反序列化。
+12. DateStruct/DateTimeStruct 值和指针 JSON 相等，并分别反序列化后校验 `Time` 等于原始的格式可表示值。
 13. 在临时 module 中运行生成器输出并 `go test`/`go build`。
 
 ## Verification
@@ -55,4 +55,4 @@ GOTOOLCHAIN=go1.20.14 go vet ./timeout ./tools/deepcopy ./tools/vto ./tools/bind
 git diff --check
 ```
 
-每项先记录旧实现 red，再做局部修复；对 Stamp、timezone round-trip、deepcopy、self-reference bind、typed-nil codec、slice kind 与 generator import 做恢复式 mutation。自引用旧实现可能触发不可恢复 stack overflow，red 证据必须在隔离子进程完成。
+每项先记录旧实现 red，再做局部修复；对 Stamp、timezone round-trip、DateStruct/DateTimeStruct JSON round-trip、deepcopy、self-reference bind、typed-nil codec、slice kind 与 generator import 做恢复式 mutation。自引用旧实现可能触发不可恢复 stack overflow，red 证据必须在隔离子进程完成。

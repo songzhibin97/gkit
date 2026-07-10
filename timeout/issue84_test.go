@@ -100,23 +100,33 @@ func TestWallClockDatabaseTypesRoundTripInLocalLocation(t *testing.T) {
 }
 
 func TestDateStructJSONValueAndPointerAreSymmetric(t *testing.T) {
+	// The JSON formats omit location and sub-second precision, so use UTC
+	// values that are exactly representable by each existing format.
+	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	dateTime := time.Date(2024, 1, 15, 10, 20, 30, 0, time.UTC)
 	tests := []struct {
-		name  string
-		value interface{}
-		ptr   interface{}
-		fresh func() interface{}
+		name        string
+		value       interface{}
+		ptr         interface{}
+		fresh       func() interface{}
+		decodedTime func(interface{}) time.Time
+		want        time.Time
 	}{
 		{
-			name:  "DateStruct",
-			value: DateStruct{Time: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)},
-			ptr:   &DateStruct{Time: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)},
-			fresh: func() interface{} { return &DateStruct{} },
+			name:        "DateStruct",
+			value:       DateStruct{Time: date},
+			ptr:         &DateStruct{Time: date},
+			fresh:       func() interface{} { return &DateStruct{} },
+			decodedTime: func(value interface{}) time.Time { return value.(*DateStruct).Time },
+			want:        date,
 		},
 		{
-			name:  "DateTimeStruct",
-			value: DateTimeStruct{Time: time.Date(2024, 1, 15, 10, 20, 30, 0, time.UTC)},
-			ptr:   &DateTimeStruct{Time: time.Date(2024, 1, 15, 10, 20, 30, 0, time.UTC)},
-			fresh: func() interface{} { return &DateTimeStruct{} },
+			name:        "DateTimeStruct",
+			value:       DateTimeStruct{Time: dateTime},
+			ptr:         &DateTimeStruct{Time: dateTime},
+			fresh:       func() interface{} { return &DateTimeStruct{} },
+			decodedTime: func(value interface{}) time.Time { return value.(*DateTimeStruct).Time },
+			want:        dateTime,
 		},
 	}
 	for _, tt := range tests {
@@ -132,10 +142,18 @@ func TestDateStructJSONValueAndPointerAreSymmetric(t *testing.T) {
 			if string(fromValue) != string(fromPointer) {
 				t.Fatalf("value JSON = %s, pointer JSON = %s", fromValue, fromPointer)
 			}
-			decoded := tt.fresh()
-			if err := json.Unmarshal(fromValue, decoded); err != nil {
-				t.Fatalf("value JSON did not round-trip: %v", err)
+			assertRoundTrip := func(source string, encoded []byte) {
+				t.Helper()
+				decoded := tt.fresh()
+				if err := json.Unmarshal(encoded, decoded); err != nil {
+					t.Fatalf("%s JSON did not round-trip: %v", source, err)
+				}
+				if got := tt.decodedTime(decoded); !got.Equal(tt.want) {
+					t.Fatalf("%s JSON round-trip = %v, want %v", source, got, tt.want)
+				}
 			}
+			assertRoundTrip("value", fromValue)
+			assertRoundTrip("pointer", fromPointer)
 		})
 	}
 }
