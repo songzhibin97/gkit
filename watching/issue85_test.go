@@ -2,6 +2,7 @@ package watching
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,32 +15,63 @@ func TestTriggeredDumpLogUsesUniformFormat(t *testing.T) {
 		name     string
 		dumpType configureType
 		action   string
+		max      int
+		previous func(*Watching) interface{}
 		trigger  func(*Watching)
 	}
-	config := typeConfig{Enable: true, TriggerMin: 0, TriggerDiff: 0, TriggerAbs: 0}
+	const (
+		triggerMin     = 11
+		triggerDiff    = 22
+		triggerAbs     = 33
+		previousValue  = 44
+		currentValue   = 55
+		goroutineLimit = 66
+	)
+	config := typeConfig{Enable: true, TriggerMin: triggerMin, TriggerDiff: triggerDiff, TriggerAbs: triggerAbs}
 	tests := []profileCase{
 		{
 			name:     "goroutine",
 			dumpType: goroutine,
 			action:   "pprof",
+			max:      goroutineLimit,
+			previous: func(w *Watching) interface{} { return w.grNumStats.data },
 			trigger: func(w *Watching) {
-				w.goroutineProfile(1, groupConfigs{typeConfig: &config, GoroutineTriggerNumMax: 100})
+				w.goroutineProfile(currentValue, groupConfigs{typeConfig: &config, GoroutineTriggerNumMax: goroutineLimit})
 			},
 		},
-		{name: "memory", dumpType: mem, action: "pprof", trigger: func(w *Watching) { w.memProfile(1, config) }},
-		{name: "thread", dumpType: thread, action: "pprof", trigger: func(w *Watching) { w.threadProfile(1, config) }},
+		{
+			name:     "memory",
+			dumpType: mem,
+			action:   "pprof",
+			previous: func(w *Watching) interface{} { return w.memStats.data },
+			trigger:  func(w *Watching) { w.memProfile(currentValue, config) },
+		},
+		{
+			name:     "thread",
+			dumpType: thread,
+			action:   "pprof",
+			previous: func(w *Watching) interface{} { return w.threadStats },
+			trigger:  func(w *Watching) { w.threadProfile(currentValue, config) },
+		},
 		{
 			name:     "cpu",
 			dumpType: cpu,
 			action:   "pprof dump",
+			previous: func(w *Watching) interface{} { return w.cpuStats.data },
 			trigger: func(w *Watching) {
 				// Fail file creation after the trigger log, avoiding the real CPU
 				// sampling sleep while still exercising cpuProfile's call site.
 				w.config.DumpPath = filepath.Join(w.config.Logger.Name(), "not-a-directory")
-				w.cpuProfile(1, config)
+				w.cpuProfile(currentValue, config)
 			},
 		},
-		{name: "gc heap", dumpType: gcHeap, action: "pprof", trigger: func(w *Watching) { w.gcHeapProfile(1, true, config) }},
+		{
+			name:     "gc heap",
+			dumpType: gcHeap,
+			action:   "pprof",
+			previous: func(w *Watching) interface{} { return w.gcHeapStats },
+			trigger:  func(w *Watching) { w.gcHeapProfile(currentValue, true, config) },
+		},
 	}
 
 	for _, tt := range tests {
@@ -48,19 +80,46 @@ func TestTriggeredDumpLogUsesUniformFormat(t *testing.T) {
 			logPath := filepath.Join(dir, "watching.log")
 			w := NewWatching(WithDumpPath(dir, "watching.log"), WithTextDump())
 			t.Cleanup(func() { w.setLogger(os.Stdout) })
+			w.grNumStats = newRing(1)
+			w.memStats = newRing(1)
+			w.threadStats = newRing(1)
+			w.cpuStats = newRing(1)
+			w.gcHeapStats = newRing(1)
+			w.grNumStats.push(previousValue)
+			w.memStats.push(previousValue)
+			w.threadStats.push(previousValue)
+			w.cpuStats.push(previousValue)
+			w.gcHeapStats.push(previousValue)
 			tt.trigger(w)
 
 			content, err := os.ReadFile(logPath)
 			if err != nil {
 				t.Fatal(err)
 			}
-			logText := string(content)
-			if strings.Contains(logText, "%!(EXTRA") {
-				t.Fatalf("triggered dump log treated its label as a format string: %q", logText)
+			logText := strings.TrimSpace(string(content))
+			if logText == "" {
+				t.Fatal("triggered dump emitted no log lines")
 			}
-			want := "[Watching] " + tt.action + " " + type2name[tt.dumpType]
-			if !strings.Contains(logText, want) {
-				t.Fatalf("triggered dump log lacks %q: %q", want, logText)
+			lines := strings.Split(logText, "\n")
+			first := lines[0]
+			start := strings.Index(first, "[Watching]")
+			if start == -1 {
+				t.Fatalf("first trigger log has no UniformLogFormat payload: %q", first)
+			}
+			first = first[start:]
+			want := fmt.Sprintf(
+				UniformLogFormat,
+				tt.action,
+				type2name[tt.dumpType],
+				triggerMin,
+				triggerDiff,
+				triggerAbs,
+				tt.max,
+				tt.previous(w),
+				currentValue,
+			)
+			if first != want {
+				t.Fatalf("first trigger log = %q, want %q; later duplicate logs must not satisfy this assertion", first, want)
 			}
 		})
 	}

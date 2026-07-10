@@ -1,6 +1,8 @@
 package aes
 
 import (
+	cryptoaes "crypto/aes"
+	"crypto/cipher"
 	"encoding/base64"
 	"errors"
 	"testing"
@@ -58,4 +60,59 @@ func TestGCMRejectsWrongKeyAndEveryPayloadRegionTamper(t *testing.T) {
 	if _, err := DecryptGCM("not-base64", key); !errors.Is(err, ErrDecryptionFailed) {
 		t.Fatalf("invalid base64 error = %v, want ErrDecryptionFailed", err)
 	}
+}
+
+func TestGCMRejectsValidBase64TruncationWithoutPanicking(t *testing.T) {
+	const key = "0123456789abcdef0123456789abcdef"
+	ciphertext, err := EncryptGCM("authenticated payload", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(ciphertext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := cryptoaes.NewCipher([]byte(key))
+	if err != nil {
+		t.Fatal(err)
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name    string
+		payload []byte
+	}{
+		{name: "empty", payload: nil},
+		{name: "short nonce", payload: raw[:aead.NonceSize()-1]},
+		{name: "nonce only", payload: raw[:aead.NonceSize()]},
+		{name: "short tag", payload: raw[:aead.NonceSize()+aead.Overhead()-1]},
+		{name: "truncated ciphertext", payload: raw[:len(raw)-1]},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plaintext, err, panicked := callDecryptGCM(base64.StdEncoding.EncodeToString(tt.payload), key)
+			if panicked {
+				t.Fatal("DecryptGCM panicked for a valid-base64 truncated payload")
+			}
+			if plaintext != "" {
+				t.Fatalf("DecryptGCM plaintext = %q, want empty", plaintext)
+			}
+			if !errors.Is(err, ErrDecryptionFailed) {
+				t.Fatalf("DecryptGCM error = %v, want ErrDecryptionFailed", err)
+			}
+		})
+	}
+}
+
+func callDecryptGCM(encoded, key string) (plaintext string, err error, panicked bool) {
+	defer func() {
+		if recover() != nil {
+			panicked = true
+		}
+	}()
+	plaintext, err = DecryptGCM(encoded, key)
+	return
 }

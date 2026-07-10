@@ -31,7 +31,7 @@
 
 ## Behavior-to-test mapping
 
-1. Behavior 1 → watching 表驱动测试逐一触发五个 dump 日志调用或其可控 helper，断言无 `%!(EXTRA` 且字段齐全；恢复错误首参时失败。
+1. Behavior 1 → watching 表驱动测试使用非零且互异的 min/diff/abs、previous/current（不支持 max 的类型保持约定值 0），逐一断言五个 dump call site 产生的第一条 trigger 日志完整等于 `UniformLogFormat`；后续重复日志不能掩盖任一 call site 或参数 mutation。
 2. Behavior 2 → `writeFile` 文本包含 `50% of total`，断言错误文本逐字相同；恢复动态 format 时失败。
 3. Behavior 3 → 分别输入 3 段、10 段和 11 段，断言全保留或准确截断；恢复 `len-1` 时失败。
 4. Behavior 4 → 并发循环调用五组 setter 与 getter，在 `-race` 下运行；去掉任一同步域时 race detector 报告。
@@ -39,7 +39,7 @@
 6. Behavior 6 → 覆盖 `grpc://127.0.0.1:9000`、`127.0.0.1:9000` 与 unix path，并让 scheme endpoint 成功生成 peer attributes。
 7. Behavior 7 → 解析 `A { B { C {} enum D {} } }`，断言 keys 含 `A/AB/ABC/ABD` 且不含 `BAC/BAD`。
 8. Behavior 8 → 覆盖 `net.ParseIP("192.168.2.3")` 得 515，以及 nil/短 slice/IPv6 error；恢复直接索引时值错或 panic。
-9. Behavior 9 → AEAD round-trip、随机 nonce、wrong-key 与逐区域 bit-flip 均验证；page token bit-flip 必须 `ErrInvalidToken`，旧 CBC token control 必须被拒绝。
+9. Behavior 9 → AEAD round-trip、随机 nonce、wrong-key、合法 base64 的空/短 nonce/短 tag/截断 payload 与逐区域 bit-flip 均验证；所有 malformed payload 统一返回 `ErrDecryptionFailed` 且不 panic，page token bit-flip 必须 `ErrInvalidToken`，旧 CBC token control 必须被拒绝。
 
 ## Verification
 
@@ -50,4 +50,4 @@ GOTOOLCHAIN=go1.20.14 go vet ./watching ./errors ./trace ./parser/parse_pb ./gen
 git diff --check
 ```
 
-每组回归先在旧实现记录 red，再做最小修复；至少对日志 format、trim、setter lock、gRPC code、scheme target、nested prefix、IP normalization 与 AEAD tamper 各做一次恢复式 mutation，并在失败后恢复最终实现。
+每组回归先在旧实现记录 red，再做最小修复；至少逐一 mutation 五个 dump call site 及其字段，并对 trim、setter lock、gRPC code、scheme target、nested prefix、IP normalization、AEAD tamper 与 GCM 长度 guard 做恢复式 mutation，确认失败后恢复最终实现。

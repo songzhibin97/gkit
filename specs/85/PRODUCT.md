@@ -6,7 +6,7 @@
 
 ## Behavior
 
-1. watching 的 goroutine、memory、thread、CPU 与 GC heap 自动 dump 日志都按 `UniformLogFormat` 渲染，不产生 `%!(EXTRA...)`，并保留 dump 类型、原因与 event ID。
+1. watching 的 goroutine、memory、thread、CPU 与 GC heap 自动 dump 触发日志都按 `UniformLogFormat` 渲染，不产生 `%!(EXTRA...)`，并保留 dump 动作、类型、配置阈值以及 previous/current 观测值。
 2. watching 将文本 pprof 内容作为普通文本返回；内容中的 `%` 不会被当作格式动词改写。
 3. `trimResult` 在输入不超过上限时保留全部段落；超过上限时只保留前 `TrimResultTopN` 段。
 4. 运行中的 watching 可并发启停 thread、goroutine、CPU、memory 与 GC heap dump；配置读写在 `-race` 下无数据竞争。
