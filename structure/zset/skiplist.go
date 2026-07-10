@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -240,7 +240,7 @@ func (l *float64List) deleteNode(x *float64ListNode, update *[maxLevel]*float64L
 	} else {
 		l.tail = x.prev
 	}
-	for l.highestLevel > 1 && l.header.loadNext(l.highestLevel-1) != nil {
+	for l.highestLevel > 1 && l.header.loadNext(l.highestLevel-1) == nil {
 		// Clear the pointer and span for safety.
 		l.header.storeNextAndSpan(l.highestLevel-1, nil, 0)
 		l.highestLevel--
@@ -411,6 +411,9 @@ func (l *float64List) DeleteRangeByRank(start, end int, dict map[string]float64)
 
 // GetNodeByRank finds an element by its rank. The rank argument needs to be 1-based.
 func (l *float64List) GetNodeByRank(rank int) *float64ListNode {
+	if rank <= 0 {
+		return nil
+	}
 	var traversed int
 
 	x := l.header

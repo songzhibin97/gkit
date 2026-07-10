@@ -262,12 +262,9 @@ func (z *Float64Set) Range(start, stop int) []Float64Node {
 	z.mu.RLock()
 	defer z.mu.RUnlock()
 
-	// Convert negative rank to positive.
-	if start < 0 {
-		start = z.list.length + start
-	}
-	if stop < 0 {
-		stop = z.list.length + stop
+	start, stop, ok := normalizeRankRange(z.list.length, start, stop)
+	if !ok {
+		return nil
 	}
 
 	var res []Float64Node
@@ -327,12 +324,9 @@ func (z *Float64Set) RevRange(start, stop int) []Float64Node {
 	z.mu.RLock()
 	defer z.mu.RUnlock()
 
-	// Convert negative rank to positive.
-	if start < 0 {
-		start = z.list.length + start
-	}
-	if stop < 0 {
-		stop = z.list.length + stop
+	start, stop, ok := normalizeRankRange(z.list.length, start, stop)
+	if !ok {
+		return nil
 	}
 
 	var res []Float64Node
@@ -346,6 +340,28 @@ func (z *Float64Set) RevRange(start, stop int) []Float64Node {
 		x = x.prev
 	}
 	return res
+}
+
+func normalizeRankRange(length, start, stop int) (int, int, bool) {
+	if length == 0 {
+		return 0, 0, false
+	}
+	if start < 0 {
+		start += length
+	}
+	if stop < 0 {
+		stop += length
+	}
+	if start < 0 {
+		start = 0
+	}
+	if start >= length || start > stop {
+		return 0, 0, false
+	}
+	if stop >= length {
+		stop = length - 1
+	}
+	return start, stop, true
 }
 
 // RevRangeByScore returns all the elements in the sorted set with a
