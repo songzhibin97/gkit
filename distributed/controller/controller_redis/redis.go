@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"strconv"
 	"sync"
@@ -35,14 +36,54 @@ type ControllerRedis struct {
 
 	// consumingWg 确保消费组并发完成
 	consumingWg sync.WaitGroup
-	// processingWg 确保正在处理的任务并发完成
-	processingWg sync.WaitGroup
-	// delayedWg 确保延时任务并发完成
-	delayedWg sync.WaitGroup
 	// consumingQueue 消费队列名称
 	consumingQueue string
 	// delayedQueue  延迟队列名称
 	delayedQueue string
+}
+
+const consumerRestoreTimeout = 5 * time.Second
+
+type consumerAttemptErrors struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+func (e *consumerAttemptErrors) add(err error) {
+	if err == nil {
+		return
+	}
+	e.mu.Lock()
+	e.errs = append(e.errs, err)
+	e.mu.Unlock()
+}
+
+func (e *consumerAttemptErrors) joined() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return errors.Join(e.errs...)
+}
+
+// redisOperationError preserves the underlying error for errors.Is/errors.As,
+// but does not expose Redis connection addresses or credentials in Error().
+type redisOperationError struct {
+	operation string
+	err       error
+}
+
+func (e *redisOperationError) Error() string {
+	return e.operation + ": redis command failed"
+}
+
+func (e *redisOperationError) Unwrap() error {
+	return e.err
+}
+
+func wrapRedisOperation(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &redisOperationError{operation: operation, err: err}
 }
 
 // SetHelper installs the structured-log helper used for operational
@@ -80,94 +121,84 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 	if concurrency < 1 {
 		concurrency = runtime.NumCPU() * 2
 	}
-	_, err := c.client.Ping(context.Background()).Result()
+	_, err := c.client.Ping(c.Broker.GetRetryCtx()).Result()
 	if err != nil {
-		// 重试
-		c.Broker.GetRetryFn()(c.Broker.GetRetryCtx())
 		if c.Broker.GetRetry() {
-			return true, err
+			if retryFn := c.Broker.GetRetryFn(); retryFn != nil {
+				retryFn(c.Broker.GetRetryCtx())
+			}
+			return true, wrapRedisOperation("check queue connection", err)
 		}
 		return false, controller.ErrorConnectClose
 	}
 
-	// 初始化工作区
-	pool := make(chan struct{}, concurrency)
-	worker := make(chan []byte, concurrency)
+	attemptCtx, cancelAttempt := context.WithCancel(c.GetStopCtx())
+	defer cancelAttempt()
 
-	// 填满并发池
-	for i := 0; i < concurrency; i++ {
-		pool <- struct{}{}
+	c.helper.Info("[*] Waiting for messages. To exit press CTRL+C")
+	handoff := make(chan []byte)
+	processorSlots := make(chan struct{}, concurrency)
+	failures := &consumerAttemptErrors{}
+	reportFailure := func(err error) {
+		if err == nil {
+			return
+		}
+		failures.add(err)
+		cancelAttempt()
 	}
+
+	var producerWg sync.WaitGroup
+	producerWg.Add(2)
 	go func() {
-		c.helper.Info("[*] Waiting for messages. To exit press CTRL+C")
-		for {
-			select {
-			case <-c.GetStopCtx().Done():
-				close(worker)
-				return
-			case _, ok := <-pool:
-				if !ok {
-					return
-				}
-				tByte, err := c.popTask(c.consumingQueue, 0)
-				// context.Canceled is the normal stop signal; don't log it as an
-				// error on every clean shutdown (the delayed path already filters it).
-				if err != nil && !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
-					c.helper.Errorf("popTask err: %v", err)
-				}
-				// 如果是有效数据,发送给worker
-				if len(tByte) > 0 {
-					worker <- tByte
-				}
-				pool <- struct{}{}
-			}
-		}
+		defer producerWg.Done()
+		c.produceQueuedTasks(attemptCtx, c.consumingQueue, handoff, processorSlots, reportFailure)
 	}()
-	c.delayedWg.Add(1)
 	go func() {
-		defer c.delayedWg.Done()
-		for {
-			select {
-			case <-c.GetStopCtx().Done():
-				return
-			default:
-				tBody, err := c.popDelayedTask(c.delayedQueue, 0)
-				if err != nil && !errors.Is(err, redis.Nil) && !errors.Is(err, context.Canceled) {
-					c.helper.Errorf("popDelayedTask err: %v", err)
-					continue
-				}
-				if tBody == nil {
-					continue
-				}
-				t := task.Signature{}
-				if err = json.Unmarshal(tBody, &t); err != nil {
-					c.helper.Errorf("unmarshal err: %v", err)
-					continue
-				}
-				if err = c.Publish(c.GetStopCtx(), &t); err != nil {
-					c.helper.Errorf("publish err: %v", err)
-					continue
-				}
-			}
-		}
+		defer producerWg.Done()
+		c.produceDelayedTasks(attemptCtx, c.delayedQueue, reportFailure)
 	}()
 
-	if err = c.consume(worker, concurrency, handler); err != nil {
-		return c.GetRetry(), err
+	var processorWg sync.WaitGroup
+	for {
+		select {
+		case taskBody := <-handoff:
+			if attemptCtx.Err() != nil {
+				<-processorSlots
+				if restoreErr := c.restorePendingTask(c.consumingQueue, taskBody); restoreErr != nil {
+					reportFailure(restoreErr)
+				}
+				continue
+			}
+			processorWg.Add(1)
+			go func(body []byte) {
+				defer processorWg.Done()
+				defer func() { <-processorSlots }()
+				if processErr := c.consumeOne(body, c.consumingQueue, handler); processErr != nil {
+					reportFailure(processErr)
+				}
+			}(taskBody)
+		case <-attemptCtx.Done():
+			cancelAttempt()
+			producerWg.Wait()
+			processorWg.Wait()
+			if attemptErr := failures.joined(); attemptErr != nil {
+				return c.GetRetry(), attemptErr
+			}
+			return c.GetRetry(), attemptCtx.Err()
+		}
 	}
-	c.processingWg.Wait()
-	return c.GetRetry(), err
 }
 
 // popTask 弹出任务
 func (c *ControllerRedis) popTask(queue string, blockTime int64) ([]byte, error) {
+	return c.popTaskWithContext(c.GetStopCtx(), queue, blockTime)
+}
+
+func (c *ControllerRedis) popTaskWithContext(ctx context.Context, queue string, blockTime int64) ([]byte, error) {
 	if blockTime <= 0 {
 		blockTime = int64(1000 * time.Millisecond)
 	}
-	// Use the broker's stop context so BLPOP unblocks promptly when
-	// StopConsuming fires. The previous context.Background() left workers
-	// parked on Redis for up to `blockTime` after shutdown was signalled.
-	items, err := c.client.BLPop(c.GetStopCtx(), time.Duration(blockTime), queue).Result()
+	items, err := c.client.BLPop(ctx, time.Duration(blockTime), queue).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -185,40 +216,56 @@ func (c *ControllerRedis) popTask(queue string, blockTime int64) ([]byte, error)
 // which returns the NEWEST due task — the oldest task starved until the
 // queue drained.
 func (c *ControllerRedis) popDelayedTask(queue string, blockTime int64) ([]byte, error) {
+	result, _, err := c.popDelayedTaskWithContext(c.GetStopCtx(), queue, blockTime)
+	return result, err
+}
+
+func (c *ControllerRedis) popDelayedTaskWithContext(ctx context.Context, queue string, blockTime int64) ([]byte, float64, error) {
 	if blockTime <= 0 {
 		blockTime = int64(1000 * time.Millisecond)
 	}
 	var result []byte
+	var resultScore float64
 	for {
-		// Honor stop ctx instead of blindly sleeping a full blockTime.
+		timer := time.NewTimer(time.Duration(blockTime))
 		select {
-		case <-c.GetStopCtx().Done():
-			return nil, c.GetStopCtx().Err()
-		case <-time.After(time.Duration(blockTime)):
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return nil, 0, ctx.Err()
+		case <-timer.C:
 		}
 		watchFn := func(tx *redis.Tx) error {
 			now := time.Now().Local().UnixNano()
 			max := strconv.FormatInt(now, 10)
 			// Ascending: smallest score (earliest ETA) first → FIFO by due time.
-			items, err := tx.ZRangeByScore(c.GetStopCtx(), queue, &redis.ZRangeBy{Min: "0", Max: max, Offset: 0, Count: 1}).Result()
+			items, err := tx.ZRangeByScoreWithScores(ctx, queue, &redis.ZRangeBy{Min: "0", Max: max, Offset: 0, Count: 1}).Result()
 			if err != nil {
 				return err
 			}
 			if len(items) != 1 {
 				return redis.Nil
 			}
-			_, err = tx.TxPipelined(c.GetStopCtx(), func(pipe redis.Pipeliner) error {
-				pipe.ZRem(c.GetStopCtx(), queue, items[0])
-				result = []byte(items[0])
+			member := fmt.Sprint(items[0].Member)
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				pipe.ZRem(ctx, queue, member)
 				return nil
 			})
+			if err == nil {
+				result = []byte(member)
+				resultScore = items[0].Score
+			}
 			return err
 		}
-		err := c.client.Watch(c.GetStopCtx(), watchFn, queue)
+		err := c.client.Watch(ctx, watchFn, queue)
 		switch {
 		case err == nil:
 			// Success — `result` was populated by the watchFn.
-			return result, nil
+			return result, resultScore, nil
 		case errors.Is(err, redis.Nil):
 			// No task ready; try again on the next tick.
 			continue
@@ -226,52 +273,98 @@ func (c *ControllerRedis) popDelayedTask(queue string, blockTime int64) ([]byte,
 			// Optimistic-tx conflict; retry.
 			continue
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			return nil, err
+			return nil, 0, err
 		default:
 			// Real error — propagate. Previously this was silently swallowed
 			// via `break` + `return result, nil`, making caller's hot-loop
 			// indistinguishable from "no task ready".
-			return nil, err
+			return nil, 0, err
 		}
 	}
 }
 
-// consume 消费
-func (c *ControllerRedis) consume(worker <-chan []byte, concurrency int, handler task.Processor) error {
-	// 初始化工作区
-	pool := make(chan struct{}, concurrency)
-	errorsChan := make(chan error, concurrency*2)
-
-	// 填满并发池
-	for i := 0; i < concurrency; i++ {
-		pool <- struct{}{}
-	}
+func (c *ControllerRedis) produceQueuedTasks(
+	ctx context.Context,
+	queue string,
+	handoff chan<- []byte,
+	processorSlots chan struct{},
+	reportFailure func(error),
+) {
 	for {
 		select {
-		case <-c.GetStopCtx().Done():
-			return c.GetStopCtx().Err()
-		case err := <-errorsChan:
-			return err
-		case v, ok := <-worker:
-			if !ok {
-				return nil
-			}
-			// 阻塞等待
-			select {
-			case <-pool:
-			case <-c.GetStopCtx().Done():
-				return c.GetStopCtx().Err()
-			}
-			c.processingWg.Add(1)
-			go func() {
-				if err := c.consumeOne(v, c.consumingQueue, handler); err != nil {
-					errorsChan <- err
-				}
-				c.processingWg.Done()
-
-				pool <- struct{}{}
-			}()
+		case processorSlots <- struct{}{}:
+		case <-ctx.Done():
+			return
 		}
+
+		taskBody, err := c.popTaskWithContext(ctx, queue, 0)
+		if err != nil {
+			<-processorSlots
+			switch {
+			case errors.Is(err, redis.Nil):
+				continue
+			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+				return
+			default:
+				reportFailure(wrapRedisOperation("pop queued task", err))
+				return
+			}
+		}
+		if len(taskBody) == 0 {
+			<-processorSlots
+			continue
+		}
+
+		select {
+		case handoff <- taskBody:
+		case <-ctx.Done():
+			<-processorSlots
+			if restoreErr := c.restorePendingTask(queue, taskBody); restoreErr != nil {
+				reportFailure(restoreErr)
+			}
+			return
+		}
+	}
+}
+
+func (c *ControllerRedis) produceDelayedTasks(ctx context.Context, queue string, reportFailure func(error)) {
+	for {
+		taskBody, score, err := c.popDelayedTaskWithContext(ctx, queue, 0)
+		if err != nil {
+			switch {
+			case errors.Is(err, redis.Nil):
+				continue
+			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+				return
+			default:
+				reportFailure(wrapRedisOperation("pop delayed task", err))
+				return
+			}
+		}
+		if len(taskBody) == 0 {
+			continue
+		}
+
+		var signature task.Signature
+		if err = json.Unmarshal(taskBody, &signature); err == nil {
+			err = c.Publish(ctx, &signature)
+		} else {
+			err = fmt.Errorf("decode delayed task: %w", err)
+		}
+		if err == nil {
+			continue
+		}
+
+		restoreErr := c.restoreDelayedTask(queue, taskBody, score)
+		if restoreErr != nil {
+			reportFailure(errors.Join(err, restoreErr))
+			return
+		}
+		if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+			return
+		}
+		reportFailure(fmt.Errorf("republish delayed task: %w", err))
+		return
 	}
 }
 
@@ -280,39 +373,67 @@ func (c *ControllerRedis) consumeOne(taskBody []byte, queue string, handler task
 	decoder := json.NewDecoder(bytes.NewReader(taskBody))
 	decoder.UseNumber()
 	if err := decoder.Decode(&t); err != nil {
-		return err
+		return fmt.Errorf("decode queued task: %w", err)
 	}
 
 	if !c.IsRegisterTask(t.Name) {
 		if t.IgnoreNotRegisteredTask {
 			return nil
 		}
-		c.client.RPush(c.GetStopCtx(), queue, taskBody)
-		return nil
+		return c.requeueUnregisteredTask(queue, taskBody)
 	}
-	return handler.Process(&t)
+	if err := handler.Process(&t); err != nil {
+		return fmt.Errorf("process task %q: %w", t.ID, err)
+	}
+	return nil
+}
+
+func (c *ControllerRedis) restorePendingTask(queue string, taskBody []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), consumerRestoreTimeout)
+	defer cancel()
+	if err := c.client.LPush(ctx, queue, taskBody).Err(); err != nil {
+		return wrapRedisOperation("restore queued task", err)
+	}
+	return nil
+}
+
+func (c *ControllerRedis) requeueUnregisteredTask(queue string, taskBody []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), consumerRestoreTimeout)
+	defer cancel()
+	if err := c.client.RPush(ctx, queue, taskBody).Err(); err != nil {
+		return wrapRedisOperation("requeue unregistered task", err)
+	}
+	return nil
+}
+
+func (c *ControllerRedis) restoreDelayedTask(queue string, taskBody []byte, score float64) error {
+	ctx, cancel := context.WithTimeout(context.Background(), consumerRestoreTimeout)
+	defer cancel()
+	if err := c.client.ZAdd(ctx, queue, &redis.Z{Score: score, Member: taskBody}).Err(); err != nil {
+		return wrapRedisOperation("restore delayed task", err)
+	}
+	return nil
 }
 
 func (c *ControllerRedis) StopConsuming() {
 	c.Broker.StopConsuming()
 	c.consumingWg.Wait()
-	c.delayedWg.Wait()
 	c.client.Close()
 }
 
 func (c *ControllerRedis) Publish(ctx context.Context, t *task.Signature) error {
 	tBody, err := json.Marshal(t)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal task for publish: %w", err)
 	}
 	if t.ETA != nil {
 		now := time.Now().Local()
 		if t.ETA.After(now) {
 			score := t.ETA.UnixNano()
-			return c.client.ZAdd(c.GetStopCtx(), c.delayedQueue, &redis.Z{Score: float64(score), Member: tBody}).Err()
+			return wrapRedisOperation("publish delayed task", c.client.ZAdd(ctx, c.delayedQueue, &redis.Z{Score: float64(score), Member: tBody}).Err())
 		}
 	}
-	return c.client.RPush(c.GetStopCtx(), t.Router, tBody).Err()
+	return wrapRedisOperation("publish queued task", c.client.RPush(ctx, t.Router, tBody).Err())
 }
 
 func (c *ControllerRedis) GetPendingTasks(queue string) ([]*task.Signature, error) {
@@ -333,7 +454,7 @@ func (c *ControllerRedis) GetPendingTasks(queue string) ([]*task.Signature, erro
 }
 
 func (c *ControllerRedis) GetDelayedTasks() ([]*task.Signature, error) {
-	results, err := c.client.LRange(c.GetStopCtx(), c.delayedQueue, 0, -1).Result()
+	results, err := c.client.ZRange(c.GetStopCtx(), c.delayedQueue, 0, -1).Result()
 	if err != nil {
 		return nil, err
 	}

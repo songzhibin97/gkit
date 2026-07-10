@@ -17,7 +17,8 @@ func Fibonacci(max ...int) func() int {
 }
 
 // FibonacciNext returns the next Fibonacci number strictly greater than
-// start.
+// start when it is representable. If the next value would overflow int, it
+// saturates at math.MaxInt.
 //
 // The previous implementation reused `Fibonacci()` (default cap = F(20) =
 // 6765) and looped `for num <= start { num = fib() }`. For start >= 6765
@@ -27,12 +28,11 @@ func Fibonacci(max ...int) func() int {
 func FibonacciNext(start int) int {
 	a, b := 1, 1
 	for a <= start {
-		if b > math.MaxInt/2 {
-			// next addition would overflow; clamp.
-			if a < start {
-				return start + 1
-			}
-			return a
+		if b > start {
+			return b
+		}
+		if a > math.MaxInt-b {
+			return math.MaxInt
 		}
 		a, b = b, a+b
 	}

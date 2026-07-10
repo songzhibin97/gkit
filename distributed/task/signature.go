@@ -1,6 +1,8 @@
 package task
 
 import (
+	"bytes"
+	"encoding/json"
 	"time"
 
 	"github.com/songzhibin97/gkit/tools/deepcopy"
@@ -21,7 +23,7 @@ type Signature struct {
 	Priority uint8 `json:"priority" bson:"priority"`
 	// RetryCount 重试次数
 	RetryCount int `json:"retry_count" bson:"retry_count"`
-	// RetryInterval 重试间隔时间
+	// RetryInterval 重试间隔时间，单位为秒
 	RetryInterval int `json:"retry_timeout" bson:"retry_timeout"`
 	// StopTaskDeletionOnError 任务出错后删除
 	StopTaskDeletionOnError bool `json:"stop_task_deletion_on_error" bson:"stop_task_deletion_on_error"`
@@ -53,10 +55,10 @@ func NewSignature(id string, name string, options ...options.Option) *Signature 
 		GroupID:                 "-",
 		Priority:                0,
 		RetryCount:              3,
-		RetryInterval:           int(time.Minute),
+		RetryInterval:           60,
 		StopTaskDeletionOnError: false,
 		IgnoreNotRegisteredTask: false,
-		Router:                  "gkit",
+		Router:                  "",
 		Args:                    nil,
 		MetaSafe:                true,
 		Meta:                    NewMeta(true),
@@ -68,7 +70,46 @@ func NewSignature(id string, name string, options ...options.Option) *Signature 
 	for _, option := range options {
 		option(task)
 	}
+	normalizeSignatureMeta(task, make(map[*Signature]struct{}))
 	return task
+}
+
+// UnmarshalJSON restores signature metadata maps and reapplies MetaSafe after
+// decoding. UseNumber preserves the existing controller decoder's numeric
+// behavior for interface-valued task arguments.
+func (s *Signature) UnmarshalJSON(data []byte) error {
+	type signatureAlias Signature
+	var decoded signatureAlias
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	*s = Signature(decoded)
+	normalizeSignatureMeta(s, make(map[*Signature]struct{}))
+	return nil
+}
+
+func normalizeSignatureMeta(signature *Signature, visited map[*Signature]struct{}) {
+	if signature == nil {
+		return
+	}
+	if _, ok := visited[signature]; ok {
+		return
+	}
+	visited[signature] = struct{}{}
+	if signature.Meta == nil {
+		signature.Meta = NewMeta(signature.MetaSafe)
+	} else {
+		signature.Meta.normalize(signature.MetaSafe)
+	}
+	for _, callback := range signature.CallbackOnSuccess {
+		normalizeSignatureMeta(callback, visited)
+	}
+	for _, callback := range signature.CallbackOnError {
+		normalizeSignatureMeta(callback, visited)
+	}
+	normalizeSignatureMeta(signature.CallbackChord, visited)
 }
 
 func CopySignatures(signatures ...*Signature) []*Signature {
@@ -80,7 +121,36 @@ func CopySignatures(signatures ...*Signature) []*Signature {
 }
 
 func CopySignature(signature *Signature) *Signature {
-	sig := &Signature{}
-	_ = deepcopy.DeepCopy(sig, signature)
-	return sig
+	if signature == nil {
+		return &Signature{}
+	}
+	cloned, ok := deepcopy.Clone(signature).(*Signature)
+	if !ok || cloned == nil {
+		return &Signature{}
+	}
+	cloneSignatureMeta(signature, cloned, make(map[*Signature]*Signature))
+	return cloned
+}
+
+func cloneSignatureMeta(source, destination *Signature, visited map[*Signature]*Signature) {
+	if source == nil || destination == nil {
+		return
+	}
+	if _, ok := visited[source]; ok {
+		return
+	}
+	visited[source] = destination
+	destination.Meta = source.Meta.clone(source.MetaSafe)
+
+	for index, callback := range source.CallbackOnSuccess {
+		if index < len(destination.CallbackOnSuccess) {
+			cloneSignatureMeta(callback, destination.CallbackOnSuccess[index], visited)
+		}
+	}
+	for index, callback := range source.CallbackOnError {
+		if index < len(destination.CallbackOnError) {
+			cloneSignatureMeta(callback, destination.CallbackOnError[index], visited)
+		}
+	}
+	cloneSignatureMeta(source.CallbackChord, destination.CallbackChord, visited)
 }

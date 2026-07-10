@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -21,6 +22,11 @@ import (
 var defaultResultExpire int64 = 3600
 
 var ErrType = errors.New("err type")
+
+// ErrGroupAlreadyExists is returned when a group identifier has already been
+// taken over. Callers can use errors.Is to distinguish this conflict from a
+// Redis transport failure.
+var ErrGroupAlreadyExists = errors.New("group already exists")
 
 type BackendRedis struct {
 	// client redis客户端
@@ -77,16 +83,15 @@ func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...str
 	if expire < 0 {
 		expire = 0
 	}
-	// 避免接管任务记录被覆盖
-	var ok bool
-	for !ok {
-		ok, err = b.client.SetNX(context.Background(), groupID, body, time.Duration(expire)*time.Second).Result()
-		if err != nil {
-			return err
-		}
-		if !ok {
-			time.Sleep(time.Second)
-		}
+	// Avoid overwriting an existing group record, but do not wait for its TTL.
+	// A duplicate identifier is a caller-visible conflict; retrying forever
+	// leaks every timed invocation that reuses that identifier.
+	ok, err := b.client.SetNX(context.Background(), groupID, body, time.Duration(expire)*time.Second).Result()
+	if err != nil {
+		return fmt.Errorf("take over group %q: %w", groupID, err)
+	}
+	if !ok {
+		return fmt.Errorf("take over group %q: %w", groupID, ErrGroupAlreadyExists)
 	}
 	return nil
 }

@@ -3,6 +3,8 @@ package backend_mongodb
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/songzhibin97/gkit/distributed/task"
@@ -12,6 +14,14 @@ import (
 
 	"github.com/songzhibin97/gkit/distributed/backend"
 	"go.mongodb.org/mongo-driver/mongo"
+)
+
+const (
+	defaultMongoResultExpireSeconds int64 = 3600
+	maxMongoTTLSeconds              int64 = math.MaxInt32
+	mongoIndexSetupTimeout                = 5 * time.Second
+	taskTTLIndexName                      = "gkit_tasks_create_at_ttl"
+	groupTTLIndexName                     = "gkit_groups_create_at_ttl"
 )
 
 type BackendMongoDB struct {
@@ -28,9 +38,11 @@ type BackendMongoDB struct {
 	groupTable *mongo.Collection
 }
 
-// SetResultExpire 设置结果超时时间
+// SetResultExpire normalizes and stores the retention value for compatibility.
+// It does not rebuild TTL indexes online because this method cannot report
+// index-creation errors; configure retention through the constructor instead.
 func (b *BackendMongoDB) SetResultExpire(expire int64) {
-	b.resultExpire = expire
+	b.resultExpire = normalizeResultExpire(expire)
 }
 
 func (b *BackendMongoDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
@@ -205,21 +217,79 @@ func (b *BackendMongoDB) updateStatus(signature *task.Signature, update bson.M) 
 	return err
 }
 
-func (b *BackendMongoDB) createIndex() error {
-	_, err := b.taskTable.Indexes().CreateMany(context.Background(), []mongo.IndexModel{
-		{
-			Keys:    bson.M{"status": 1},
-			Options: moption.Index().SetBackground(true).SetExpireAfterSeconds(int32(b.resultExpire)),
-		},
-		{
-			Keys:    bson.M{"lock": 1},
-			Options: moption.Index().SetBackground(true).SetExpireAfterSeconds(int32(b.resultExpire)),
-		},
-	})
-	return err
+func normalizeResultExpire(expire int64) int64 {
+	if expire == 0 {
+		return defaultMongoResultExpireSeconds
+	}
+	return expire
 }
 
+func buildTTLIndexModels(resultExpire int64) (int64, []mongo.IndexModel, []mongo.IndexModel, error) {
+	resultExpire = normalizeResultExpire(resultExpire)
+	if resultExpire < 0 {
+		return resultExpire, nil, nil, nil
+	}
+	if resultExpire > maxMongoTTLSeconds {
+		return 0, nil, nil, fmt.Errorf(
+			"backend_mongodb: result expiration %d seconds exceeds MongoDB TTL maximum %d",
+			resultExpire,
+			maxMongoTTLSeconds,
+		)
+	}
+
+	expireAfterSeconds := int32(resultExpire)
+	taskModels := []mongo.IndexModel{{
+		Keys: bson.D{{Key: "create_at", Value: 1}},
+		Options: moption.Index().
+			SetName(taskTTLIndexName).
+			SetExpireAfterSeconds(expireAfterSeconds),
+	}}
+	groupModels := []mongo.IndexModel{{
+		Keys: bson.D{{Key: "create_at", Value: 1}},
+		Options: moption.Index().
+			SetName(groupTTLIndexName).
+			SetExpireAfterSeconds(expireAfterSeconds),
+	}}
+	return resultExpire, taskModels, groupModels, nil
+}
+
+func (b *BackendMongoDB) createIndexes(ctx context.Context, taskModels, groupModels []mongo.IndexModel) error {
+	if len(taskModels) > 0 {
+		if _, err := b.taskTable.Indexes().CreateMany(ctx, taskModels); err != nil {
+			return fmt.Errorf("backend_mongodb: create task TTL index: %w", err)
+		}
+	}
+	if len(groupModels) > 0 {
+		if _, err := b.groupTable.Indexes().CreateMany(ctx, groupModels); err != nil {
+			return fmt.Errorf("backend_mongodb: create group TTL index: %w", err)
+		}
+	}
+	return nil
+}
+
+// NewBackendMongoDB constructs a MongoDB-backed Backend. It returns nil if
+// retention validation or TTL index initialization fails.
+//
+// Deprecated: Use NewBackendMongoDBE to receive the initialization error.
 func NewBackendMongoDB(client *mongo.Client, resultExpire int64, options ...options.Option) backend.Backend {
+	b, err := NewBackendMongoDBE(client, resultExpire, options...)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// NewBackendMongoDBE constructs a MongoDB-backed Backend and returns retention
+// validation or TTL index initialization errors to the caller.
+func NewBackendMongoDBE(client *mongo.Client, resultExpire int64, options ...options.Option) (backend.Backend, error) {
+	if client == nil {
+		return nil, errors.New("backend_mongodb: nil client")
+	}
+	normalizedExpire, taskModels, groupModels, err := buildTTLIndexModels(resultExpire)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &config{
 		databaseName:   "gkit",
 		tableTaskName:  "tasks",
@@ -230,10 +300,14 @@ func NewBackendMongoDB(client *mongo.Client, resultExpire int64, options ...opti
 	}
 	b := BackendMongoDB{
 		client:       client,
-		resultExpire: resultExpire,
+		resultExpire: normalizedExpire,
 		taskTable:    client.Database(c.databaseName).Collection(c.tableTaskName),
 		groupTable:   client.Database(c.databaseName).Collection(c.tableGroupName),
 	}
-	_ = b.createIndex()
-	return &b
+	ctx, cancel := context.WithTimeout(context.Background(), mongoIndexSetupTimeout)
+	defer cancel()
+	if err := b.createIndexes(ctx, taskModels, groupModels); err != nil {
+		return nil, err
+	}
+	return &b, nil
 }
