@@ -52,7 +52,7 @@ func (l *LifeAdmin) Start() error {
 				l.g.Go(func() error {
 					// 等待异常或信号关闭触发
 					<-l.g.ctx.Done()
-					return goroutine.Delegate(l.g.ctx, l.opts.stopTimeout, m.Shutdown)
+					return goroutine.Delegate(context.Background(), l.opts.stopTimeout, m.Shutdown)
 				})
 			}
 			if m.Start != nil {

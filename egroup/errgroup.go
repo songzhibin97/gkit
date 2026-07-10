@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"github.com/songzhibin97/gkit/options"
 
@@ -12,13 +11,14 @@ import (
 )
 
 type Group struct {
-	ctx    context.Context
-	cancel func()
-	wg     sync.WaitGroup
+	ctx     context.Context
+	cancel  func()
+	wg      sync.WaitGroup
+	stateMu sync.Mutex
+	closed  bool
 	sync.Once
 	goroutine goroutine.GGroup
 	err       error
-	close     int32
 }
 
 func WithContextGroup(ctx context.Context, group goroutine.GGroup) *Group {
@@ -41,7 +41,10 @@ var ErrGroupClosed = errors.New("group has closed")
 
 // Wait 等待
 func (g *Group) Wait() error {
-	if atomic.LoadInt32(&g.close) != 0 {
+	g.stateMu.Lock()
+	closed := g.closed
+	g.stateMu.Unlock()
+	if closed {
 		return ErrGroupClosed
 	}
 
@@ -53,35 +56,51 @@ func (g *Group) Wait() error {
 }
 
 func (g *Group) Shutdown() error {
-	if !atomic.CompareAndSwapInt32(&g.close, 0, 1) {
+	g.stateMu.Lock()
+	if g.closed {
+		g.stateMu.Unlock()
 		return nil
 	}
-	g.wg.Wait()
+	g.closed = true
 	if g.cancel != nil {
 		g.cancel()
 	}
+	g.stateMu.Unlock()
+
+	g.wg.Wait()
 	return g.goroutine.Shutdown()
 }
 
 // Go 异步调用
 func (g *Group) Go(f func() error) {
-	if atomic.LoadInt32(&g.close) != 0 {
+	g.stateMu.Lock()
+	if g.closed {
+		g.stateMu.Unlock()
 		return
 	}
 	g.wg.Add(1)
-	ok := g.goroutine.AddTask(func() {
+	g.stateMu.Unlock()
+
+	ok := g.goroutine.AddTaskN(g.ctx, func() {
 		defer g.wg.Done()
 		if err := f(); err != nil {
-			g.Do(func() {
-				// 级联取消
-				g.err = err
-				if g.cancel != nil {
-					g.cancel()
-				}
-			})
+			g.recordError(err)
 		}
 	})
 	if !ok {
+		g.recordError(ErrGroupClosed)
 		g.wg.Done()
 	}
+}
+
+func (g *Group) recordError(err error) {
+	if err == nil {
+		return
+	}
+	g.Do(func() {
+		g.err = err
+		if g.cancel != nil {
+			g.cancel()
+		}
+	})
 }

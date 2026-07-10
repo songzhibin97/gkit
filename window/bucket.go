@@ -2,11 +2,12 @@ package window
 
 import (
 	"sync/atomic"
+	"unsafe"
 )
 
 const (
 	// PtrOffSize 指针偏移量大小
-	PtrOffSize = uint64(8)
+	PtrOffSize = uint64(unsafe.Sizeof(uintptr(0)))
 )
 
 // BucketBuilder Bucket 生成器

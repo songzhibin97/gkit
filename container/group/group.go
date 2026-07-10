@@ -38,9 +38,9 @@ func (g *Group) ReSet(nf func() interface{}) {
 		panic("container.group: 不能为新函数分配nil")
 	}
 	g.Lock()
+	defer g.Unlock()
 	g.f = nf
-	g.Unlock()
-	g.Clear()
+	g.objs = make(map[string]interface{})
 }
 
 func (g *Group) Clear() {

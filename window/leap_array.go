@@ -21,11 +21,12 @@ type TimeChick func(uint64) bool
 // LeapArray 基于 Bucket 实现的 leap array
 // 例如: bucketSize == 200ms,intervalSize == 1000ms,所以n = 5
 // 假设当前是 时间是888ms 构建下图
-//   B0       B1      B2     B3      B4
-//   |_______|_______|_______|_______|_______|
-//  1000    1200    1400    1600    800    (1000)
-//                                        ^
-//                                      time=888
+//
+//	 B0       B1      B2     B3      B4
+//	 |_______|_______|_______|_______|_______|
+//	1000    1200    1400    1600    800    (1000)
+//	                                      ^
+//	                                    time=888
 type LeapArray struct {
 	// lock: 互斥自旋锁
 	mu mutex.Mutex
@@ -76,10 +77,14 @@ func (s *LeapArray) getBucketOfTime(now uint64, builder BucketBuilder) (*Bucket,
 
 			// 尝试获取锁
 			if s.mu.TryLock() {
-				// 重置
-				old = builder.Reset(old, start)
+				candidate := &Bucket{Start: start}
+				candidate.Value.Store(builder.NewEmptyBucket())
+				candidate = builder.Reset(candidate, start)
+				swapped := s.array.compareAndSwap(index, old, candidate)
 				s.mu.Unlock()
-				return old, nil
+				if swapped {
+					return candidate, nil
+				}
 			}
 			runtime.Gosched()
 		} else if start < atomic.LoadUint64(&old.Start) {

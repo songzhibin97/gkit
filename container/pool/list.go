@@ -21,11 +21,23 @@ type List struct {
 	// mu: 互斥锁, 保护以下字段
 	mu sync.Mutex
 
-	// cond: 发送信号,通知有回收动作,在等待的可以再次尝试获取资源
-	cond chan struct{}
+	// generation is closed and replaced under mu whenever pool state changes
+	// may allow a waiter to make progress.
+	generation chan struct{}
 
-	// cleanerCh: 清空 ch
-	cleanerCh chan struct{}
+	// cleanerWake resets the cleaner after an idle timeout reload. It remains
+	// open for the lifetime of List so Reload cannot send to a closed channel.
+	cleanerWake chan struct{}
+
+	// cleanerStop is closed exactly once by the first successful Shutdown.
+	cleanerStop chan struct{}
+
+	// cleanerDone is closed after the single cleaner goroutine has stopped.
+	cleanerDone chan struct{}
+
+	// cleanerOnce prevents duplicate cleaner goroutines if Timer is called by
+	// code outside NewList.
+	cleanerOnce sync.Once
 
 	// active: 最大连接数
 	active uint64
@@ -44,93 +56,138 @@ type List struct {
 func (l *List) Reload(options ...options.Option) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	previousIdleTimeout := l.conf.idleTimeout
 	for _, option := range options {
 		option(l.conf)
+	}
+	l.notifyLocked()
+	if l.conf.idleTimeout != previousIdleTimeout {
+		l.wakeCleaner()
 	}
 }
 
 // Init 初始化
 func (l *List) Init(d time.Duration) {
-	// 如果 <= 0 放弃设置
 	if d <= 0 {
 		return
 	}
-	// 如果时间间隔d小于等待超时,并且 cleanerCh 不为nil 监听信号
-	if d < l.conf.idleTimeout && l.cleanerCh != nil {
-		select {
-		// 发送立即清除旧配置的信号,如果阻塞说明在时间周期内进行清洁,跳过
-		case l.cleanerCh <- struct{}{}:
-		default:
-		}
-	}
-	// 懒加载
-	if l.cleanerCh == nil {
-		l.cleanerCh = make(chan struct{}, 1)
-		// 开启定时任务
-		go l.Timer(l.conf.idleTimeout)
+	l.wakeCleaner()
+}
+
+// wakeCleaner requests an immediate cleaner pass and timer reset. The channel
+// is buffered so Reload never waits for the cleaner, and it is intentionally
+// never closed so calls racing with or following Shutdown remain safe.
+func (l *List) wakeCleaner() {
+	select {
+	case l.cleanerWake <- struct{}{}:
+	default:
 	}
 }
 
 // Timer 定时任务
-func (l *List) Timer(d time.Duration) {
-	if d < minDuration {
-		d = minDuration
-	}
-	// ticker: 定时任务
-	ticker := time.NewTicker(d)
+func (l *List) Timer(_ time.Duration) {
+	l.cleanerOnce.Do(l.runCleaner)
+}
+
+func (l *List) runCleaner() {
+	defer close(l.cleanerDone)
+
+	timer := time.NewTimer(time.Hour)
+	stopAndDrainTimer(timer)
+	defer stopAndDrainTimer(timer)
+
 	for {
-		select {
-		// 触发条件:
-		// 1. 定时周期
-		// 2. l.cleanerCh 接收到信号
-		case <-ticker.C:
-		case <-l.cleanerCh:
-		}
 		l.mu.Lock()
-		// 是否关闭 或者 没有设置超时时间
-		if atomic.LoadUint32(&l.closed) == 1 || l.conf.idleTimeout <= 0 {
-			l.mu.Unlock()
+		idleTimeout := l.conf.idleTimeout
+		l.mu.Unlock()
+
+		var timerC <-chan time.Time
+		if idleTimeout > 0 {
+			if idleTimeout < minDuration {
+				idleTimeout = minDuration
+			}
+			stopAndDrainTimer(timer)
+			timer.Reset(idleTimeout)
+			timerC = timer.C
+		} else {
+			stopAndDrainTimer(timer)
+		}
+
+		select {
+		case <-timerC:
+		case <-l.cleanerWake:
+		case <-l.cleanerStop:
 			return
 		}
-		// 循环链表
-		for i, n := 0, l.idles.Len(); i < n; i++ {
-			// idles.Back() 返回链表中最后一个元素, 如果当前链表已经是空了 则返回nil
-			e := l.idles.Back()
-			if e == nil {
-				break
-			}
-			// 断言为 item
-			ic := e.Value.(item)
-			// 判断时间是否超时
-			if !ic.expire(l.conf.idleTimeout) {
-				break
-			}
-			// 如果已经超时,则删除此元素
-			l.idles.Remove(e)
-			// release 计数
-			l.release()
-			l.mu.Unlock()
-			_ = ic.s.Shutdown()
-			l.mu.Lock()
-		}
-		l.mu.Unlock()
+
+		l.cleanExpired()
 	}
 }
 
-// release 当前活跃线程数-1 并发送信号通知
-// hold p.mu during the call.
-func (l *List) release() {
+func stopAndDrainTimer(timer *time.Timer) {
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+}
+
+// cleanExpired removes every expired idle from the live list while holding mu,
+// then shuts the detached resources down off-lock. Shutdown can therefore
+// snapshot only the remaining idles and each resource is closed exactly once.
+func (l *List) cleanExpired() {
+	l.mu.Lock()
+	if atomic.LoadUint32(&l.closed) == 1 || l.conf.idleTimeout <= 0 {
+		l.mu.Unlock()
+		return
+	}
+
+	idleTimeout := l.conf.idleTimeout
+	shutdowns := make([]IShutdown, 0)
+	for {
+		e := l.idles.Back()
+		if e == nil {
+			break
+		}
+		idle := e.Value.(item)
+		if !idle.expire(idleTimeout) {
+			break
+		}
+		l.idles.Remove(e)
+		shutdowns = append(shutdowns, idle.s)
+	}
+	if len(shutdowns) > 0 {
+		atomic.AddUint64(&l.active, ^uint64(len(shutdowns)-1))
+		l.notifyLocked()
+	}
+	l.mu.Unlock()
+
+	for _, shutdown := range shutdowns {
+		_ = shutdown.Shutdown()
+	}
+}
+
+// releaseLocked atomically decrements the active count and broadcasts a state
+// change. The caller must hold l.mu.
+func (l *List) releaseLocked() {
 	// l.active -= 1
 	atomic.AddUint64(&l.active, ^uint64(0))
-	l.signal()
+	l.notifyLocked()
 }
 
-// signal 发送信号通知
-func (l *List) signal() {
-	select {
-	case l.cond <- struct{}{}:
-	default:
-	}
+// releaseUnlocked is the release path for callers that do not hold l.mu.
+func (l *List) releaseUnlocked() {
+	l.mu.Lock()
+	l.releaseLocked()
+	l.mu.Unlock()
+}
+
+// notifyLocked broadcasts a state change without losing notifications that
+// happen before a waiter starts selecting. The caller must hold l.mu.
+func (l *List) notifyLocked() {
+	close(l.generation)
+	l.generation = make(chan struct{})
 }
 
 // Get 获取
@@ -149,15 +206,16 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			}
 			ic := e.Value.(item)
 			l.idles.Remove(e)
+			idleTimeout := l.conf.idleTimeout
 			l.mu.Unlock()
 			// 没有过期的可以直接返回了
-			if !ic.expire(l.conf.idleTimeout) {
+			if !ic.expire(idleTimeout) {
 				return ic.s, nil
 			}
 			// 清理 重新获取锁
 			_ = ic.s.Shutdown()
 			l.mu.Lock()
-			l.release()
+			l.releaseLocked()
 		}
 
 		// 检查是否关闭
@@ -166,7 +224,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			return nil, ErrPoolClosed
 		}
 		// 判断是否需要新增
-		if l.conf.active == 0 || l.active < l.conf.active {
+		if l.conf.active == 0 || atomic.LoadUint64(&l.active) < l.conf.active {
 			if l.f == nil {
 				l.mu.Unlock()
 				return nil, ErrPoolNewFuncIsNull
@@ -181,7 +239,7 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			l.mu.Unlock()
 			c, err := newItem(ctx)
 			if err != nil {
-				l.release()
+				l.releaseUnlocked()
 				c = nil
 			}
 			return c, err
@@ -191,22 +249,32 @@ func (l *List) Get(ctx context.Context) (IShutdown, error) {
 			l.mu.Unlock()
 			return nil, ErrPoolExhausted
 		}
-		// 获取超时时间,解锁进入等待状态
+		// Capture the current generation while holding mu. A state change that
+		// happens after unlock closes this channel, even if select has not begun.
+		generation := l.generation
+		wait := l.conf.wait
 		wt := l.conf.waitTimeout
 		l.mu.Unlock()
 
-		// 控制链路超时时间
-		_, nCtx, cancel := timeout.Shrink(ctx, wt)
-
-		// 超时/收到了某应用回收的信号
-		select {
-		case <-nCtx.Done():
-			cancel()
-			return nil, nCtx.Err()
-		case <-l.cond:
+		if wait && wt == 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-generation:
+			}
+		} else {
+			// 控制链路超时时间
+			_, nCtx, cancel := timeout.Shrink(ctx, wt)
+			select {
+			case <-nCtx.Done():
+				err := nCtx.Err()
+				cancel()
+				return nil, err
+			case <-generation:
+				cancel()
+			}
 		}
 		// 自旋,再次尝试获得句柄
-		cancel()
 		l.mu.Lock()
 	}
 }
@@ -227,12 +295,12 @@ func (l *List) Put(ctx context.Context, s IShutdown, forceClose bool) error {
 	}
 	// 如果 s == nil 进入回收
 	if s == nil {
-		l.signal()
+		l.notifyLocked()
 		l.mu.Unlock()
 		return nil
 	}
+	l.releaseLocked()
 	l.mu.Unlock()
-	l.release()
 	return s.Shutdown()
 }
 
@@ -243,6 +311,7 @@ func (l *List) Shutdown() error {
 		l.mu.Unlock()
 		return ErrPoolClosed
 	}
+	close(l.cleanerStop)
 	// container/list.List does not support copy-by-value: a copy of the
 	// sentinel root carries pointers back to elements whose `list` field
 	// still references the original. Snapshot the IShutdowns into a slice
@@ -256,10 +325,12 @@ func (l *List) Shutdown() error {
 		atomic.AddUint64(&l.active, ^uint64(len(shutdowns)-1))
 	}
 	l.idles.Init()
+	l.notifyLocked()
 	l.mu.Unlock()
 	for _, s := range shutdowns {
 		_ = s.Shutdown()
 	}
+	<-l.cleanerDone
 	return nil
 }
 
@@ -272,11 +343,18 @@ func (l *List) New(f func(ctx context.Context) (IShutdown, error)) {
 
 // NewList 实例化
 func NewList(options ...options.Option) Pool {
-	l := &List{conf: defaultConfig()}
-	l.cond = make(chan struct{})
+	l := &List{
+		conf:        defaultConfig(),
+		generation:  make(chan struct{}),
+		cleanerWake: make(chan struct{}, 1),
+		cleanerStop: make(chan struct{}),
+		cleanerDone: make(chan struct{}),
+	}
 	for _, option := range options {
 		option(l.conf)
 	}
-	l.Init(l.conf.idleTimeout)
+	// The cleaner exists even when cleanup starts disabled so a later Reload can
+	// enable it without spawning a second goroutine.
+	go l.Timer(l.conf.idleTimeout)
 	return l
 }

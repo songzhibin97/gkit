@@ -2,28 +2,30 @@ package concurrent
 
 import "reflect"
 
-// OrDone 任意channel完成后返回
+// OrDone returns a signal channel that closes when any non-nil input first
+// becomes readable or closes. It never forwards an input value.
 func OrDone(channels ...<-chan interface{}) <-chan interface{} {
-	switch len(channels) {
-	case 0:
-		// 返回已经关闭的channel 通知各个接受者关闭
-		c := make(chan interface{})
-		close(c)
-		return c
-	case 1:
-		return channels[0]
+	orDone := make(chan interface{})
+	if len(channels) == 0 {
+		close(orDone)
+		return orDone
 	}
-	orDone := make(chan interface{}, 1)
+	cases := make([]reflect.SelectCase, 0, len(channels))
+	for _, channel := range channels {
+		if channel == nil {
+			continue
+		}
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(channel),
+		})
+	}
+	if len(cases) == 0 {
+		return orDone
+	}
+
 	go func() {
 		defer close(orDone)
-		var cases []reflect.SelectCase
-		for _, channel := range channels {
-			cases = append(cases, reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(channel),
-			})
-		}
-		// 选择一个可用的
 		reflect.Select(cases)
 	}()
 	return orDone
