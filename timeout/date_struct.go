@@ -47,8 +47,8 @@ func (m *DateStruct) UnmarshalJSON(src []byte) error {
 
 // MarshalJSON 序列化
 // Author [SliverHorn](https://github.com/SliverHorn)
-func (m *DateStruct) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + m.String() + `"`), nil
+func (m DateStruct) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + m.Format(DateFormat) + `"`), nil
 }
 
 // String 输出 DateTime 变量为字符串

@@ -26,6 +26,7 @@ func main() {
 	w := new(bytes.Buffer)
 	start_pos := strings.Index(string(fileData), packageName)
 	w.WriteString(string(fileData)[start_pos : start_pos+len(packageName)])
+	w.WriteString("\n\nimport \"time\"\n")
 
 	ts := []string{"Bool", "Byte", "Complex64", "Complex128", "Float32", "Float64", "Int", "Int8", "Int16", "Int32", "Int64", "Rune", "String", "Uint", "Uint8", "Uint16", "Uint32", "Uint64", "Uintptr"}
 

@@ -62,11 +62,28 @@ func (form formSource) TrySet(value reflect.Value, field reflect.StructField, ta
 
 func mappingByPtr(ptr interface{}, setter setter, tag string) error {
 	// emptyField 空的结构体字段
-	_, err := mapping(reflect.ValueOf(ptr), emptyField, setter, tag)
+	_, err := mapping(reflect.ValueOf(ptr), emptyField, setter, tag, newMappingState())
 	return err
 }
 
-func mapping(value reflect.Value, field reflect.StructField, setter setter, tag string) (bool, error) {
+type mappingPointer struct {
+	typ reflect.Type
+	ptr uintptr
+}
+
+type mappingState struct {
+	visitingPointers       map[mappingPointer]struct{}
+	visitingNilPointerType map[reflect.Type]struct{}
+}
+
+func newMappingState() *mappingState {
+	return &mappingState{
+		visitingPointers:       make(map[mappingPointer]struct{}),
+		visitingNilPointerType: make(map[reflect.Type]struct{}),
+	}
+}
+
+func mapping(value reflect.Value, field reflect.StructField, setter setter, tag string, state *mappingState) (bool, error) {
 	// 获取 tag, 如果是 "-" 忽略此字段
 	if field.Tag.Get(tag) == "-" {
 		return false, nil
@@ -79,12 +96,27 @@ func mapping(value reflect.Value, field reflect.StructField, setter setter, tag 
 		var isNew bool
 		vPtr := value
 		if value.IsNil() {
+			pointerType := value.Type()
+			// 自引用类型的临时候选值不能继续展开同一 nil pointer 类型。
+			if _, visiting := state.visitingNilPointerType[pointerType]; visiting {
+				return false, nil
+			}
+			state.visitingNilPointerType[pointerType] = struct{}{}
+			defer delete(state.visitingNilPointerType, pointerType)
+
 			// 如果是空指针
 			// 重新赋值 reflect.New(value.Type().Elem())
 			isNew = true
 			vPtr = reflect.New(value.Type().Elem())
+		} else {
+			pointer := mappingPointer{typ: value.Type(), ptr: value.Pointer()}
+			if _, visiting := state.visitingPointers[pointer]; visiting {
+				return false, nil
+			}
+			state.visitingPointers[pointer] = struct{}{}
+			defer delete(state.visitingPointers, pointer)
 		}
-		isSetted, err := mapping(vPtr.Elem(), field, setter, tag)
+		isSetted, err := mapping(vPtr.Elem(), field, setter, tag, state)
 		if err != nil {
 			return false, err
 		}
@@ -121,7 +153,7 @@ func mapping(value reflect.Value, field reflect.StructField, setter setter, tag 
 				continue
 			}
 			// 递归子字段
-			ok, err := mapping(value.Field(i), tValue.Field(i), setter, tag)
+			ok, err := mapping(value.Field(i), tValue.Field(i), setter, tag, state)
 			if err != nil {
 				return false, err
 			}

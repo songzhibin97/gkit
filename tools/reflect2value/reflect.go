@@ -171,15 +171,28 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 		return reflect.MakeSlice(theType, 0, 0), nil
 	}
 
+	values := reflect.ValueOf(value)
+	if (strings.HasPrefix(theType.String(), "[]uint") || theType.String() == "[]byte") && values.Type().String() == "string" {
+		// Decode the base64 string if the value type is []uint8 or its
+		// alias []byte. This is the existing JSON compatibility path.
+		output, err := base64.StdEncoding.DecodeString(value.(string))
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		value = output
+		values = reflect.ValueOf(value)
+	}
+	if values.Kind() != reflect.Slice && values.Kind() != reflect.Array {
+		return reflect.Value{}, typeConversionError(value, theType.String())
+	}
+
 	var theValue reflect.Value
 
 	// Booleans
 	if theType.String() == "[]bool" {
-		bools := reflect.ValueOf(value)
-
-		theValue = reflect.MakeSlice(theType, bools.Len(), bools.Len())
-		for i := 0; i < bools.Len(); i++ {
-			boolValue, err := getBoolValue(strings.Split(theType.String(), "[]")[1], bools.Index(i).Interface())
+		theValue = reflect.MakeSlice(theType, values.Len(), values.Len())
+		for i := 0; i < values.Len(); i++ {
+			boolValue, err := getBoolValue(strings.Split(theType.String(), "[]")[1], values.Index(i).Interface())
 			if err != nil {
 				return reflect.Value{}, err
 			}
@@ -192,11 +205,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 
 	// Integers
 	if strings.HasPrefix(theType.String(), "[]int") {
-		ints := reflect.ValueOf(value)
-
-		theValue = reflect.MakeSlice(theType, ints.Len(), ints.Len())
-		for i := 0; i < ints.Len(); i++ {
-			intValue, err := getIntValue(strings.Split(theType.String(), "[]")[1], ints.Index(i).Interface())
+		theValue = reflect.MakeSlice(theType, values.Len(), values.Len())
+		for i := 0; i < values.Len(); i++ {
+			intValue, err := getIntValue(strings.Split(theType.String(), "[]")[1], values.Index(i).Interface())
 			if err != nil {
 				return reflect.Value{}, err
 			}
@@ -211,23 +222,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 
 	// Unsigned integers
 	if strings.HasPrefix(theType.String(), "[]uint") || theType.String() == "[]byte" {
-
-		// Decode the base64 string if the value type is []uint8 or it's alias []byte
-		// See: https://golang.org/pkg/encoding/json/#Marshal
-		// > Array and slice values encode as JSON arrays, except that []byte encodes as a base64-encoded string
-		if reflect.TypeOf(value).String() == "string" {
-			output, err := base64.StdEncoding.DecodeString(value.(string))
-			if err != nil {
-				return reflect.Value{}, err
-			}
-			value = output
-		}
-
-		uints := reflect.ValueOf(value)
-
-		theValue = reflect.MakeSlice(theType, uints.Len(), uints.Len())
-		for i := 0; i < uints.Len(); i++ {
-			uintValue, err := getUintValue(strings.Split(theType.String(), "[]")[1], uints.Index(i).Interface())
+		theValue = reflect.MakeSlice(theType, values.Len(), values.Len())
+		for i := 0; i < values.Len(); i++ {
+			uintValue, err := getUintValue(strings.Split(theType.String(), "[]")[1], values.Index(i).Interface())
 			if err != nil {
 				return reflect.Value{}, err
 			}
@@ -242,11 +239,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 
 	// Floating point numbers
 	if strings.HasPrefix(theType.String(), "[]float") {
-		floats := reflect.ValueOf(value)
-
-		theValue = reflect.MakeSlice(theType, floats.Len(), floats.Len())
-		for i := 0; i < floats.Len(); i++ {
-			floatValue, err := getFloatValue(strings.Split(theType.String(), "[]")[1], floats.Index(i).Interface())
+		theValue = reflect.MakeSlice(theType, values.Len(), values.Len())
+		for i := 0; i < values.Len(); i++ {
+			floatValue, err := getFloatValue(strings.Split(theType.String(), "[]")[1], values.Index(i).Interface())
 			if err != nil {
 				return reflect.Value{}, err
 			}
@@ -261,11 +256,9 @@ func reflectValues(valueType string, value interface{}) (reflect.Value, error) {
 
 	// Strings
 	if theType.String() == "[]string" {
-		strs := reflect.ValueOf(value)
-
-		theValue = reflect.MakeSlice(theType, strs.Len(), strs.Len())
-		for i := 0; i < strs.Len(); i++ {
-			strValue, err := getStringValue(strings.Split(theType.String(), "[]")[1], strs.Index(i).Interface())
+		theValue = reflect.MakeSlice(theType, values.Len(), values.Len())
+		for i := 0; i < values.Len(); i++ {
+			strValue, err := getStringValue(strings.Split(theType.String(), "[]")[1], values.Index(i).Interface())
 			if err != nil {
 				return reflect.Value{}, err
 			}
