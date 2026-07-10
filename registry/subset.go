@@ -10,6 +10,9 @@ import (
 // instances 实例列表
 // size 选取的子集长度
 func Subset(instances []interface{}, clientID int, size int) []interface{} {
+	if size <= 0 {
+		return nil
+	}
 	if len(instances) <= size {
 		return instances
 	}

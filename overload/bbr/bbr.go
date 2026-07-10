@@ -322,12 +322,16 @@ func newLimiter(options ...options.Option) overload.Limiter {
 	cpu := func() int64 {
 		return atomic.LoadInt64(&cpu)
 	}
+	winBucketPerSec := int64(time.Second) / int64(bucketDuration)
+	if winBucketPerSec < 1 {
+		winBucketPerSec = 1
+	}
 	limiter := &BBR{
 		cpu:             cpu,
 		conf:            conf,
 		passStat:        passStat,
 		rtStat:          rtStat,
-		winBucketPerSec: int64(time.Second) / int64(bucketDuration),
+		winBucketPerSec: winBucketPerSec,
 	}
 	return limiter
 }

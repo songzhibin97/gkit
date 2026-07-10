@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"time"
@@ -48,130 +49,161 @@ func (c *Conn) Send(data []byte, retry *Retry) error {
 		var local Retry
 		retry = &local
 	}
-	for {
-		_, err := c.Write(data)
-		switch {
-		case err != nil && errors.Is(err, io.EOF):
-			// EOF 处理
-			return nil
-		case err != nil && retry.Count > 0:
-			// 触发重试
-			retry.Count--
-			if retry.Interval == 0 {
-				retry.Interval = DefaultRetryInterval
+	for offset := 0; offset < len(data); {
+		remaining := data[offset:]
+		n, err := c.Write(remaining)
+		if n < 0 || n > len(remaining) {
+			return fmt.Errorf("tcp send: invalid write count %d for %d remaining bytes", n, len(remaining))
+		}
+		offset += n
+		if err != nil {
+			if retry.Count > 0 && offset < len(data) {
+				retry.Count--
+				if retry.Interval == 0 {
+					retry.Interval = DefaultRetryInterval
+				}
+				time.Sleep(retry.Interval)
+				continue
 			}
-			time.Sleep(retry.Interval)
-		default:
-			return err
+			return fmt.Errorf("tcp send after %d of %d bytes: %w", offset, len(data), err)
+		}
+		if n == 0 {
+			return fmt.Errorf("tcp send after %d of %d bytes: %w", offset, len(data), io.ErrNoProgress)
 		}
 	}
+	return nil
 }
 
 // Recv 接受数据
 // length == 0 从 Conn一次读取立即返回
 // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
 // length > 0 从 Conn 接收到对应的数据返回
-func (c *Conn) Recv(length int, retry *Retry) ([]byte, error) {
+func (c *Conn) Recv(length int, retry *Retry) (result []byte, retErr error) {
 	if retry == nil {
 		var local Retry
 		retry = &local
 	}
-	var (
-		// err: error
-		err error
-
-		// size: 返回一次读取的大小
-		size int
-
-		// index: 目前指向的索引的位置
-		index int
-
-		// bf: 读取后的缓冲区
-		bf []byte
-
-		// flag: 判断是否循环读
-		flag bool
-	)
-	if length > 0 {
-		// 读取指定的长度
-		bf = *buffer.GetBytes(length)
-	} else {
-		// 需要 eof 返回
-		bf = *buffer.GetBytes(DefaultReadBuffer)
-	}
-cycle:
-	for {
-		if length < 0 && index > 0 {
-			// length < 0 要接受所有的数据,直至EOF
-			flag = true
-			if err = c.SetReadDeadline(time.Now().Add(c.recvBufferInterval)); err != nil {
-				return nil, err
+	readWithRetry := func(dst []byte) (int, error) {
+		for {
+			n, err := c.reader.Read(dst)
+			if err == nil || errors.Is(err, io.EOF) || retry.Count == 0 {
+				return n, err
+			}
+			retry.Count--
+			if retry.Interval == 0 {
+				retry.Interval = DefaultRetryInterval
+			}
+			time.Sleep(retry.Interval)
+			if n > 0 {
+				// Preserve bytes returned with a retryable error. The caller
+				// advances its offset and the next read retries the remainder.
+				return n, nil
 			}
 		}
-		size, err = c.reader.Read(bf[index:])
-		if size > 0 {
-			index += size
-			if length > 0 {
-				if index == length {
-					break cycle
-				}
-			} else {
-				if index >= DefaultReadBuffer {
-					bf = append(bf, make([]byte, DefaultReadBuffer)...)
-				} else if !flag {
-					break cycle
-				}
+	}
+
+	if length > 0 {
+		bf := *buffer.GetBytes(length)
+		index := 0
+		for index < length {
+			n, err := readWithRetry(bf[index:])
+			index += n
+			if index == length {
+				return bf[:index], nil
 			}
+			if errors.Is(err, io.EOF) {
+				if index == 0 {
+					return bf[:0], io.EOF
+				}
+				return bf[:index], io.ErrUnexpectedEOF
+			}
+			if err != nil {
+				return bf[:index], fmt.Errorf("tcp receive %d of %d bytes: %w", index, length, err)
+			}
+			if n == 0 {
+				return bf[:index], fmt.Errorf("tcp receive %d of %d bytes: %w", index, length, io.ErrNoProgress)
+			}
+		}
+		return bf[:index], nil
+	}
+
+	bufferSize := DefaultReadBuffer
+	if bufferSize <= 0 {
+		bufferSize = 1
+	}
+	bf := *buffer.GetBytes(bufferSize)
+	if length == 0 {
+		n, err := readWithRetry(bf)
+		if errors.Is(err, io.EOF) {
+			return bf[:n], nil
+		}
+		return bf[:n], err
+	}
+
+	previousDeadline := c.recvTimeout
+	deadlineChanged := false
+	defer func() {
+		if !deadlineChanged {
+			return
+		}
+		if err := c.Conn.SetReadDeadline(previousDeadline); err != nil {
+			restoreErr := fmt.Errorf("tcp receive: restore read deadline: %w", err)
+			if retErr == nil {
+				retErr = restoreErr
+			} else {
+				retErr = errors.Join(retErr, restoreErr)
+			}
+		}
+	}()
+
+	index := 0
+	for {
+		if index == len(bf) {
+			bf = append(bf, make([]byte, bufferSize)...)
+		}
+		n, err := readWithRetry(bf[index:])
+		index += n
+		if errors.Is(err, io.EOF) {
+			return bf[:index], nil
 		}
 		if err != nil {
-			switch {
-			case errors.Is(err, io.EOF):
-				break cycle
-			case flag && isTimeout(err):
-				if err = c.SetReadDeadline(time.Now().Add(c.recvBufferInterval)); err != nil {
-					return nil, err
-				}
-				break cycle
-			case retry.Count > 0:
-				// 触发重试
-				retry.Count--
-				if retry.Interval == 0 {
-					retry.Interval = DefaultRetryInterval
-				}
-				time.Sleep(retry.Interval)
-				goto cycle
-			default:
-				return nil, err
+			if deadlineChanged && isTimeout(err) {
+				return bf[:index], nil
 			}
+			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, err)
 		}
-		if length == 0 {
-			break cycle
+		if n == 0 {
+			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, io.ErrNoProgress)
 		}
+		idleDeadline := time.Now().Add(c.recvBufferInterval)
+		if !previousDeadline.IsZero() && previousDeadline.Before(idleDeadline) {
+			idleDeadline = previousDeadline
+		}
+		if err := c.Conn.SetReadDeadline(idleDeadline); err != nil {
+			return bf[:index], fmt.Errorf("tcp receive stream: set idle deadline: %w", err)
+		}
+		deadlineChanged = true
 	}
-	return bf[:index], nil
 }
 
 // RecvLine 读取一行 '\n'
 func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
-	var (
-		// err
-		err error
-
-		data []byte
-
-		index int
-
-		bf = (*buffer.GetBytes(1024))[:0]
-	)
+	bf := (*buffer.GetBytes(1024))[:0]
 	for {
-		data, err = c.Recv(1, retry)
-		if err != nil || data[0] == '\n' {
-			break
+		data, err := c.Recv(1, retry)
+		if len(data) > 0 {
+			if data[0] == '\n' {
+				return bf, nil
+			}
+			bf = append(bf, data...)
 		}
-		index++
-		bf = append(bf, data...)
+		if err != nil {
+			return bf, err
+		}
+		if len(data) == 0 {
+			return bf, io.ErrNoProgress
+		}
 	}
-	return bf[:index], err
 }
 
 // RecvWithTimeout 读取已经超时的链接
@@ -217,19 +249,29 @@ func (c *Conn) SetDeadline(t time.Time) error {
 	return err
 }
 
-func (c *Conn) SetRecvDeadline(t time.Time) error {
-	err := c.SetReadDeadline(t)
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	err := c.Conn.SetReadDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
 	}
 	return err
 }
 
-func (c *Conn) SetSendDeadline(t time.Time) error {
-	err := c.SetWriteDeadline(t)
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	err := c.Conn.SetWriteDeadline(t)
 	if err == nil {
 		c.sendTimeout = t
 	}
+	return err
+}
+
+func (c *Conn) SetRecvDeadline(t time.Time) error {
+	err := c.SetReadDeadline(t)
+	return err
+}
+
+func (c *Conn) SetSendDeadline(t time.Time) error {
+	err := c.SetWriteDeadline(t)
 	return err
 }
 

@@ -141,13 +141,22 @@ func NewRockSteadierSubset(ctx context.Context, clients, services []int, magicNu
 
 	pad := len(clients)
 	matrix := make([][]*int, pad)
+	uniqueServices := make([]int, 0, len(services))
+	seenServices := make(map[int]struct{}, len(services))
+	for _, service := range services {
+		if _, ok := seenServices[service]; ok {
+			continue
+		}
+		seenServices[service] = struct{}{}
+		uniqueServices = append(uniqueServices, service)
+	}
 	col := 0
-	for i := 0; i < len(services); i++ {
-		matrix[i%pad] = append(matrix[i%pad], toPoint(services[i]))
+	for i := 0; i < len(uniqueServices); i++ {
+		matrix[i%pad] = append(matrix[i%pad], toPoint(uniqueServices[i]))
 		col = max(col, len(matrix[i%pad]))
 	}
 	// padding
-	ls := len(services)
+	ls := len(uniqueServices)
 	for ; ls%pad != 0; ls++ {
 		matrix[ls%pad] = append(matrix[ls%pad], nil)
 	}
@@ -232,19 +241,41 @@ func (r *RockSteadierSubset) addService(ids []int) {
 	old := r.matrixServices.Load().([][]*int)
 	matrix := make([][]*int, len(old))
 	copy(matrix, old)
+	cloned := make(map[int]bool, len(ids))
 	defer r.matrixServices.Store(matrix)
 
 	for _, id := range ids {
-		// Copy the affected row before append (which may also realloc).
-		row := make([]*int, len(matrix[r.appendIndex]), len(matrix[r.appendIndex])+1)
-		copy(row, matrix[r.appendIndex])
-		row = append(row, toPoint(id))
-		matrix[r.appendIndex] = row
-		x := r.appendIndex
-		y := len(row) - 1
+		if _, ok := r.hasService[id]; ok {
+			continue
+		}
+		x, y := -1, -1
+		for offset := 0; offset < len(matrix) && x == -1; offset++ {
+			rowIndex := (r.appendIndex + offset) % len(matrix)
+			for column, service := range matrix[rowIndex] {
+				if service == nil {
+					x, y = rowIndex, column
+					break
+				}
+			}
+		}
+		if x == -1 {
+			x = r.appendIndex
+			y = len(matrix[x])
+		}
+		if !cloned[x] {
+			row := make([]*int, len(matrix[x]), len(matrix[x])+1)
+			copy(row, matrix[x])
+			matrix[x] = row
+			cloned[x] = true
+		}
+		if y == len(matrix[x]) {
+			matrix[x] = append(matrix[x], toPoint(id))
+		} else {
+			matrix[x][y] = toPoint(id)
+		}
 		r.hasService[id] = [2]int{x, y}
-		r.col = max(r.col, len(row))
-		r.appendIndex = (r.appendIndex + 1) % len(matrix)
+		r.col = max(r.col, len(matrix[x]))
+		r.appendIndex = (x + 1) % len(matrix)
 	}
 }
 
@@ -300,14 +331,18 @@ func (r *RockSteadierSubset) GetServices(client int) []int {
 		return nil
 	}
 	services := make([]int, 0, Lot)
-	oid := idx
+	seen := make(map[int]struct{}, Lot)
 	matrix := r.matrixServices.Load().([][]*int)
 loop:
-	for (idx+1)%len(r.clients) != oid && len(services) != Lot {
+	for scanned := 0; scanned < len(r.clients) && len(services) != Lot; scanned++ {
 		for _, v := range matrix[idx] {
 			if v == nil {
 				continue
 			}
+			if _, ok := seen[*v]; ok {
+				continue
+			}
+			seen[*v] = struct{}{}
 			services = append(services, *v)
 			if len(services) == Lot {
 				break loop

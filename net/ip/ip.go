@@ -18,7 +18,7 @@ func HasLocalIPAddr(ip string) bool {
 }
 
 func HasLocalIP(ip net.IP) bool {
-	if ip.IsLoopback() {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
 		return true
 	}
 
