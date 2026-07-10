@@ -2,6 +2,8 @@ package distributed
 
 import (
 	"context"
+	stderrors "errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -30,6 +32,8 @@ import (
 // subsequent fire repeats the failure. Clamping guarantees the lock
 // genuinely tries to acquire.
 const minLockTTLMs = 100
+
+const timedRunSuffixLength = 16
 
 // timedTaskLockTTL clamps the user-requested TTL into a Redis-acceptable
 // positive integer.
@@ -81,6 +85,12 @@ func (s *Server) GetLocker() locker.Locker {
 	return s.lock
 }
 
+func (s *Server) bindDefaultRouter(signature *task.Signature) {
+	if signature.Router == "" && s.config != nil {
+		signature.Router = s.config.ConsumeQueue
+	}
+}
+
 // RegisteredTasks 注册多个任务
 // handelTaskMap map[string]interface{}
 // interface 规则: 必须是func且必须有返回参数,最后一个出参是error
@@ -127,6 +137,7 @@ func (s *Server) SendTaskWithContext(ctx context.Context, signature *task.Signat
 	if s.prePublishHandler != nil {
 		s.prePublishHandler(signature)
 	}
+	s.bindDefaultRouter(signature)
 	// 任务发布
 	if err := s.controller.Publish(ctx, signature); err != nil {
 		return nil, errors.Wrap(err, "publish err")
@@ -150,68 +161,107 @@ func (s *Server) SendChain(chain *task.Chain) (*result.ChainAsyncResult, error) 
 
 // SendGroupWithContext 发送并行执行的任务组
 func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, concurrency int) ([]*result.AsyncResult, error) {
-	if concurrency < 0 {
+	if concurrency < 1 {
 		concurrency = 1
 	}
-	var (
-		asyncResults = make([]*result.AsyncResult, len(group.Tasks))
-		wg           sync.WaitGroup
-		ln           = len(group.Tasks)
-		errChan      = make(chan error, ln*2)
-		pool         = make(chan struct{}, concurrency)
-		done         = make(chan struct{})
-	)
+	asyncResults := make([]*result.AsyncResult, len(group.Tasks))
+	if err := ctx.Err(); err != nil {
+		return asyncResults, err
+	}
 
 	// 接管任务
-	err := s.backend.GroupTakeOver(group.GroupID, group.Name, group.GetTaskIDs()...)
-	if err != nil {
+	if err := s.backend.GroupTakeOver(group.GroupID, group.Name, group.GetTaskIDs()...); err != nil {
 		return nil, err
 	}
 
-	// 初始化任务
+	// Publish only after every task has a durable pending state. If setup fails,
+	// roll back the group and the states that were already initialized so the
+	// caller can retry the same group ID immediately.
+	initializedTaskIDs := make([]string, 0, len(group.Tasks))
 	for _, signature := range group.Tasks {
-		if err = s.backend.SetStatePending(signature); err != nil {
-			errChan <- err
-			continue
+		if err := ctx.Err(); err != nil {
+			return asyncResults, s.withGroupInitializationCleanup(err, group.GroupID, initializedTaskIDs)
+		}
+		if err := s.backend.SetStatePending(signature); err != nil {
+			primaryErr := errors.Wrapf(err, "set state pending task %s", signature.ID)
+			return asyncResults, s.withGroupInitializationCleanup(primaryErr, group.GroupID, initializedTaskIDs)
+		}
+		initializedTaskIDs = append(initializedTaskIDs, signature.ID)
+	}
+	for _, signature := range group.Tasks {
+		s.bindDefaultRouter(signature)
+	}
+
+	publishErrs := make([]error, len(group.Tasks))
+	pool := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+
+	markCanceled := func(start int, err error) {
+		for index := start; index < len(group.Tasks); index++ {
+			publishErrs[index] = errors.Wrapf(err, "publish task %s", group.Tasks[index].ID)
 		}
 	}
 
-	// 初始化并发池
-	go func() {
-		for i := 0; i < concurrency; i++ {
-			pool <- struct{}{}
+admission:
+	for index, signature := range group.Tasks {
+		if err := ctx.Err(); err != nil {
+			markCanceled(index, err)
+			break
 		}
-	}()
+		select {
+		case pool <- struct{}{}:
+		case <-ctx.Done():
+			markCanceled(index, ctx.Err())
+			break admission
+		}
+		// Cancellation can race with acquiring the admission slot. Recheck before
+		// declaring this publisher started, and leave all later slots untouched.
+		if err := ctx.Err(); err != nil {
+			<-pool
+			markCanceled(index, err)
+			break
+		}
 
-	wg.Add(ln)
-	// 执行任务
-	for i, signature := range group.Tasks {
-		<-pool
+		wg.Add(1)
 		go func(t *task.Signature, index int) {
 			defer wg.Done()
-			// 发布任务
-			err := s.controller.Publish(ctx, t)
-			pool <- struct{}{}
-			if err != nil {
-				errChan <- errors.Wrap(err, "set state pending")
+			defer func() { <-pool }()
+			if err := s.controller.Publish(ctx, t); err != nil {
+				publishErrs[index] = errors.Wrapf(err, "publish task %s", t.ID)
 				return
 			}
 			asyncResults[index] = result.NewAsyncResult(t, s.backend)
-		}(signature, i)
+		}(signature, index)
 	}
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
 
-	select {
-	case <-ctx.Done():
-		return asyncResults, ctx.Err()
-	case err = <-errChan:
-		return asyncResults, err
-	case <-done:
-		return asyncResults, nil
+	// The result and error slices are caller-owned after return, so every writer
+	// must be joined before either slice is inspected or returned.
+	wg.Wait()
+	for _, err := range publishErrs {
+		if err != nil {
+			return asyncResults, err
+		}
 	}
+	if err := ctx.Err(); err != nil {
+		return asyncResults, err
+	}
+	return asyncResults, nil
+}
+
+func (s *Server) withGroupInitializationCleanup(primaryErr error, groupID string, taskIDs []string) error {
+	var resetTaskErr error
+	if len(taskIDs) > 0 {
+		resetTaskErr = s.backend.ResetTask(taskIDs...)
+	}
+	resetGroupErr := s.backend.ResetGroup(groupID)
+	errs := []error{primaryErr}
+	if resetTaskErr != nil {
+		errs = append(errs, fmt.Errorf("reset initialized tasks: %w", resetTaskErr))
+	}
+	if resetGroupErr != nil {
+		errs = append(errs, fmt.Errorf("reset group: %w", resetGroupErr))
+	}
+	return stderrors.Join(errs...)
 }
 
 // SendGroup 发送并行任务组
@@ -303,7 +353,8 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 		return err
 	}
 	f := func() {
-		group, _ := task.NewGroup(groupID, name, task.CopySignatures(signatures...)...)
+		runSuffix := rand_string.RandomLetter(timedRunSuffixLength)
+		group := newTimedGroupRun(groupID, name, runSuffix, signatures...)
 		// get lock
 		key := getLockName(name, spec)
 		mark := rand_string.RandomLetter(16)
@@ -331,8 +382,8 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 		return err
 	}
 	f := func() {
-		group, _ := task.NewGroup(groupID, name, task.CopySignatures(signatures...)...)
-		c, _ := task.NewGroupCallback(group, name, callback)
+		runSuffix := rand_string.RandomLetter(timedRunSuffixLength)
+		c := newTimedGroupCallbackRun(groupID, name, runSuffix, callback, signatures...)
 		// get lock
 		key := getLockName(name, spec)
 		mark := rand_string.RandomLetter(16)
@@ -350,6 +401,44 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 	}
 	_, err = s.scheduler.AddFunc(spec, f)
 	return err
+}
+
+func newTimedGroupRun(groupID, name, runSuffix string, signatures ...*task.Signature) *task.Group {
+	runtimeSignatures := task.CopySignatures(signatures...)
+	for index, signature := range runtimeSignatures {
+		rekeyTimedSignature(signature, runSuffix, fmt.Sprintf("task-%d", index), make(map[*task.Signature]struct{}))
+	}
+	group, _ := task.NewGroup(groupID+":"+runSuffix, name, runtimeSignatures...)
+	return group
+}
+
+func newTimedGroupCallbackRun(groupID, name, runSuffix string, callback *task.Signature, signatures ...*task.Signature) *task.GroupCallback {
+	group := newTimedGroupRun(groupID, name, runSuffix, signatures...)
+	var runtimeCallback *task.Signature
+	if callback != nil {
+		runtimeCallback = task.CopySignature(callback)
+		rekeyTimedSignature(runtimeCallback, runSuffix, "callback", make(map[*task.Signature]struct{}))
+	}
+	groupCallback, _ := task.NewGroupCallback(group, name, runtimeCallback)
+	return groupCallback
+}
+
+func rekeyTimedSignature(signature *task.Signature, runSuffix, path string, visited map[*task.Signature]struct{}) {
+	if signature == nil {
+		return
+	}
+	if _, ok := visited[signature]; ok {
+		return
+	}
+	visited[signature] = struct{}{}
+	signature.ID = fmt.Sprintf("%s:%s:%s", signature.ID, runSuffix, path)
+	for index, callback := range signature.CallbackOnSuccess {
+		rekeyTimedSignature(callback, runSuffix, fmt.Sprintf("%s.success-%d", path, index), visited)
+	}
+	for index, callback := range signature.CallbackOnError {
+		rekeyTimedSignature(callback, runSuffix, fmt.Sprintf("%s.error-%d", path, index), visited)
+	}
+	rekeyTimedSignature(signature.CallbackChord, runSuffix, path+".chord", visited)
 }
 
 func getLockName(name, spec string) string {

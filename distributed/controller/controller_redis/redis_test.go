@@ -21,10 +21,9 @@ func InitController() controller.Controller {
 	if client == nil {
 		return nil
 	}
-	// Without a live Redis the client is created lazily but StartConsuming
-	// panics in the Ping-failure retry path; skip instead. The FIFO and
-	// watch-error behaviour is covered deterministically by fifo_test.go via
-	// miniredis.
+	// Without a live Redis the client is created lazily; skip this integration
+	// test. Ping-failure behavior is covered deterministically by issue79_test.go,
+	// while FIFO and watch-error behavior is covered by fifo_test.go.
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		_ = client.Close()
 		return nil

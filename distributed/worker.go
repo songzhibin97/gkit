@@ -2,6 +2,7 @@ package distributed
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"sync"
@@ -19,6 +20,20 @@ var (
 	ErrWorkerGracefullyQuit = errors.New("worker quit gracefully")
 	ErrWorkerAbruptlyQuit   = errors.New("worker quit abruptly")
 )
+
+const maxRetryDelaySeconds = int64(math.MaxInt64) / int64(time.Second)
+
+// nextRetryDelay returns the next Fibonacci retry interval in seconds and as
+// a time.Duration. time.Duration is nanoseconds, so multiplying an arbitrary
+// user-supplied second count can overflow; clamp before the multiplication.
+func nextRetryDelay(interval int) (int, time.Duration) {
+	next := retry.FibonacciNext(interval)
+	seconds := int64(next)
+	if seconds > maxRetryDelaySeconds {
+		seconds = maxRetryDelaySeconds
+	}
+	return int(seconds), time.Duration(seconds) * time.Second
+}
 
 // Worker 任务处理
 type Worker struct {
@@ -121,9 +136,10 @@ func (w *Worker) handlerRetry(signature *task.Signature) error {
 	signature.RetryCount--
 
 	// 获取间隔时间
-	signature.RetryInterval = retry.FibonacciNext(signature.RetryInterval)
+	var retryDelay time.Duration
+	signature.RetryInterval, retryDelay = nextRetryDelay(signature.RetryInterval)
 
-	eta := time.Now().Add(time.Second * time.Duration(signature.RetryInterval))
+	eta := time.Now().Add(retryDelay)
 	signature.ETA = &eta
 	w.bindService.helper.Warnf("Task %s failed. Going to retry in %d seconds.", signature.ID, signature.RetryInterval)
 	_, err := w.bindService.SendTask(signature)

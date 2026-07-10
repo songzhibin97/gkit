@@ -3,6 +3,7 @@ package result
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -104,26 +105,46 @@ func (asyncResult *AsyncResult) Monitor() ([]reflect.Value, error) {
 		return nil, ErrBackendEmpty
 	}
 
-	asyncResult.GetState()
-	if asyncResult.state.IsFailure() {
-		return nil, errors.New(asyncResult.state.Error)
+	state, err := asyncResult.GetStateWithError()
+	if err != nil {
+		return nil, err
 	}
-	if asyncResult.state.IsSuccess() {
-		return task.ReflectTaskResults(asyncResult.state.Results)
+	if state.IsFailure() {
+		return nil, errors.New(state.Error)
+	}
+	if state.IsSuccess() {
+		return task.ReflectTaskResults(state.Results)
 	}
 	return nil, nil
 }
 
-// GetState 获取任务状态
-func (asyncResult *AsyncResult) GetState() *task.Status {
+// GetStateWithError gets the current task state and exposes backend read
+// failures with task context. The last cached state is preserved on failure.
+func (asyncResult *AsyncResult) GetStateWithError() (*task.Status, error) {
 	if asyncResult.state.IsCompleted() {
-		return asyncResult.state
+		return asyncResult.state, nil
+	}
+	if asyncResult.backend == nil {
+		return asyncResult.state, ErrBackendEmpty
 	}
 	taskState, err := asyncResult.backend.GetStatus(asyncResult.Signature.ID)
-	if err == nil {
-		asyncResult.state = taskState
+	if err != nil {
+		return asyncResult.state, fmt.Errorf(
+			"result: get state for task %q: %w",
+			asyncResult.Signature.ID,
+			err,
+		)
 	}
-	return asyncResult.state
+	asyncResult.state = taskState
+	return asyncResult.state, nil
+}
+
+// GetState gets the current task state. This compatibility wrapper preserves
+// the existing signature and deliberately discards backend read errors; use
+// GetStateWithError when the caller must distinguish a read failure.
+func (asyncResult *AsyncResult) GetState() *task.Status {
+	state, _ := asyncResult.GetStateWithError()
+	return state
 }
 
 // Get 返回结果
