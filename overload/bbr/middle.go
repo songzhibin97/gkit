@@ -36,23 +36,23 @@ func newLimiterWithGroup(g *Group) middleware.MiddleWare {
 			if allowErr != nil {
 				return nil, allowErr
 			}
-			// Always release the inFlight slot, even if next panics. The
-			// previous code called f(...) inline after `next` returned, so a
-			// panic in any downstream middleware leaked the slot permanently
-			// — eventually inFlight > maxFlight for that key and every
-			// request to it was dropped.
+			completed := false
+			// Do not use recover() to detect this state: on Go 1.20 a
+			// panic(nil) is indistinguishable from no panic by its recovered
+			// value. A normal-completion flag lets every panic propagate while
+			// the defer still releases the in-flight slot as Drop.
 			defer func() {
-				if r := recover(); r != nil {
+				if !completed {
 					f(overload.DoneInfo{Op: overload.Drop})
-					panic(r)
+					return
 				}
-				if err != nil {
-					f(overload.DoneInfo{Op: overload.Drop})
-				} else {
-					f(overload.DoneInfo{Op: defaultOp})
-				}
+				// A normally-returning handler completed real work even when it
+				// reports a business error. Preserve the configured operation so
+				// only fail-fast or an explicit Drop skips success stats.
+				f(overload.DoneInfo{Op: defaultOp})
 			}()
 			resp, err = next(ctx, i)
+			completed = true
 			return resp, err
 		}
 	}

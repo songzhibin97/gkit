@@ -2,6 +2,7 @@ package arp
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -10,6 +11,20 @@ import (
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/routing"
 )
+
+const (
+	arpCaptureReadTimeout = 50 * time.Millisecond
+	arpReplyTimeout       = time.Second
+)
+
+var errARPReplyTimeout = errors.New("timeout getting ARP reply")
+
+type arpHandle interface {
+	WritePacketData([]byte) error
+	ReadPacketData() ([]byte, gopacket.CaptureInfo, error)
+}
+
+type openLiveFunc func(string, int32, bool, time.Duration) (*pcap.Handle, error)
 
 type ExtraInfo struct {
 	IFace     *net.Interface
@@ -30,9 +45,9 @@ func GetRouterInfo(dstIp net.IP) (*ExtraInfo, error) {
 	}
 	extraInfo.IFace = iFace
 	extraInfo.SrcIP = preferredSrc
-	handle, err := pcap.OpenLive(iFace.Name, 1024, true, pcap.BlockForever)
+	handle, err := openARPHandle(iFace.Name, pcap.OpenLive)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open ARP capture on %s: %w", iFace.Name, err)
 	}
 	defer handle.Close()
 	dstHWAddr, err := getHWAddr(dstIp, gateway, preferredSrc, iFace, handle)
@@ -43,7 +58,11 @@ func GetRouterInfo(dstIp net.IP) (*ExtraInfo, error) {
 	return extraInfo, nil
 }
 
-func getHWAddr(ip, gateway, srcIP net.IP, networkInterface *net.Interface, handle *pcap.Handle) (net.HardwareAddr, error) {
+func openARPHandle(interfaceName string, open openLiveFunc) (*pcap.Handle, error) {
+	return open(interfaceName, 1024, true, arpCaptureReadTimeout)
+}
+
+func getHWAddr(ip, gateway, srcIP net.IP, networkInterface *net.Interface, handle arpHandle) (net.HardwareAddr, error) {
 	arpDst := ip
 	if gateway != nil {
 		arpDst = gateway
@@ -78,19 +97,24 @@ func getHWAddr(ip, gateway, srcIP net.IP, networkInterface *net.Interface, handl
 		return nil, err
 	}
 	if err := handle.WritePacketData(buf.Bytes()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("write ARP request: %w", err)
 	}
 
-	start := time.Now()
+	return readARPReply(handle, arpDst, time.Now().Add(arpReplyTimeout), time.Now)
+}
+
+func readARPReply(handle interface {
+	ReadPacketData() ([]byte, gopacket.CaptureInfo, error)
+}, arpDst net.IP, deadline time.Time, now func() time.Time) (net.HardwareAddr, error) {
 	for {
-		if time.Since(start) > time.Millisecond*time.Duration(1000) {
-			return nil, errors.New("timeout getting ARP reply")
+		if !now().Before(deadline) {
+			return nil, errARPReplyTimeout
 		}
 		data, _, err := handle.ReadPacketData()
 		if errors.Is(err, pcap.NextErrorTimeoutExpired) {
 			continue
 		} else if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read ARP reply: %w", err)
 		}
 		packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.NoCopy)
 		if arpLayer := packet.Layer(layers.LayerTypeARP); arpLayer != nil {
