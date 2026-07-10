@@ -206,10 +206,10 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
 			ret.AddFiles(CreateFile(v.Field.Name, fmt.Sprintf("map[%s]%s",
 				PbTypeToGo(keyType), PbTypeToGo(valueType)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
 		case *proto.Message:
-			p.parseMessage(v, ms.Name+prefix)
+			p.parseMessage(v, prefix+ms.Name)
 		case *proto.Enum:
 			ret.AddFiles(CreateFile(v.Name, v.Name, "enum"))
-			p.parseEnum(v, ms.Name+prefix)
+			p.parseEnum(v, prefix+ms.Name)
 		}
 	}
 	for _, f := range p.ParseMessages {

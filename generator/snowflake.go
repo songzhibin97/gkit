@@ -135,8 +135,15 @@ func isPrivateIPv4(ip net.IP) bool {
 
 // IpToUint16 将IP地址转化为uint16
 func IpToUint16(ip net.IP) (uint16, error) {
-	return uint16(ip[2])<<8 + uint16(ip[3]), nil
+	ipv4 := ip.To4()
+	if ipv4 == nil {
+		return 0, ErrInvalidIPv4
+	}
+	return uint16(ipv4[2])<<8 + uint16(ipv4[3]), nil
 }
+
+// ErrInvalidIPv4 is returned when an address cannot be represented as IPv4.
+var ErrInvalidIPv4 = errors.New("generator: invalid IPv4 address")
 
 // LocalIpToUint16 本地IP转化为uint16
 func LocalIpToUint16() (uint16, error) {
@@ -144,7 +151,7 @@ func LocalIpToUint16() (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	return uint16(ip[2])<<8 + uint16(ip[3]), nil
+	return IpToUint16(ip)
 }
 
 // ErrStartTimeInFuture is returned by NewSnowflakeE when startTime is later

@@ -261,7 +261,12 @@ func (c *configs) GetCPUConfigs() typeConfig {
 func (c *configs) GetGroupConfigs() groupConfigs {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return *c.GroupConfigs
+	config := *c.GroupConfigs
+	if c.GroupConfigs.typeConfig != nil {
+		typeConfigCopy := *c.GroupConfigs.typeConfig
+		config.typeConfig = &typeConfigCopy
+	}
+	return config
 }
 
 // GetThreadConfigs return a copy of threadConfigs

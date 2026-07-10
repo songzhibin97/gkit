@@ -89,6 +89,11 @@ func FromError(err error) *Error {
 				).AddMetadata(d.Metadata)
 			}
 		}
+		return New(
+			httputil.StatusFromGRPCCode(gs.Code()),
+			UnknownReason,
+			gs.Message(),
+		)
 	}
 	return New(UnknownCode, UnknownReason, err.Error())
 }

@@ -49,7 +49,7 @@ type token struct {
 }
 
 func (t *token) ForIndex(i int) string {
-	v, err := aes.Encrypt(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, time.Now().Format(layout), i), t.salt)
+	v, err := aes.EncryptGCM(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, time.Now().Format(layout), i), t.salt)
 	if err != nil {
 		return ""
 	}
@@ -60,7 +60,7 @@ func (t *token) GetIndex(s string) (int, error) {
 	if s == "" {
 		return 0, nil
 	}
-	decrypted, err := aes.Decrypt(s, t.salt)
+	decrypted, err := aes.DecryptGCM(s, t.salt)
 	if err != nil {
 		return -1, ErrInvalidToken
 	}

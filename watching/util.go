@@ -2,6 +2,7 @@ package watching
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -46,11 +47,10 @@ func readUint(path string) (uint64, error) {
 
 // only reserve the top n.
 func trimResult(buffer bytes.Buffer) string {
-	index := TrimResultTopN
 	arr := strings.SplitN(buffer.String(), "\n\n", TrimResultTopN+1)
-
-	if len(arr) <= TrimResultTopN {
-		index = len(arr) - 1
+	index := len(arr)
+	if index > TrimResultTopN {
+		index = TrimResultTopN
 	}
 
 	return strings.Join(arr[:index], "\n\n")
@@ -192,9 +192,9 @@ func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfi
 		// write to log
 		if dumpConfigs.DumpFullStack {
 			res := trimResult(data)
-			return fmt.Errorf(res) // nolint:goerr113
+			return errors.New(res) // nolint:goerr113
 		}
-		return fmt.Errorf(data.String())
+		return errors.New(data.String())
 	}
 
 	bf, _, err := getBinaryFileNameAndCreate(dumpConfigs.DumpPath, dumpType, eventID) // nolint:gosec
