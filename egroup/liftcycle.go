@@ -77,7 +77,7 @@ func (l *LifeAdmin) Start() error {
 		for {
 			select {
 			case <-l.g.ctx.Done():
-				return l.g.ctx.Err()
+				return nil
 			case sig := <-c:
 				l.opts.handler(l, sig)
 			}
@@ -115,13 +115,14 @@ func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 
 	l := &LifeAdmin{opts: o}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	if o.g == nil {
+		ctx, cancel := context.WithCancel(context.Background())
 		o.g = WithContext(ctx)
+		l.shutdown = cancel
+	} else {
+		l.shutdown = o.g.cancel
 	}
 	l.g = o.g
-	l.shutdown = cancel
 
 	return l
 }
