@@ -76,29 +76,45 @@ func docTagValue(doc string) (string, bool) {
 	return strings.TrimSpace(parts[1]), true
 }
 
+func rpcDocTag(doc string) (name, value string, ok bool) {
+	doc = strings.TrimSpace(doc)
+	switch {
+	case strings.HasPrefix(doc, "//"):
+		doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+	case strings.HasPrefix(doc, "/*"):
+		doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
+		doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
+	}
+
+	for _, tag := range []struct {
+		prefix string
+		name   string
+	}{
+		{prefix: "@method:", name: "method"},
+		{prefix: "@service:", name: "service"},
+		{prefix: "@router:", name: "router"},
+	} {
+		if strings.HasPrefix(doc, tag.prefix) {
+			value, ok := docTagValue(doc)
+			return tag.name, value, ok
+		}
+	}
+	return "", "", false
+}
+
 func parseDoc(server *Server) {
 	for _, doc := range server.Doc {
-		doc = strings.TrimSpace(doc)
-		switch {
-		case strings.HasPrefix(doc, "//"):
-			doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
-		case strings.HasPrefix(doc, "/*"):
-			doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
-			doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
+		name, value, ok := rpcDocTag(doc)
+		if !ok {
+			continue
 		}
-		switch {
-		case strings.HasPrefix(doc, "@method:"):
-			if v, ok := docTagValue(doc); ok {
-				server.Method = v
-			}
-		case strings.HasPrefix(doc, "@service:"):
-			if v, ok := docTagValue(doc); ok {
-				server.ServerName = v
-			}
-		case strings.HasPrefix(doc, "@router:"):
-			if v, ok := docTagValue(doc); ok {
-				server.Router = v
-			}
+		switch name {
+		case "method":
+			server.Method = value
+		case "service":
+			server.ServerName = value
+		case "router":
+			server.Router = value
 		}
 	}
 }

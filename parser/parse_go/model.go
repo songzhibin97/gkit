@@ -48,7 +48,7 @@ type Server struct {
 	OutputParameter string         // OutputParameter: 出参
 	Doc             []string       // Doc: 函数注释信息,可以通过自定义的 parseFunc 去进行解析
 	Notes           []*ast.Comment // Notes: 函数中的注释信息,用于埋点打桩
-
+	signatureErr    error
 }
 
 // CreateServer 创建Server
@@ -224,30 +224,115 @@ func (g *GoParsePB) parseFunc(fn *ast.FuncDecl) {
 	}
 	name = fn.Name.Name
 
-	if fn.Type != nil {
-		t := fn.Type
-		if t.Params != nil && t.Params.List != nil {
-			switch parameter := t.Params.List[0].Type.(type) {
-			case *ast.Ident:
-				inputParameter = parameter.Name
-			}
-		}
-		if t.Results != nil && t.Results.List != nil {
-			switch parameter := t.Results.List[0].Type.(type) {
-			case *ast.Ident:
-				outputParameter = parameter.Name
-			}
-		}
-	}
+	inputParameter, outputParameter, signatureErr := parseRPCSignature(fn.Type)
 	ret := CreateServer(name, int(fn.Pos()), int(fn.End()), tags, inputParameter, outputParameter)
+	ret.signatureErr = signatureErr
 	for _, f := range g.ParseFuncS {
 		f(ret)
 	}
 	g.AddServers(ret)
 }
 
+func parseRPCSignature(fn *ast.FuncType) (string, string, error) {
+	if fn == nil {
+		return "", "", errors.New("request and response types are missing")
+	}
+
+	params := fieldTypes(fn.Params)
+	if len(params) > 0 && isContextType(params[0]) {
+		params = params[1:]
+	}
+	if len(params) == 0 {
+		return "", "", errors.New("request parameter is missing")
+	}
+	if len(params) != 1 {
+		return "", "", errors.New("expected exactly one request parameter, optionally after context.Context")
+	}
+	input, ok := rpcMessageType(params[0])
+	if !ok {
+		return "", "", errors.New("request must be a named type or pointer to a named type")
+	}
+
+	results := fieldTypes(fn.Results)
+	if len(results) == 0 {
+		return "", "", errors.New("response result is missing")
+	}
+	if len(results) > 2 {
+		return "", "", errors.New("expected one response result and an optional error")
+	}
+	output, ok := rpcMessageType(results[0])
+	if !ok {
+		return "", "", errors.New("response must be a named type or pointer to a named type")
+	}
+	if len(results) == 2 && !isErrorType(results[1]) {
+		return "", "", errors.New("second result must be error")
+	}
+
+	return input, output, nil
+}
+
+func fieldTypes(fields *ast.FieldList) []ast.Expr {
+	if fields == nil {
+		return nil
+	}
+	var types []ast.Expr
+	for _, field := range fields.List {
+		count := len(field.Names)
+		if count == 0 {
+			count = 1
+		}
+		for i := 0; i < count; i++ {
+			types = append(types, field.Type)
+		}
+	}
+	return types
+}
+
+func isContextType(expr ast.Expr) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "Context" {
+		return false
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Name == "context"
+}
+
+func isErrorType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "error"
+}
+
+func rpcMessageType(expr ast.Expr) (string, bool) {
+	if pointer, ok := expr.(*ast.StarExpr); ok {
+		expr = pointer.X
+	}
+	ident, ok := expr.(*ast.Ident)
+	if !ok || ident.Name == "error" {
+		return "", false
+	}
+	return ident.Name, true
+}
+
+func hasRPCDocTags(docs []string) bool {
+	for _, doc := range docs {
+		if _, _, ok := rpcDocTag(doc); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func isRPCServer(server *Server) bool {
+	return hasRPCDocTags(server.Doc) || server.ServerName != "" || server.Method != "" || server.Router != ""
+}
+
 // checkFormat 简单处理meta信息,将对应func、server中的注释移入
 func (g *GoParsePB) checkFormat() error {
+	for _, serve := range g.Server {
+		if isRPCServer(serve) && serve.signatureErr != nil {
+			return fmt.Errorf("parse_go: function %s has unsupported RPC signature: %w", serve.Name, serve.signatureErr)
+		}
+	}
 	// 之前已经调用过了,就直接返回了
 	if _, ok := g.Metas["ServerName"]; ok {
 		return nil
@@ -359,11 +444,32 @@ service {{.Metas.ServerName}}{
 		return ""
 	}
 	b := buffer.NewIoBuffer(1024)
-	err = tmpl.Execute(b, g)
+	data := struct {
+		PackageName string
+		Message     []*Message
+		Metas       map[string]string
+		Server      []*Server
+	}{
+		PackageName: g.PackageName(),
+		Message:     g.Message,
+		Metas:       g.Metas,
+		Server:      g.rpcServers(),
+	}
+	err = tmpl.Execute(b, data)
 	if err != nil {
 		return ""
 	}
 	return b.String()
+}
+
+func (g *GoParsePB) rpcServers() []*Server {
+	servers := make([]*Server, 0, len(g.Server))
+	for _, server := range g.Server {
+		if isRPCServer(server) {
+			servers = append(servers, server)
+		}
+	}
+	return servers
 }
 
 // PileDriving 源文件打桩
