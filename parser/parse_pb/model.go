@@ -231,9 +231,9 @@ func (p *PbParseGo) parseService(sv *proto.Service) {
 				for _, doc := range sv.Comment.Lines {
 					server.Doc = append(server.Doc, doc)
 				}
-				for _, f := range p.ParseServices {
-					f(server)
-				}
+			}
+			for _, f := range p.ParseServices {
+				f(server)
 			}
 			p.AddServers(server)
 		}
