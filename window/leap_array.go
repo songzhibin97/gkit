@@ -139,10 +139,14 @@ func (s *LeapArray) ValuesChick(now uint64, chick TimeChick) []*Bucket {
 	return ret
 }
 
-// NewLeapArray 初始化 leap array
+// NewLeapArray 初始化 leap array。n 或 intervalSize 为零时返回
+// ErrWindowNotSegmentation。
 func NewLeapArray(n uint64, intervalSize uint64, builder BucketBuilder) (*LeapArray, error) {
 	if builder == nil {
 		return nil, ErrBucketBuilderIsNil
+	}
+	if n == 0 || intervalSize == 0 {
+		return nil, ErrWindowNotSegmentation
 	}
 	if intervalSize%n != 0 {
 		return nil, ErrWindowNotSegmentation
