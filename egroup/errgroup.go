@@ -33,7 +33,7 @@ func WithContextGroup(ctx context.Context, group goroutine.GGroup) *Group {
 func WithContext(ctx context.Context, opts ...options.Option) *Group {
 	g := &Group{}
 	g.ctx, g.cancel = context.WithCancel(ctx)
-	g.goroutine = goroutine.NewGoroutine(ctx, opts...)
+	g.goroutine = goroutine.NewGoroutine(g.ctx, opts...)
 	return g
 }
 
