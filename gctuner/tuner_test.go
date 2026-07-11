@@ -1,8 +1,11 @@
 package gctuner
 
 import (
+	"os"
+	"os/exec"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,8 +15,36 @@ import (
 
 var testHeap []byte
 
+const gogcOffHelperEnv = "GKIT_GCTUNER_GOGC_OFF_HELPER"
+
+func TestTuningZeroRestoresGOGCOff(t *testing.T) {
+	if os.Getenv(gogcOffHelperEnv) == "1" {
+		Tuning(0)
+		got := debug.SetGCPercent(-1)
+		debug.SetGCPercent(got)
+		if got != -1 {
+			t.Fatalf("runtime GC percent after Tuning(0) = %d, want -1 for GOGC=off", got)
+		}
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestTuningZeroRestoresGOGCOff$", "-test.v")
+	env := make([]string, 0, len(os.Environ())+2)
+	for _, value := range os.Environ() {
+		if strings.HasPrefix(value, "GOGC=") || strings.HasPrefix(value, gogcOffHelperEnv+"=") {
+			continue
+		}
+		env = append(env, value)
+	}
+	cmd.Env = append(env, "GOGC=off", gogcOffHelperEnv+"=1")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("GOGC=off helper failed: %v\n%s", err, output)
+	}
+}
+
 func TestTuningZeroRestoresRuntimeGCPercent(t *testing.T) {
-	originalGCPercent := debug.SetGCPercent(int(defaultGCPercent))
+	originalGCPercent := debug.SetGCPercent(configuredRuntimeGCPercent)
 	t.Cleanup(func() {
 		tuningMu.Lock()
 		if globalTuner != nil {
@@ -35,9 +66,9 @@ func TestTuningZeroRestoresRuntimeGCPercent(t *testing.T) {
 
 	Tuning(0)
 
-	gotRuntimeGCPercent := debug.SetGCPercent(int(defaultGCPercent))
+	gotRuntimeGCPercent := debug.SetGCPercent(configuredRuntimeGCPercent)
 	debug.SetGCPercent(gotRuntimeGCPercent)
-	assert.Equal(t, int(defaultGCPercent), gotRuntimeGCPercent)
+	assert.Equal(t, configuredRuntimeGCPercent, gotRuntimeGCPercent)
 	assert.Equal(t, defaultGCPercent, GetGCPercent())
 
 	tuningMu.Lock()

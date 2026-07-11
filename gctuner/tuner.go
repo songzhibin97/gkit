@@ -23,12 +23,22 @@ var (
 
 var defaultGCPercent uint32 = 100
 
+// configuredRuntimeGCPercent is the process startup GC setting restored when
+// tuning is disabled. It is signed because the runtime represents GOGC=off as
+// -1, while the public tuning/reporting API remains uint32-based.
+var configuredRuntimeGCPercent = 100
+
 func init() {
 	gogcEnv := os.Getenv("GOGC")
+	if gogcEnv == "off" {
+		configuredRuntimeGCPercent = -1
+		return
+	}
 	gogc, err := strconv.ParseInt(gogcEnv, 10, 32)
 	if err != nil {
 		return
 	}
+	configuredRuntimeGCPercent = int(gogc)
 	defaultGCPercent = uint32(gogc)
 }
 
@@ -51,7 +61,7 @@ func Tuning(threshold uint64) {
 			globalTuner.stop()
 			globalTuner = nil
 		}
-		debug.SetGCPercent(int(defaultGCPercent))
+		debug.SetGCPercent(configuredRuntimeGCPercent)
 		return
 	}
 
