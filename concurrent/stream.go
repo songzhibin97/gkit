@@ -81,13 +81,13 @@ func TaskWhile(ctx context.Context, valueStream <-chan interface{}, fn func(v in
 				if !ok {
 					return
 				}
-				if fn(v) {
-					select {
-					case <-ctx.Done():
-						return
-					case outStream <- v:
-					}
+				if !fn(v) {
 					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case outStream <- v:
 				}
 			}
 		}
