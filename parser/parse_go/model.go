@@ -137,12 +137,25 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl) {
 			if sType, ok := v.Type.(*ast.StructType); ok {
 
 				for _, field := range sType.Fields.List {
-					var tag, name string
+					var tag string
 					if field.Tag != nil {
 						tag = field.Tag.Value
 					}
-					if field.Names != nil {
-						name = field.Names[0].Name
+					names := []string{""}
+					if len(field.Names) > 0 {
+						names = make([]string, len(field.Names))
+						for i, name := range field.Names {
+							names[i] = name.Name
+						}
+					}
+					addFields := func(tGo, tPb string) {
+						for _, name := range names {
+							fieldName := name
+							if fieldName == "" {
+								fieldName = tPb
+							}
+							ret.AddFiles(CreateFile(tag, fieldName, tGo, tPb))
+						}
 					}
 
 					if field.Type != nil {
@@ -153,26 +166,27 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl) {
 
 						case *ast.Ident:
 							if tType.Obj != nil {
-								// 去除接口类型
-								continue
+								typeSpec, ok := tType.Obj.Decl.(*ast.TypeSpec)
+								if !ok {
+									continue
+								}
+								if _, ok := typeSpec.Type.(*ast.StructType); !ok {
+									continue
+								}
 							}
 							tGo := fmt.Sprintf(`%s`, tType.Name)
 							tPb := fmt.Sprintf("%s", GoTypeToPB(tType.Name))
-							if name == "" {
-								ret.AddFiles(CreateFile(tag, tPb, tGo, tPb))
-							} else {
-								ret.AddFiles(CreateFile(tag, name, tGo, tPb))
-							}
+							addFields(tGo, tPb)
 
 						case *ast.ArrayType:
 							if aType, ok := tType.Elt.(*ast.Ident); ok {
 								tGo := fmt.Sprintf(`[]%s`, aType.Name)
 								if aType.Name == "byte" {
 									tPb := `bytes`
-									ret.AddFiles(CreateFile(tag, name, tGo, tPb))
+									addFields(tGo, tPb)
 								} else {
 									tPb := fmt.Sprintf(`repeated %s`, GoTypeToPB(aType.Name))
-									ret.AddFiles(CreateFile(tag, name, tGo, tPb))
+									addFields(tGo, tPb)
 								}
 
 							}
@@ -190,7 +204,7 @@ func (g *GoParsePB) parseStruct(st *ast.GenDecl) {
 								mk, mv := GoTypeToPB(mKey.Name), GoTypeToPB(mValue.Name)
 								tGo := fmt.Sprintf(`map[%s]%s`, mk, mv)
 								tPb := fmt.Sprintf(`map<%s,%s>`, mk, mv)
-								ret.AddFiles(CreateFile(tag, name, tGo, tPb))
+								addFields(tGo, tPb)
 							}
 						}
 					}

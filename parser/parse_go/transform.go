@@ -2,6 +2,7 @@ package parse_go
 
 var GoToPBMapping = map[string]string{
 	"int":     "int64",
+	"int8":    "int32",
 	"float":   "double",
 	"int16":   "int32",
 	"float16": "double",
@@ -9,6 +10,9 @@ var GoToPBMapping = map[string]string{
 	"float32": "float",
 	"int32":   "int32",
 	"int64":   "int64",
+	"uint":    "uint32",
+	"uint8":   "uint32",
+	"uint16":  "uint32",
 	"uint32":  "uint32",
 	"uint64":  "uint64",
 	"bool":    "bool",
@@ -28,7 +32,7 @@ func GoTypeToPB(s string) string {
 func IsMappingKey(key string) bool {
 	// Map key cannot be float, double, bytes, message, or enum types
 	switch key {
-	case "int32", "int64", "uint32", "uint64", "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64", "string":
+	case "int32", "int64", "uint32", "uint64", "sint32", "sint64", "fixed32", "fixed64", "sfixed32", "sfixed64", "bool", "string":
 		return true
 	default:
 		return false
