@@ -160,8 +160,29 @@ func TestPadKeyE_EmptyReturnsError(t *testing.T) {
 }
 
 func TestPadKeyToLengthE_EmptyReturnsError(t *testing.T) {
-	if _, err := PadKeyToLengthE("", 16); err != ErrEmptyKey {
-		t.Fatalf("PadKeyToLengthE(\"\", 16) err = %v, want ErrEmptyKey", err)
+	for _, targetLength := range []int{16, -1} {
+		if _, err := PadKeyToLengthE("", targetLength); err != ErrEmptyKey {
+			t.Fatalf("PadKeyToLengthE(\"\", %d) err = %v, want ErrEmptyKey", targetLength, err)
+		}
+	}
+}
+
+func TestPadKeyToLengthE_NegativeLengthReturnsError(t *testing.T) {
+	if _, err := PadKeyToLengthE("x", -1); err != ErrInvalidTargetLength {
+		t.Fatalf("PadKeyToLengthE(\"x\", -1) err = %v, want ErrInvalidTargetLength", err)
+	}
+}
+
+func TestPadKeyToLengthE_NonNegativeLengthsPreserveLegacyResult(t *testing.T) {
+	for _, targetLength := range []int{0, 1, 3, 8} {
+		want := PadKeyToLength("abc", targetLength)
+		got, err := PadKeyToLengthE("abc", targetLength)
+		if err != nil {
+			t.Fatalf("PadKeyToLengthE(\"abc\", %d) err = %v", targetLength, err)
+		}
+		if got != want {
+			t.Fatalf("PadKeyToLengthE(\"abc\", %d) = %q, want %q", targetLength, got, want)
+		}
 	}
 }
 
