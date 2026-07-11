@@ -19,16 +19,20 @@ import (
 )
 
 type reliableTestProcessor struct {
-	started chan struct{}
-	release chan struct{}
-	err     error
-	once    sync.Once
+	started  chan struct{}
+	release  chan struct{}
+	returned chan struct{}
+	err      error
+	once     sync.Once
 }
 
 func (p *reliableTestProcessor) Process(*task.Signature) error {
 	p.once.Do(func() { close(p.started) })
 	if p.release != nil {
 		<-p.release
+	}
+	if p.returned != nil {
+		close(p.returned)
 	}
 	return p.err
 }
@@ -268,11 +272,43 @@ func TestStopJoinsHeartbeatAndOwnedDeliveries(t *testing.T) {
 	const queue = "queue:{stop-join}"
 	c, client := newReliableTestController(t, queue)
 	c.deliveryLease = 40 * time.Millisecond
+	if err := reliableRenewScript.Load(context.Background(), client).Err(); err != nil {
+		t.Fatalf("preload renew script: %v", err)
+	}
+	if err := reliableAckScript.Load(context.Background(), client).Err(); err != nil {
+		t.Fatalf("preload ack script: %v", err)
+	}
+	renewEntered := make(chan struct{})
+	renewCanceled := make(chan struct{})
+	renewRelease := make(chan struct{})
+	var renewReleaseOnce sync.Once
+	releaseRenew := func() { renewReleaseOnce.Do(func() { close(renewRelease) }) }
+	t.Cleanup(releaseRenew)
+	renewHook := &beforeScriptHook{
+		hash:     reliableRenewScript.Hash(),
+		entered:  renewEntered,
+		canceled: renewCanceled,
+		release:  renewRelease,
+	}
+	renewHook.armed.Store(true)
+	ackEntered := make(chan struct{})
+	ackHook := &beforeScriptHook{hash: reliableAckScript.Hash(), entered: ackEntered}
+	ackHook.armed.Store(true)
+	client.AddHook(renewHook)
+	client.AddHook(ackHook)
+
 	body := reliableTaskBody(t, "stop-active")
 	if err := client.RPush(context.Background(), queue, body).Err(); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
-	processor := &reliableTestProcessor{started: make(chan struct{}), release: make(chan struct{})}
+	processor := &reliableTestProcessor{
+		started:  make(chan struct{}),
+		release:  make(chan struct{}),
+		returned: make(chan struct{}),
+	}
+	var processorReleaseOnce sync.Once
+	releaseProcessor := func() { processorReleaseOnce.Do(func() { close(processor.release) }) }
+	t.Cleanup(releaseProcessor)
 	consumeDone := make(chan reliableConsumeResult, 1)
 	go func() {
 		retry, err := c.StartConsuming(1, processor)
@@ -284,25 +320,63 @@ func TestStopJoinsHeartbeatAndOwnedDeliveries(t *testing.T) {
 		c.StopConsuming()
 		t.Fatal("processor did not start")
 	}
+	select {
+	case <-renewEntered:
+	case <-time.After(3 * time.Second):
+		releaseProcessor()
+		c.StopConsuming()
+		t.Fatal("renew call did not enter blocking hook")
+	}
+
+	stopCtx := c.GetStopCtx()
 	stopDone := make(chan struct{})
 	go func() {
 		c.StopConsuming()
 		close(stopDone)
 	}()
 	select {
-	case <-stopDone:
-		close(processor.release)
-		t.Fatal("StopConsuming returned before active processor")
-	case <-time.After(75 * time.Millisecond):
+	case <-stopCtx.Done():
+	case <-time.After(3 * time.Second):
+		releaseProcessor()
+		releaseRenew()
+		t.Fatal("StopConsuming did not cancel the consume attempt")
 	}
-	close(processor.release)
+	releaseProcessor()
+	select {
+	case <-processor.returned:
+	case <-time.After(3 * time.Second):
+		releaseRenew()
+		t.Fatal("processor did not return")
+	}
+	select {
+	case <-renewCanceled:
+	case <-time.After(3 * time.Second):
+		releaseRenew()
+		t.Fatal("processor return did not cancel the blocked renew operation")
+	}
+	select {
+	case <-ackEntered:
+		releaseRenew()
+		t.Fatal("finalization started before the blocked renew operation was joined")
+	case <-stopDone:
+		releaseRenew()
+		t.Fatal("StopConsuming returned before the blocked renew operation was joined")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	releaseRenew()
+	select {
+	case <-ackEntered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("acknowledgement did not start after renew was released")
+	}
 	select {
 	case <-stopDone:
 	case <-time.After(3 * time.Second):
-		t.Fatal("StopConsuming did not join processor and renewal")
+		t.Fatal("StopConsuming did not finish after processor and renewal returned")
 	}
-	if outcome := <-consumeDone; !errors.Is(outcome.err, context.Canceled) {
-		t.Fatalf("StartConsuming error = %v, want context.Canceled", outcome.err)
+	if outcome := <-consumeDone; !errors.Is(outcome.err, ErrDeliveryLeaseLost) {
+		t.Fatalf("StartConsuming error = %v, want ErrDeliveryLeaseLost after blocked renew outlives lease", outcome.err)
 	}
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		t.Fatalf("shared Redis client closed: %v", err)

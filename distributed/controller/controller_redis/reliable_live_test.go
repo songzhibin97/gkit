@@ -71,6 +71,66 @@ func TestReliableLuaRedis7Transitions(t *testing.T) {
 	}
 }
 
+func TestReliableLuaRedis7AckOutcomeUsesRedisTimeAndBoundedCleanup(t *testing.T) {
+	client := newLiveReliableClient(t)
+	queue := fmt.Sprintf("gkit:103:ack-retention:{live-%d}", time.Now().UnixNano())
+	defer cleanupReliableQueue(t, client, queue)
+	q := newReliableQueue(client, queue, time.Minute, newDeliveryTokenGenerator(nil))
+	ctx := context.Background()
+	if err := client.RPush(ctx, queue, "ack-retention-task").Err(); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	delivery, err := q.claim(ctx)
+	if err != nil || delivery == nil {
+		t.Fatalf("claim = (%v, %v), want delivery", delivery, err)
+	}
+
+	redisNow, err := client.Time(ctx).Result()
+	if err != nil {
+		t.Fatalf("Redis TIME before seeding outcomes: %v", err)
+	}
+	expired := make([]*redis.Z, 200)
+	for index := range expired {
+		expired[index] = &redis.Z{
+			Score:  float64(redisNow.Add(-time.Second).UnixMilli()),
+			Member: fmt.Sprintf("expired-outcome-%03d", index),
+		}
+	}
+	if err := client.ZAdd(ctx, q.keys.outcomes, expired...).Err(); err != nil {
+		t.Fatalf("seed expired outcomes: %v", err)
+	}
+
+	before, err := client.Time(ctx).Result()
+	if err != nil {
+		t.Fatalf("Redis TIME before acknowledgement: %v", err)
+	}
+	if err := q.acknowledge(ctx, delivery); err != nil {
+		t.Fatalf("acknowledge: %v", err)
+	}
+	after, err := client.Time(ctx).Result()
+	if err != nil {
+		t.Fatalf("Redis TIME after acknowledgement: %v", err)
+	}
+	score, err := client.ZScore(ctx, q.keys.outcomes, delivery.token).Result()
+	if err != nil {
+		t.Fatalf("read acknowledgement outcome: %v", err)
+	}
+	lower := before.UnixMilli() + ackOutcomeRetention.Milliseconds()
+	upper := after.UnixMilli() + ackOutcomeRetention.Milliseconds()
+	if outcomeMillis := int64(score); outcomeMillis < lower || outcomeMillis > upper {
+		t.Fatalf("outcome score = %d, want Redis TIME + 24h in [%d, %d]", outcomeMillis, lower, upper)
+	}
+	if remainingExpired := client.ZCount(ctx, q.keys.outcomes, "-inf", fmt.Sprint(after.UnixMilli())).Val(); remainingExpired != 72 {
+		t.Fatalf("expired outcomes after one ACK cleanup = %d, want 72 (exactly 128 of 200 removed)", remainingExpired)
+	}
+	if total := client.ZCard(ctx, q.keys.outcomes).Val(); total != 73 {
+		t.Fatalf("outcome members after bounded cleanup = %d, want 72 expired + 1 confirmed", total)
+	}
+	if ttl := client.PTTL(ctx, q.keys.outcomes).Val(); ttl <= ackOutcomeRetention || ttl > ackOutcomeKeyTTL {
+		t.Fatalf("outcome key TTL = %v, want (%v, %v]", ttl, ackOutcomeRetention, ackOutcomeKeyTTL)
+	}
+}
+
 func TestReliableLuaRedis7PrevalidationDoesNotLoseReadyTask(t *testing.T) {
 	client := newLiveReliableClient(t)
 	queue := fmt.Sprintf("gkit:103:prevalidate:{live-%d}", time.Now().UnixNano())

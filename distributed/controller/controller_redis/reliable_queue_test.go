@@ -45,6 +45,49 @@ type loseScriptResponseHook struct {
 	armed atomic.Bool
 }
 
+type beforeScriptHook struct {
+	hash     string
+	err      error
+	entered  chan struct{}
+	canceled chan struct{}
+	release  <-chan struct{}
+	armed    atomic.Bool
+}
+
+func (h *beforeScriptHook) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	if !strings.EqualFold(cmd.Name(), "evalsha") || !h.armed.Load() {
+		return ctx, nil
+	}
+	args := cmd.Args()
+	if len(args) < 2 || fmt.Sprint(args[1]) != h.hash || !h.armed.CompareAndSwap(true, false) {
+		return ctx, nil
+	}
+	if h.entered != nil {
+		close(h.entered)
+	}
+	if h.release != nil {
+		if h.canceled == nil {
+			<-h.release
+		} else {
+			select {
+			case <-ctx.Done():
+				close(h.canceled)
+				<-h.release
+			case <-h.release:
+			}
+		}
+	}
+	return ctx, h.err
+}
+
+func (*beforeScriptHook) AfterProcess(context.Context, redis.Cmder) error { return nil }
+
+func (*beforeScriptHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (*beforeScriptHook) AfterProcessPipeline(context.Context, []redis.Cmder) error { return nil }
+
 func (h *loseScriptResponseHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
 	return ctx, nil
 }
@@ -137,6 +180,40 @@ func TestExpiredTokenCannotFinalizeDelivery(t *testing.T) {
 		if got := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val(); got != beforeScore {
 			t.Fatalf("%s changed visibility score", name)
 		}
+	}
+}
+
+func TestRenewTransportFailureDoesNotAdvanceConfirmation(t *testing.T) {
+	queue := "queue:{renew-transport-failure}"
+	q, client := newReliableTestQueue(t, queue, time.Second, nil)
+	if err := client.RPush(context.Background(), queue, "renew-task").Err(); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	delivery, err := q.claim(context.Background())
+	if err != nil || delivery == nil {
+		t.Fatalf("claim = (%v, %v), want delivery", delivery, err)
+	}
+	if err := reliableRenewScript.Load(context.Background(), client).Err(); err != nil {
+		t.Fatalf("preload renew script: %v", err)
+	}
+	wantErr := errors.New("renew transport unavailable")
+	hook := &beforeScriptHook{hash: reliableRenewScript.Hash(), err: wantErr}
+	hook.armed.Store(true)
+	client.AddHook(hook)
+
+	confirmedBefore := delivery.confirmedUntil
+	scoreBefore := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val()
+	if err := q.renew(context.Background(), delivery); !errors.Is(err, wantErr) {
+		t.Fatalf("renew error = %v, want transport error", err)
+	}
+	if hook.armed.Load() {
+		t.Fatal("renew transport failure hook was not reached")
+	}
+	if !delivery.confirmedUntil.Equal(confirmedBefore) {
+		t.Fatalf("confirmedUntil advanced from %v to %v after unconfirmed renew", confirmedBefore, delivery.confirmedUntil)
+	}
+	if scoreAfter := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val(); scoreAfter != scoreBefore {
+		t.Fatalf("visibility score changed from %v to %v although Redis did not receive renew", scoreBefore, scoreAfter)
 	}
 }
 
@@ -278,22 +355,36 @@ func TestPermanentFailuresUseBoundedBackoff(t *testing.T) {
 	if err != nil || delivery == nil {
 		t.Fatalf("claim = (%v, %v)", delivery, err)
 	}
-	next, err := q.deferRetry(context.Background(), delivery)
-	if err != nil {
-		t.Fatalf("defer retry: %v", err)
+	ranges := []struct {
+		min time.Duration
+		max time.Duration
+	}{
+		{min: 800 * time.Millisecond, max: 1200 * time.Millisecond},
+		{min: 1600 * time.Millisecond, max: 2400 * time.Millisecond},
+		{min: 3200 * time.Millisecond, max: 4800 * time.Millisecond},
+		{min: 6400 * time.Millisecond, max: 9600 * time.Millisecond},
+		{min: 12800 * time.Millisecond, max: 19200 * time.Millisecond},
+		{min: 25600 * time.Millisecond, max: 38400 * time.Millisecond},
+		{min: 48 * time.Second, max: 60 * time.Second},
+		{min: 48 * time.Second, max: 60 * time.Second},
 	}
-	if next.failures != 1 {
-		t.Fatalf("failure count = %d, want 1", next.failures)
-	}
-	delay := next.deadline.Sub(next.serverTime)
-	if delay < 800*time.Millisecond || delay > 1200*time.Millisecond {
-		t.Fatalf("first retry delay = %v, want [800ms, 1.2s]", delay)
-	}
-	for failures := uint64(0); failures < 20; failures++ {
-		capped := reliableRetryDelay(failures, payload)
-		if capped < 800*time.Millisecond || capped > 60*time.Second {
-			t.Fatalf("failure %d delay = %v, outside bounded range", failures, capped)
+	current := delivery
+	for failure, tt := range ranges {
+		next, err := q.deferRetry(context.Background(), current)
+		if err != nil {
+			t.Fatalf("defer retry %d: %v", failure+1, err)
 		}
+		if next.failures != uint64(failure+1) {
+			t.Fatalf("defer retry %d persisted failure count = %d, want %d", failure+1, next.failures, failure+1)
+		}
+		delay := next.deadline.Sub(next.serverTime)
+		if delay < tt.min || delay > tt.max {
+			t.Fatalf("failure %d delay = %v, want [%v, %v]", failure, delay, tt.min, tt.max)
+		}
+		current = next
+	}
+	if delay := reliableRetryDelay(20, payload); delay < 48*time.Second || delay > 60*time.Second {
+		t.Fatalf("saturated failure 20 delay = %v, want [48s, 60s]", delay)
 	}
 }
 
@@ -338,6 +429,35 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 		}
 		if got := client.HGet(context.Background(), q.keys.inflight, first.token).Val(); got == "" {
 			t.Fatal("collision overwrote existing reservation")
+		}
+	})
+
+	t.Run("deferred retry collision preserves reservation", func(t *testing.T) {
+		queue := "queue:{defer-collision}"
+		reader := &fixedTokenReader{}
+		q, client := newReliableTestQueue(t, queue, time.Second, reader)
+		if err := client.RPush(context.Background(), queue, "deferred-task").Err(); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
+		delivery, err := q.claim(context.Background())
+		if err != nil || delivery == nil {
+			t.Fatalf("claim = (%v, %v)", delivery, err)
+		}
+		envelopeBefore := client.HGet(context.Background(), q.keys.inflight, delivery.token).Val()
+		scoreBefore := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val()
+
+		next, err := q.deferRetry(context.Background(), delivery)
+		if !errors.Is(err, ErrDeliveryTokenCollision) || next != nil {
+			t.Fatalf("defer collision = (%v, %v), want (nil, ErrDeliveryTokenCollision)", next, err)
+		}
+		if got := reader.reads.Load(); got != 5 {
+			t.Fatalf("token reads = %d, want initial claim + 4 bounded defer attempts", got)
+		}
+		if envelopeAfter := client.HGet(context.Background(), q.keys.inflight, delivery.token).Val(); envelopeAfter != envelopeBefore {
+			t.Fatalf("defer collision changed reservation envelope from %q to %q", envelopeBefore, envelopeAfter)
+		}
+		if scoreAfter := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val(); scoreAfter != scoreBefore {
+			t.Fatalf("defer collision changed visibility score from %v to %v", scoreBefore, scoreAfter)
 		}
 	})
 }
