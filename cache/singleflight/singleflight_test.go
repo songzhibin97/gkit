@@ -42,6 +42,87 @@ func TestDoErr(t *testing.T) {
 	}
 }
 
+func TestForgetStartsNewCallWithoutCancelingOldCall(t *testing.T) {
+	type result struct {
+		value  interface{}
+		err    error
+		shared bool
+	}
+
+	g := NewSingleFlight()
+	oldStarted := make(chan struct{})
+	releaseOld := make(chan struct{})
+	var releaseOldOnce sync.Once
+	releaseOldCall := func() {
+		releaseOldOnce.Do(func() { close(releaseOld) })
+	}
+	t.Cleanup(releaseOldCall)
+	oldDone := make(chan result, 1)
+	go func() {
+		value, err, shared := g.Do("key", func() (interface{}, error) {
+			close(oldStarted)
+			<-releaseOld
+			return "old", nil
+		})
+		oldDone <- result{value: value, err: err, shared: shared}
+	}()
+	waitForSignal(t, oldStarted, "old call to start")
+
+	g.Forget("key")
+
+	newStarted := make(chan struct{})
+	newDone := make(chan result, 1)
+	go func() {
+		value, err, shared := g.Do("key", func() (interface{}, error) {
+			close(newStarted)
+			return "new", nil
+		})
+		newDone <- result{value: value, err: err, shared: shared}
+	}()
+	waitForSignal(t, newStarted, "new call to start independently")
+
+	newResult := waitForResult(t, newDone, "new call to finish")
+	if newResult.value != "new" || newResult.err != nil || newResult.shared {
+		t.Fatalf("new call = (%v, %v, shared=%t), want (new, nil, shared=false)", newResult.value, newResult.err, newResult.shared)
+	}
+	select {
+	case oldResult := <-oldDone:
+		t.Fatalf("old call finished before release: (%v, %v, shared=%t)", oldResult.value, oldResult.err, oldResult.shared)
+	default:
+	}
+
+	releaseOldCall()
+	oldResult := waitForResult(t, oldDone, "old call to finish after release")
+	if oldResult.value != "old" || oldResult.err != nil {
+		t.Fatalf("old call = (%v, %v), want (old, nil)", oldResult.value, oldResult.err)
+	}
+}
+
+func waitForSignal(t *testing.T, ch <-chan struct{}, operation string) {
+	t.Helper()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-ch:
+	case <-timer.C:
+		t.Fatalf("timed out waiting for %s", operation)
+	}
+}
+
+func waitForResult[T any](t *testing.T, ch <-chan T, operation string) T {
+	t.Helper()
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case result := <-ch:
+		return result
+	case <-timer.C:
+		t.Fatalf("timed out waiting for %s", operation)
+		var zero T
+		return zero
+	}
+}
+
 func TestDoDupSuppress(t *testing.T) {
 	g := NewSingleFlight()
 	var wg1, wg2 sync.WaitGroup
