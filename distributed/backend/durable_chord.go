@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/songzhibin97/gkit/distributed/task"
@@ -373,7 +374,7 @@ func ApplyChordMemberPublishOutcome(delivery *ChordDelivery, lease ChordMemberLe
 	}
 	member.LeaseOwner = ""
 	member.LeaseExpiresAt = time.Time{}
-	member.LastError = boundedChordError(outcome.Error)
+	member.LastError = chordErrorSummary("member_publish", outcome)
 	switch outcome.Kind {
 	case ChordPublishOutcomeSucceeded:
 		member.State = ChordMemberPublished
@@ -511,7 +512,7 @@ func ApplyChordCallbackPublishOutcome(delivery *ChordDelivery, lease ChordCallba
 	}
 	delivery.CallbackLeaseOwner = ""
 	delivery.CallbackLeaseExpiresAt = time.Time{}
-	delivery.CallbackLastError = boundedChordError(outcome.Error)
+	delivery.CallbackLastError = chordErrorSummary("callback_publish", outcome)
 	switch outcome.Kind {
 	case ChordPublishOutcomeSucceeded:
 		delivery.CallbackState = ChordPublished
@@ -557,12 +558,12 @@ func SortChordDeliveries(deliveries []ChordDelivery) {
 	sort.Slice(deliveries, func(i, j int) bool { return deliveries[i].DeliveryKey < deliveries[j].DeliveryKey })
 }
 
-func boundedChordError(value string) string {
-	const max = 512
-	if len(value) <= max {
-		return value
+func chordErrorSummary(operation string, outcome ChordPublishOutcome) string {
+	if outcome.Error == "" {
+		return ""
 	}
-	return value[:max]
+	category := strings.ToLower(string(outcome.Kind))
+	return "operation=" + operation + " category=" + category
 }
 
 func deadlineOrDefault(value, fallback time.Time) time.Time {

@@ -4,15 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/songzhibin97/gkit/distributed/backend"
 	"github.com/songzhibin97/gkit/distributed/task"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 var _ backend.DurableChordBackend = (*BackendSQLDB)(nil)
+
+var durableChordSilentLogger = gormlogger.Default.LogMode(gormlogger.Silent)
+
+func (b *BackendSQLDB) durableDB(ctx context.Context) *gorm.DB {
+	db := b.gClient.Session(&gorm.Session{Logger: durableChordSilentLogger})
+	if ctx != nil {
+		db = db.WithContext(ctx)
+	}
+	return db
+}
 
 type chordDeliveryModel struct {
 	DeliveryKey         string     `gorm:"column:delivery_key;primaryKey;size:160"`
@@ -64,7 +76,7 @@ func (b *BackendSQLDB) RegisterChord(ctx context.Context, registration backend.C
 	}
 	delivery := backend.NewChordDelivery(registration, owner, time.Now())
 	for attempt := 0; attempt < 8; attempt++ {
-		err = b.gClient.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err = b.durableDB(ctx).Transaction(func(tx *gorm.DB) error {
 			var existing chordDeliveryModel
 			findErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("group_id = ?", registration.GroupID).First(&existing).Error
 			if findErr == nil {
@@ -101,7 +113,7 @@ func (b *BackendSQLDB) RegisterChord(ctx context.Context, registration backend.C
 		// attaching to the committed winner. If its transaction has not yet
 		// committed, retry the bounded registration operation.
 		var existing chordDeliveryModel
-		if findErr := b.gClient.WithContext(ctx).Where("group_id = ?", registration.GroupID).First(&existing).Error; findErr == nil {
+		if findErr := b.durableDB(ctx).Where("group_id = ?", registration.GroupID).First(&existing).Error; findErr == nil {
 			var current backend.ChordDelivery
 			if decodeErr := json.Unmarshal(existing.Record, &current); decodeErr != nil {
 				return backend.ChordRegistrationRef{}, decodeErr
@@ -112,7 +124,7 @@ func (b *BackendSQLDB) RegisterChord(ctx context.Context, registration backend.C
 			return backend.ChordRegistrationRef{DeliveryKey: current.DeliveryKey, Owner: current.RegistrationOwner, Version: current.RegistrationVersion, Created: false}, nil
 		}
 		if attempt == 7 {
-			return backend.ChordRegistrationRef{}, err
+			return backend.ChordRegistrationRef{}, fmt.Errorf("register sql chord: %w", err)
 		}
 		timer := time.NewTimer(time.Duration(attempt+1) * 2 * time.Millisecond)
 		select {
@@ -135,7 +147,7 @@ func (b *BackendSQLDB) AbortRegistration(ctx context.Context, ref backend.ChordR
 	if !ref.Created {
 		return backend.ErrChordRegistrationOwnershipLost
 	}
-	return b.gClient.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := b.durableDB(ctx).Transaction(func(tx *gorm.DB) error {
 		var model chordDeliveryModel
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("delivery_key = ?", ref.DeliveryKey).First(&model).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -161,6 +173,10 @@ func (b *BackendSQLDB) AbortRegistration(ctx context.Context, ref backend.ChordR
 		}
 		return tx.Where("delivery_key = ?", ref.DeliveryKey).Delete(&chordDeliveryModel{}).Error
 	})
+	if err != nil {
+		return fmt.Errorf("abort sql chord registration: %w", err)
+	}
+	return nil
 }
 
 func (b *BackendSQLDB) ClaimMemberPublication(ctx context.Context, claim backend.ChordMemberClaim) (lease backend.ChordMemberLease, claimed bool, err error) {
@@ -196,7 +212,7 @@ func (b *BackendSQLDB) ScanChordDeliveries(ctx context.Context, scan backend.Cho
 	if limit <= 0 {
 		limit = 100
 	}
-	query := b.gClient.WithContext(ctx).Order("delivery_key ASC").Limit(limit + 1)
+	query := b.durableDB(ctx).Order("delivery_key ASC").Limit(limit + 1)
 	if scan.Cursor != "" {
 		query = query.Where("delivery_key > ?", scan.Cursor)
 	}
@@ -233,7 +249,7 @@ func (b *BackendSQLDB) ReconcileChord(ctx context.Context, deliveryKey string) e
 	if !needsSetup {
 		return nil
 	}
-	if err := b.gClient.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := b.durableDB(ctx).Transaction(func(tx *gorm.DB) error {
 		ids := make([]string, len(delivery.Members))
 		for index := range delivery.Members {
 			ids[index] = delivery.Members[index].TaskID
@@ -304,7 +320,7 @@ func (b *BackendSQLDB) ClaimCallbackPublication(ctx context.Context, claim backe
 		if err := json.Unmarshal(delivery.CallbackPayload, &callback); err != nil {
 			return lease, false, err
 		}
-		if err := b.gClient.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(task.NewPendingState(&callback)).Error; err != nil {
+		if err := b.durableDB(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(task.NewPendingState(&callback)).Error; err != nil {
 			return lease, false, err
 		}
 	}
@@ -340,7 +356,7 @@ func (b *BackendSQLDB) CleanupTerminalChordDeliveries(ctx context.Context, now t
 		limit = 100
 	}
 	var keys []string
-	if err := b.gClient.WithContext(ctx).Model(&chordDeliveryModel{}).
+	if err := b.durableDB(ctx).Model(&chordDeliveryModel{}).
 		Where("terminal_expire_at IS NOT NULL AND terminal_expire_at <= ?", now).
 		Order("terminal_expire_at ASC").Limit(limit).Pluck("delivery_key", &keys).Error; err != nil {
 		return 0, err
@@ -348,7 +364,7 @@ func (b *BackendSQLDB) CleanupTerminalChordDeliveries(ctx context.Context, now t
 	if len(keys) == 0 {
 		return 0, nil
 	}
-	err := b.gClient.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := b.durableDB(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("delivery_key IN ?", keys).Delete(&chordMemberReceiptModel{}).Error; err != nil {
 			return err
 		}
@@ -362,7 +378,7 @@ func (b *BackendSQLDB) CleanupTerminalChordDeliveries(ctx context.Context, now t
 
 func (b *BackendSQLDB) getChordDelivery(ctx context.Context, deliveryKey string) (*backend.ChordDelivery, error) {
 	var model chordDeliveryModel
-	if err := b.gClient.WithContext(ctx).Where("delivery_key = ?", deliveryKey).First(&model).Error; err != nil {
+	if err := b.durableDB(ctx).Where("delivery_key = ?", deliveryKey).First(&model).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, backend.ErrChordNotFound
 		}
@@ -378,7 +394,7 @@ func (b *BackendSQLDB) getChordDelivery(ctx context.Context, deliveryKey string)
 func (b *BackendSQLDB) updateChordDelivery(ctx context.Context, deliveryKey string, mutate func(*backend.ChordDelivery) (bool, error)) error {
 	for attempt := 0; attempt < 16; attempt++ {
 		retry := false
-		err := b.gClient.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := b.durableDB(ctx).Transaction(func(tx *gorm.DB) error {
 			var model chordDeliveryModel
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("delivery_key = ?", deliveryKey).First(&model).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -418,7 +434,7 @@ func (b *BackendSQLDB) updateChordDelivery(ctx context.Context, deliveryKey stri
 			return syncChordMemberRows(tx, &delivery)
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("update sql chord delivery: %w", err)
 		}
 		if !retry {
 			return nil
@@ -493,5 +509,5 @@ func syncChordMemberRows(tx *gorm.DB, delivery *backend.ChordDelivery) error {
 }
 
 func (b *BackendSQLDB) migrateDurableChord() error {
-	return b.gClient.AutoMigrate(&chordDeliveryModel{}, &chordMemberPublicationModel{}, &chordMemberReceiptModel{})
+	return b.durableDB(nil).AutoMigrate(&chordDeliveryModel{}, &chordMemberPublicationModel{}, &chordMemberReceiptModel{})
 }
