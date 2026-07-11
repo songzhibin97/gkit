@@ -9,6 +9,11 @@ import (
 	"github.com/songzhibin97/gkit/distributed/task"
 )
 
+type publicationAttemptBackendForTest interface {
+	SetStatePendingAttempt(*task.Signature, string) error
+	FailPendingAttempt(*task.Signature, string, string) (bool, error)
+}
+
 func newSQLiteBackend(t *testing.T) *BackendSQLDB {
 	t.Helper()
 	gdb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -144,6 +149,124 @@ func TestNonFailureTransitionsClearPreviousError(t *testing.T) {
 				t.Fatalf("%s error = %q, want cleared", tt.name, status.Error)
 			}
 		})
+	}
+}
+
+func TestPublicationAttemptCompensation(t *testing.T) {
+	b := newSQLiteBackend(t)
+	attemptBackend, ok := interface{}(b).(publicationAttemptBackendForTest)
+	if !ok {
+		t.Fatal("BackendSQLDB does not implement atomic publication-attempt compensation")
+	}
+	signature := &task.Signature{ID: "publication-attempt", GroupID: "group", Name: "task"}
+	if err := attemptBackend.SetStatePendingAttempt(signature, "attempt-a"); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := attemptBackend.FailPendingAttempt(signature, "attempt-a", "publish failed"); err != nil || !changed {
+		t.Fatalf("matching compensation = (%t, %v), want true, nil", changed, err)
+	}
+	status, err := b.GetStatus(signature.ID)
+	if err != nil || status.Status != task.StateFailure || status.Error != "publish failed" {
+		t.Fatalf("matching status = %#v, %v", status, err)
+	}
+	createAt := status.CreateAt
+
+	if err := attemptBackend.SetStatePendingAttempt(signature, "attempt-b"); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := attemptBackend.FailPendingAttempt(signature, "attempt-a", "stale attempt"); err != nil || changed {
+		t.Fatalf("stale compensation = (%t, %v), want false, nil", changed, err)
+	}
+	status, err = b.GetStatus(signature.ID)
+	if err != nil || status.Status != task.StatePending || status.Error != "" {
+		t.Fatalf("stale-attempt status = %#v, %v", status, err)
+	}
+	if !status.CreateAt.Equal(createAt) {
+		t.Fatalf("create_at changed from %v to %v on a new attempt", createAt, status.CreateAt)
+	}
+
+	tests := []struct {
+		name       string
+		want       task.State
+		transition func(*task.Signature) error
+	}{
+		{name: "received", want: task.StateReceived, transition: b.SetStateReceived},
+		{name: "started", want: task.StateStarted, transition: b.SetStateStarted},
+		{name: "retry", want: task.StateRetry, transition: b.SetStateRetry},
+		{name: "success", want: task.StateSuccess, transition: func(signature *task.Signature) error { return b.SetStateSuccess(signature, nil) }},
+		{name: "failure", want: task.StateFailure, transition: func(signature *task.Signature) error { return b.SetStateFailure(signature, "worker failed") }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sig := &task.Signature{ID: "advanced-" + tt.name, GroupID: "group", Name: "task"}
+			if err := attemptBackend.SetStatePendingAttempt(sig, "attempt"); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.transition(sig); err != nil {
+				t.Fatal(err)
+			}
+			if changed, err := attemptBackend.FailPendingAttempt(sig, "attempt", "publish failed"); err != nil || changed {
+				t.Fatalf("advanced compensation = (%t, %v), want false, nil", changed, err)
+			}
+			status, err := b.GetStatus(sig.ID)
+			if err != nil || status.Status != tt.want {
+				t.Fatalf("advanced status = %#v, %v; want %s", status, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestPublicationAttemptCompensationLegacyRecordDoesNotMatch(t *testing.T) {
+	b := newSQLiteBackend(t)
+	attemptBackend, ok := interface{}(b).(publicationAttemptBackendForTest)
+	if !ok {
+		t.Fatal("BackendSQLDB does not implement atomic publication-attempt compensation")
+	}
+	signature := &task.Signature{ID: "legacy-pending", GroupID: "group", Name: "task"}
+	if err := attemptBackend.SetStatePendingAttempt(signature, "stale-owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.SetStatePending(signature); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := attemptBackend.FailPendingAttempt(signature, "stale-owner", "publish failed"); err != nil || changed {
+		t.Fatalf("legacy compensation = (%t, %v), want false, nil", changed, err)
+	}
+	status, err := b.GetStatus(signature.ID)
+	if err != nil || status.Status != task.StatePending {
+		t.Fatalf("legacy status = %#v, %v", status, err)
+	}
+}
+
+func TestPublicationAttemptColumnMigratesExistingStatusTable(t *testing.T) {
+	gdb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gdb.AutoMigrate(&task.Status{}); err != nil {
+		t.Fatalf("create legacy status table: %v", err)
+	}
+	legacy := &task.Status{TaskID: "legacy-before-migration", GroupID: "group", Name: "task", Status: task.StatePending}
+	if err := gdb.Create(legacy).Error; err != nil {
+		t.Fatalf("insert legacy status: %v", err)
+	}
+
+	b := &BackendSQLDB{gClient: gdb}
+	if err := b.autoMigrate(); err != nil {
+		t.Fatalf("migrate publication attempt column: %v", err)
+	}
+	if !gdb.Migrator().HasColumn(&task.Status{}, publicationAttemptColumn) {
+		t.Fatalf("status table is missing %s after migration", publicationAttemptColumn)
+	}
+	if changed, err := b.FailPendingAttempt(
+		&task.Signature{ID: legacy.TaskID},
+		"unknown-attempt",
+		"publish failed",
+	); err != nil || changed {
+		t.Fatalf("legacy row compensation = (%t, %v), want false, nil", changed, err)
+	}
+	if err := b.SetStatePendingAttempt(&task.Signature{ID: legacy.TaskID, GroupID: "group", Name: "task"}, "attempt"); err != nil {
+		t.Fatalf("write publication attempt after migration: %v", err)
 	}
 }
 

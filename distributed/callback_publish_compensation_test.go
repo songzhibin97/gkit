@@ -41,8 +41,70 @@ type callbackCompensationFailBackend struct {
 	err error
 }
 
-func (b *callbackCompensationFailBackend) SetStateFailure(*task.Signature, string) error {
-	return b.err
+type publicationAttemptBackendForTest interface {
+	SetStatePendingAttempt(*task.Signature, string) error
+	FailPendingAttempt(*task.Signature, string, string) (bool, error)
+}
+
+func (b *callbackCompensationFailBackend) SetStateFailure(signature *task.Signature, reason string) error {
+	if reason == taskPublicationFailureMessage {
+		return b.err
+	}
+	return b.Backend.SetStateFailure(signature, reason)
+}
+
+func (b *callbackCompensationFailBackend) SetStatePendingAttempt(signature *task.Signature, attemptID string) error {
+	return b.Backend.(publicationAttemptBackendForTest).SetStatePendingAttempt(signature, attemptID)
+}
+
+func (b *callbackCompensationFailBackend) FailPendingAttempt(*task.Signature, string, string) (bool, error) {
+	return false, b.err
+}
+
+type blockingCallbackCompensationBackend struct {
+	backend.Backend
+	started chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingCallbackCompensationBackend) SetStateFailure(signature *task.Signature, reason string) error {
+	close(b.started)
+	<-b.release
+	return b.Backend.SetStateFailure(signature, reason)
+}
+
+func (b *blockingCallbackCompensationBackend) SetStatePendingAttempt(signature *task.Signature, attemptID string) error {
+	return b.Backend.(publicationAttemptBackendForTest).SetStatePendingAttempt(signature, attemptID)
+}
+
+func (b *blockingCallbackCompensationBackend) FailPendingAttempt(signature *task.Signature, attemptID, reason string) (bool, error) {
+	close(b.started)
+	<-b.release
+	return b.Backend.(publicationAttemptBackendForTest).FailPendingAttempt(signature, attemptID, reason)
+}
+
+type unsupportedCompensationBackend struct {
+	groupTestBackend
+	failureWrites int
+}
+
+func (b *unsupportedCompensationBackend) SetStateFailure(*task.Signature, string) error {
+	b.failureWrites++
+	return nil
+}
+
+type attemptTrackingBackend struct {
+	groupTestBackend
+	pendingAttempts int
+}
+
+func (b *attemptTrackingBackend) SetStatePendingAttempt(*task.Signature, string) error {
+	b.pendingAttempts++
+	return nil
+}
+
+func (*attemptTrackingBackend) FailPendingAttempt(*task.Signature, string, string) (bool, error) {
+	return false, nil
 }
 
 func newCallbackPublishTestServer(t *testing.T, publish func(context.Context, *task.Signature) error) (*Server, backend.Backend) {
@@ -77,7 +139,22 @@ func assertPendingAtPublish(t *testing.T, b backend.Backend, signature *task.Sig
 	assertCallbackTaskState(t, b, signature.ID, task.StatePending, "")
 }
 
-func TestSendTaskPublishFailureConvergesPendingState(t *testing.T) {
+func TestSendTaskSuccessfulPublishLeavesOwnedPendingState(t *testing.T) {
+	var b backend.Backend
+	server, b := newCallbackPublishTestServer(t, func(_ context.Context, signature *task.Signature) error {
+		assertPendingAtPublish(t, b, signature)
+		return nil
+	})
+	signature := task.NewSignature("callback-published", "callback")
+
+	asyncResult, err := server.SendTaskWithContext(context.Background(), signature)
+	if err != nil || asyncResult == nil {
+		t.Fatalf("send = (%#v, %v), want async result and nil error", asyncResult, err)
+	}
+	assertCallbackTaskState(t, b, signature.ID, task.StatePending, "")
+}
+
+func TestSendTaskPublishFailureConvergesOwnedPendingAttempt(t *testing.T) {
 	publishErr := errors.New("broker publish failed")
 	var b backend.Backend
 	server, b := newCallbackPublishTestServer(t, func(_ context.Context, signature *task.Signature) error {
@@ -148,24 +225,142 @@ func TestSendTaskRetryAfterPublishFailure(t *testing.T) {
 	assertCallbackTaskState(t, b, signature.ID, task.StatePending, "")
 }
 
-func TestSendTaskAcceptedButPublishReturnedErrorUsesExistingLastWriteSemantics(t *testing.T) {
+func TestSendTaskPublishFailurePreservesAdvancedState(t *testing.T) {
 	publishErr := errors.New("publish acknowledgement lost")
+	tests := []struct {
+		name       string
+		wantState  task.State
+		wantError  string
+		transition func(backend.Backend, *task.Signature) error
+	}{
+		{name: "received", wantState: task.StateReceived, transition: func(b backend.Backend, signature *task.Signature) error { return b.SetStateReceived(signature) }},
+		{name: "started", wantState: task.StateStarted, transition: func(b backend.Backend, signature *task.Signature) error { return b.SetStateStarted(signature) }},
+		{name: "retry", wantState: task.StateRetry, transition: func(b backend.Backend, signature *task.Signature) error { return b.SetStateRetry(signature) }},
+		{name: "success", wantState: task.StateSuccess, transition: func(b backend.Backend, signature *task.Signature) error { return b.SetStateSuccess(signature, nil) }},
+		{name: "failure", wantState: task.StateFailure, wantError: "worker failed", transition: func(b backend.Backend, signature *task.Signature) error {
+			return b.SetStateFailure(signature, "worker failed")
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b backend.Backend
+			server, b := newCallbackPublishTestServer(t, func(_ context.Context, signature *task.Signature) error {
+				assertPendingAtPublish(t, b, signature)
+				if err := tt.transition(b, signature); err != nil {
+					t.Fatalf("simulate worker transition: %v", err)
+				}
+				return publishErr
+			})
+			signature := task.NewSignature("accepted-before-error-"+tt.name, "callback")
+
+			asyncResult, err := server.SendTask(signature)
+			if asyncResult != nil || !errors.Is(err, publishErr) {
+				t.Fatalf("send = (%#v, %v), want nil and ambiguous publication error", asyncResult, err)
+			}
+			assertCallbackTaskState(t, b, signature.ID, tt.wantState, tt.wantError)
+		})
+	}
+}
+
+func TestSendTaskAckLostRacePreservesWorkerState(t *testing.T) {
+	publishErr := errors.New("publish acknowledgement lost")
+	server, baseBackend := newCallbackPublishTestServer(t, func(context.Context, *task.Signature) error {
+		return publishErr
+	})
+	blockingBackend := &blockingCallbackCompensationBackend{
+		Backend: baseBackend,
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	server.backend = blockingBackend
+	signature := task.NewSignature("accepted-race", "callback")
+	done := make(chan error, 1)
+	go func() {
+		_, err := server.SendTask(signature)
+		done <- err
+	}()
+
+	<-blockingBackend.started
+	if err := baseBackend.SetStateSuccess(signature, nil); err != nil {
+		t.Fatalf("simulate worker success: %v", err)
+	}
+	close(blockingBackend.release)
+	if err := <-done; !errors.Is(err, publishErr) {
+		t.Fatalf("SendTask error = %v, want publish error", err)
+	}
+	assertCallbackTaskState(t, baseBackend, signature.ID, task.StateSuccess, "")
+}
+
+func TestOldPublishFailureDoesNotClobberNewAttempt(t *testing.T) {
+	publishErr := errors.New("old publish acknowledgement lost")
+	oldPublishStarted := make(chan struct{})
+	releaseOldPublish := make(chan struct{})
+	call := 0
 	var b backend.Backend
 	server, b := newCallbackPublishTestServer(t, func(_ context.Context, signature *task.Signature) error {
 		assertPendingAtPublish(t, b, signature)
-		if err := b.SetStateSuccess(signature, nil); err != nil {
-			t.Fatalf("simulate worker success: %v", err)
+		call++
+		if call == 1 {
+			close(oldPublishStarted)
+			<-releaseOldPublish
+			return publishErr
 		}
-		assertCallbackTaskState(t, b, signature.ID, task.StateSuccess, "")
-		return publishErr
+		return nil
 	})
-	signature := task.NewSignature("accepted-before-error", "callback")
-
-	asyncResult, err := server.SendTask(signature)
-	if asyncResult != nil || !errors.Is(err, publishErr) {
-		t.Fatalf("send = (%#v, %v), want nil and ambiguous publication error", asyncResult, err)
+	oldSignature := task.NewSignature("reused-task-id", "callback")
+	newSignature := task.NewSignature("reused-task-id", "callback")
+	oldDone := make(chan error, 1)
+	go func() {
+		_, err := server.SendTask(oldSignature)
+		oldDone <- err
+	}()
+	<-oldPublishStarted
+	if result, err := server.SendTask(newSignature); err != nil || result == nil {
+		t.Fatalf("new attempt = (%#v, %v), want async result and nil error", result, err)
 	}
-	assertCallbackTaskState(t, b, signature.ID, task.StateFailure, wantTaskPublicationFailureMessage)
+	close(releaseOldPublish)
+	if err := <-oldDone; !errors.Is(err, publishErr) {
+		t.Fatalf("old attempt error = %v, want publish error", err)
+	}
+	assertCallbackTaskState(t, b, newSignature.ID, task.StatePending, "")
+}
+
+func TestSendTaskUnsupportedBackendSkipsUnsafeCompensation(t *testing.T) {
+	publishErr := errors.New("publish failed")
+	b := &unsupportedCompensationBackend{}
+	server := &Server{
+		backend: b,
+		controller: &callbackPublishController{publish: func(context.Context, *task.Signature) error {
+			return publishErr
+		}},
+	}
+	if result, err := server.SendTask(task.NewSignature("third-party", "callback")); result != nil || !errors.Is(err, publishErr) {
+		t.Fatalf("SendTask = (%#v, %v), want nil and publish error", result, err)
+	}
+	if b.failureWrites != 0 {
+		t.Fatalf("unsafe failure writes = %d, want 0", b.failureWrites)
+	}
+}
+
+func TestSendTaskAttemptIDGenerationFailureHasNoSideEffects(t *testing.T) {
+	generationErr := errors.New("attempt ID generation failed")
+	b := &attemptTrackingBackend{}
+	publishes := 0
+	server := &Server{
+		backend: b,
+		controller: &callbackPublishController{publish: func(context.Context, *task.Signature) error {
+			publishes++
+			return nil
+		}},
+		publicationAttemptID: func() (string, error) { return "", generationErr },
+	}
+	if result, err := server.SendTask(task.NewSignature("generation-failure", "callback")); result != nil || !errors.Is(err, generationErr) {
+		t.Fatalf("SendTask = (%#v, %v), want nil and generation error", result, err)
+	}
+	if b.pendingAttempts != 0 || len(b.pendingIDs) != 0 || publishes != 0 {
+		t.Fatalf("generation failure caused side effects: attempts=%d pending=%v publishes=%d", b.pendingAttempts, b.pendingIDs, publishes)
+	}
 }
 
 func TestOrdinaryCallbacksUsePublishCompensation(t *testing.T) {
@@ -229,6 +424,56 @@ func TestOrdinaryCallbacksUsePublishCompensation(t *testing.T) {
 				t.Fatalf("dispatch ordinary callback: %v", err)
 			}
 			assertCallbackTaskState(t, b, callback.ID, tt.wantState, tt.wantMessage)
+		})
+	}
+}
+
+func TestOrdinaryCallbackPublicationErrorsReachErrorHandler(t *testing.T) {
+	publishErr := errors.New("callback publish failed")
+	compensationErr := errors.New("callback compensation failed")
+	parentErr := errors.New("parent task failed")
+	tests := []struct {
+		name     string
+		dispatch func(*Worker, *task.Signature) error
+	}{
+		{name: "success callback", dispatch: func(worker *Worker, parent *task.Signature) error {
+			return worker.handlerSucceeded(parent, nil)
+		}},
+		{name: "error callback", dispatch: func(worker *Worker, parent *task.Signature) error {
+			return worker.handlerFailed(parent, parentErr)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server, baseBackend := newCallbackPublishTestServer(t, func(context.Context, *task.Signature) error {
+				return publishErr
+			})
+			server.backend = &callbackCompensationFailBackend{Backend: baseBackend, err: compensationErr}
+			callback := task.NewSignature("reported-callback", "callback")
+			callback.Args = []task.Arg{{Type: "string", Value: "sensitive-callback-payload"}}
+			parent := task.NewSignature("reported-parent", "parent")
+			parent.CallbackOnSuccess = []*task.Signature{callback}
+			parent.CallbackOnError = []*task.Signature{callback}
+			worker := &Worker{bindService: server}
+			var reported []error
+			worker.errorHandler = func(err error) { reported = append(reported, err) }
+
+			if err := tt.dispatch(worker, parent); err != nil {
+				t.Fatalf("dispatch returned error: %v", err)
+			}
+			var callbackErr error
+			for _, err := range reported {
+				if errors.Is(err, publishErr) || errors.Is(err, compensationErr) {
+					callbackErr = err
+				}
+				if strings.Contains(err.Error(), "sensitive-callback-payload") {
+					t.Fatalf("error handler received sensitive callback payload: %v", err)
+				}
+			}
+			if callbackErr == nil || !errors.Is(callbackErr, publishErr) || !errors.Is(callbackErr, compensationErr) {
+				t.Fatalf("reported errors = %v, want joined callback publication and compensation errors", reported)
+			}
 		})
 	}
 }

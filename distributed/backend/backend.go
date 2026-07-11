@@ -49,3 +49,19 @@ type Backend interface {
 	// 在使用controller中接管时候统一设置
 	SetResultExpire(expire int64)
 }
+
+// PublicationAttemptBackend is an optional extension for backends that can
+// compensate an ambiguous single-task publication without overwriting worker
+// progress or a newer publication attempt. Backend intentionally does not
+// embed this interface so existing third-party implementations remain source
+// compatible.
+type PublicationAttemptBackend interface {
+	// SetStatePendingAttempt atomically records PENDING and private ownership by
+	// attemptID before the task is published.
+	SetStatePendingAttempt(signature *task.Signature, attemptID string) error
+
+	// FailPendingAttempt changes only the matching PENDING attempt to FAILURE.
+	// changed is false when the task is missing, belongs to another attempt, or
+	// has already advanced to another state.
+	FailPendingAttempt(signature *task.Signature, attemptID, reason string) (changed bool, err error)
+}

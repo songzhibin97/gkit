@@ -22,6 +22,7 @@ const (
 	mongoIndexSetupTimeout                = 5 * time.Second
 	taskTTLIndexName                      = "gkit_tasks_create_at_ttl"
 	groupTTLIndexName                     = "gkit_groups_create_at_ttl"
+	publicationAttemptField               = "publication_attempt_id"
 )
 
 type BackendMongoDB struct {
@@ -131,14 +132,52 @@ func (b *BackendMongoDB) TriggerCompleted(groupID string) (bool, error) {
 
 func (b *BackendMongoDB) SetStatePending(signature *task.Signature) error {
 	update := bson.M{
-		"_id":       signature.ID,
-		"status":    task.StatePending,
-		"group_id":  signature.GroupID,
-		"name":      signature.Name,
-		"error":     "",
-		"create_at": time.Now().Local(),
+		"_id":      signature.ID,
+		"status":   task.StatePending,
+		"group_id": signature.GroupID,
+		"name":     signature.Name,
 	}
+	return b.updatePendingStatus(signature, update, "")
+}
+
+func (b *BackendMongoDB) SetStatePendingAttempt(signature *task.Signature, attemptID string) error {
+	if attemptID == "" {
+		return errors.New("backend_mongodb: empty publication attempt ID")
+	}
+	update := bson.M{
+		"_id":      signature.ID,
+		"status":   task.StatePending,
+		"group_id": signature.GroupID,
+		"name":     signature.Name,
+	}
+	return b.updatePendingStatus(signature, update, attemptID)
+}
+
+func (b *BackendMongoDB) updatePendingStatus(signature *task.Signature, update bson.M, attemptID string) error {
+	update["error"] = ""
+	update[publicationAttemptField] = attemptID
 	return b.updateStatus(signature, update)
+}
+
+func (b *BackendMongoDB) FailPendingAttempt(signature *task.Signature, attemptID, reason string) (bool, error) {
+	if attemptID == "" {
+		return false, nil
+	}
+	query := bson.M{
+		"_id":                   signature.ID,
+		"status":                task.StatePending,
+		publicationAttemptField: attemptID,
+	}
+	result, err := b.taskTable.UpdateOne(context.Background(), query, bson.M{
+		"$set": bson.M{
+			"status": task.StateFailure,
+			"error":  reason,
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	return result.ModifiedCount > 0, nil
 }
 
 func (b *BackendMongoDB) SetStateReceived(signature *task.Signature) error {
@@ -216,10 +255,19 @@ func (b *BackendMongoDB) ResetGroup(groupIDs ...string) error {
 
 // updateStatus 更新状态
 func (b *BackendMongoDB) updateStatus(signature *task.Signature, update bson.M) error {
-	update = bson.M{"$set": update}
+	update = buildTaskStatusUpdate(update, time.Now().Local())
 	query := bson.M{"_id": signature.ID}
 	_, err := b.taskTable.UpdateOne(context.Background(), query, update, moption.Update().SetUpsert(true))
 	return err
+}
+
+func buildTaskStatusUpdate(fields bson.M, createAt time.Time) bson.M {
+	return bson.M{
+		"$set": fields,
+		"$setOnInsert": bson.M{
+			"create_at": createAt,
+		},
+	}
 }
 
 func normalizeResultExpire(expire int64) int64 {

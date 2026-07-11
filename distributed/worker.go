@@ -175,7 +175,9 @@ func (w *Worker) handlerSucceeded(signature *task.Signature, results []*task.Res
 				},
 			)
 		}
-		_, _ = w.bindService.SendTask(success)
+		if _, err := w.bindService.SendTask(success); err != nil {
+			w.reportCallbackPublicationError(signature, success, "success", err)
+		}
 	}
 
 	// 如果没有回调,完成
@@ -247,12 +249,31 @@ func (w *Worker) handlerFailed(signature *task.Signature, err error) error {
 	}
 	for _, _error := range signature.CallbackOnError {
 		_error.Args = append([]task.Arg{{Type: "string", Value: err.Error()}}, _error.Args...)
-		_, _ = w.bindService.SendTask(_error)
+		if _, callbackErr := w.bindService.SendTask(_error); callbackErr != nil {
+			w.reportCallbackPublicationError(signature, _error, "error", callbackErr)
+		}
 	}
 	if signature.StopTaskDeletionOnError {
 		return errors.New("StopTaskDeletionOnError")
 	}
 	return nil
+}
+
+func (w *Worker) reportCallbackPublicationError(parent, callback *task.Signature, kind string, err error) {
+	reported := fmt.Errorf(
+		"publish %s callback %s for task %s: %w",
+		kind,
+		callback.ID,
+		parent.ID,
+		err,
+	)
+	if w.errorHandler != nil {
+		w.errorHandler(reported)
+		return
+	}
+	if w.bindService != nil && w.bindService.helper != nil {
+		w.bindService.helper.Errorf("Callback publication failed: %v", reported)
+	}
 }
 
 func (w *Worker) ConsumeQueue() string {

@@ -2,6 +2,8 @@ package distributed
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	stderrors "errors"
 	"fmt"
 	"sync"
@@ -37,6 +39,8 @@ const timedRunSuffixLength = 16
 
 const taskPublicationFailureMessage = "task publication outcome unknown"
 
+const publicationAttemptIDBytes = 16
+
 // timedTaskLockTTL clamps the user-requested TTL into a Redis-acceptable
 // positive integer.
 func timedTaskLockTTL(d time.Duration) int {
@@ -65,6 +69,9 @@ type Server struct {
 	scheduler         *cron.Cron                 // scheduler 调度器
 	prePublishHandler func(task *task.Signature) // prePublishHandler 预处理器
 	helper            *log.Helper
+	// publicationAttemptID is injectable only for deterministic failure tests.
+	// Production servers use generatePublicationAttemptID.
+	publicationAttemptID func() (string, error)
 }
 
 // GetConfig 获取配置文件
@@ -91,6 +98,21 @@ func (s *Server) bindDefaultRouter(signature *task.Signature) {
 	if signature.Router == "" && s.config != nil {
 		signature.Router = s.config.ConsumeQueue
 	}
+}
+
+func generatePublicationAttemptID() (string, error) {
+	var value [publicationAttemptIDBytes]byte
+	if _, err := cryptorand.Read(value[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(value[:]), nil
+}
+
+func (s *Server) nextPublicationAttemptID() (string, error) {
+	if s.publicationAttemptID != nil {
+		return s.publicationAttemptID()
+	}
+	return generatePublicationAttemptID()
 }
 
 // RegisteredTasks 注册多个任务
@@ -131,8 +153,19 @@ func (s *Server) GetRegisteredTask(name string) (interface{}, bool) {
 
 // SendTaskWithContext 发送任务,可以传入ctx
 func (s *Server) SendTaskWithContext(ctx context.Context, signature *task.Signature) (*result.AsyncResult, error) {
-	// 设置任务状态为pending
-	if err := s.backend.SetStatePending(signature); err != nil {
+	attemptBackend, supportsAttemptCompensation := s.backend.(backend.PublicationAttemptBackend)
+	var attemptID string
+	var err error
+	if supportsAttemptCompensation {
+		attemptID, err = s.nextPublicationAttemptID()
+		if err != nil {
+			return nil, fmt.Errorf("generate publication attempt ID: %w", err)
+		}
+		err = attemptBackend.SetStatePendingAttempt(signature, attemptID)
+	} else {
+		err = s.backend.SetStatePending(signature)
+	}
+	if err != nil {
 		return nil, errors.Wrap(err, "set state pending")
 	}
 	// 是否预处理
@@ -142,14 +175,22 @@ func (s *Server) SendTaskWithContext(ctx context.Context, signature *task.Signat
 	s.bindDefaultRouter(signature)
 	// 任务发布
 	if err := s.controller.Publish(ctx, signature); err != nil {
-		return nil, s.withTaskPublicationCompensation(signature, err)
+		return nil, s.withTaskPublicationCompensation(signature, attemptBackend, attemptID, err)
 	}
 	return result.NewAsyncResult(signature, s.backend), nil
 }
 
-func (s *Server) withTaskPublicationCompensation(signature *task.Signature, publishErr error) error {
+func (s *Server) withTaskPublicationCompensation(
+	signature *task.Signature,
+	attemptBackend backend.PublicationAttemptBackend,
+	attemptID string,
+	publishErr error,
+) error {
 	primaryErr := fmt.Errorf("publish task %s: %w", signature.ID, publishErr)
-	if err := s.backend.SetStateFailure(signature, taskPublicationFailureMessage); err != nil {
+	if attemptBackend == nil {
+		return primaryErr
+	}
+	if _, err := attemptBackend.FailPendingAttempt(signature, attemptID, taskPublicationFailureMessage); err != nil {
 		return stderrors.Join(
 			primaryErr,
 			fmt.Errorf("converge task %s after publication failure: %w", signature.ID, err),
