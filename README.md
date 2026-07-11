@@ -1168,15 +1168,14 @@ func main() {
 	middle := bbr.NewLimiter()
 
 	// in the middleware 
-	// The ctx carries these two configurable valid data
-	// You can get the limiter type via the ctx.Set
+	// The ctx carries these two configurable values through the typed helpers.
 
 	// Configure to get the limiter type, you can get different limiter according to different api
-	ctx := context.WithValue(context.TODO(), bbr.LimitKey, "key")
+	ctx := bbr.WithLimitKey(context.TODO(), "key")
 
 	// Configurable to report success or not
 	// must be of type overload.
-	ctx = context.WithValue(ctx, bbr.LimitOp, overload.Success)
+	ctx = bbr.WithLimitOp(ctx, overload.Success)
 
 	_ = middle
 }
