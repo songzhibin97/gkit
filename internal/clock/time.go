@@ -142,19 +142,26 @@ func (t *RealTicker) Stop() {
 // MockTicker 测试使用的 Ticker 对象
 // MockTicker 和 MockClock 一般搭配使用
 type MockTicker struct {
-	lock   sync.Mutex
-	period time.Duration
-	c      chan time.Time
-	last   time.Time
-	stop   chan struct{}
+	lock     sync.Mutex
+	stopOnce sync.Once
+	period   time.Duration
+	c        chan time.Time
+	last     time.Time
+	stop     chan struct{}
+	done     chan struct{}
 }
 
 func NewMockTicker(d time.Duration) *MockTicker {
+	if d <= 0 {
+		panic("non-positive interval for NewTicker")
+	}
+
 	t := &MockTicker{
 		period: d,
 		c:      make(chan time.Time, 1),
 		last:   Now(),
 		stop:   make(chan struct{}),
+		done:   make(chan struct{}),
 	}
 
 	go t.checkLoop()
@@ -167,7 +174,10 @@ func (t *MockTicker) C() <-chan time.Time {
 }
 
 func (t *MockTicker) Stop() {
-	close(t.stop)
+	t.stopOnce.Do(func() {
+		close(t.stop)
+	})
+	<-t.done
 }
 
 func (t *MockTicker) check() {
@@ -188,6 +198,9 @@ func (t *MockTicker) check() {
 
 func (t *MockTicker) checkLoop() {
 	ticker := time.NewTicker(time.Microsecond)
+	defer ticker.Stop()
+	defer close(t.done)
+
 	for {
 		select {
 		case <-t.stop:
