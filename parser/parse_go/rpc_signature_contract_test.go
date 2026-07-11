@@ -218,6 +218,50 @@ func TooManyResults(req Request) (Response, error, error) { return Response{}, n
 	}
 }
 
+func TestParseGoRejectsShadowedErrorResults(t *testing.T) {
+	tests := []struct {
+		name         string
+		functionName string
+		source       string
+	}{
+		{
+			name:         "package type",
+			functionName: "PackageShadow",
+			source: `package fixture
+
+type error string
+type Request struct{}
+type Response struct{}
+
+// @service:Fixture
+func PackageShadow(req Request) (Response, error) { return Response{}, "shadowed" }
+`,
+		},
+		{
+			name:         "type parameter",
+			functionName: "TypeParameterShadow",
+			source: `package fixture
+
+type Request struct{}
+type Response struct{}
+
+// @service:Fixture
+func TypeParameterShadow[error any](req Request) (Response, error) {
+	var shadowed error
+	return Response{}, shadowed
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseGo(writeGoFixture(t, tt.source), AddParseFunc(parseDoc), AddParseStruct(parseTag))
+			assertRPCSignatureError(t, err, tt.functionName, "second result")
+		})
+	}
+}
+
 func TestHasRPCDocTagsClassifiesMultilineLinesExactly(t *testing.T) {
 	if !hasRPCDocTags([]string{`/*
  * ordinary prose

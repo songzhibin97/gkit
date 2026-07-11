@@ -299,7 +299,7 @@ func isContextType(expr ast.Expr) bool {
 
 func isErrorType(expr ast.Expr) bool {
 	ident, ok := expr.(*ast.Ident)
-	return ok && ident.Name == "error"
+	return ok && ident.Name == "error" && ident.Obj == nil
 }
 
 func rpcMessageType(expr ast.Expr) (string, bool) {
