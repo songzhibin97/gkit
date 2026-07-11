@@ -115,8 +115,8 @@ func TestReliableLuaRedis7AckOutcomeUsesRedisTimeAndBoundedCleanup(t *testing.T)
 	if err != nil {
 		t.Fatalf("read acknowledgement outcome: %v", err)
 	}
-	lower := before.UnixMilli() + ackOutcomeRetention.Milliseconds()
-	upper := after.UnixMilli() + ackOutcomeRetention.Milliseconds()
+	lower := before.UnixMilli() + (24 * time.Hour).Milliseconds()
+	upper := after.UnixMilli() + (24 * time.Hour).Milliseconds()
 	if outcomeMillis := int64(score); outcomeMillis < lower || outcomeMillis > upper {
 		t.Fatalf("outcome score = %d, want Redis TIME + 24h in [%d, %d]", outcomeMillis, lower, upper)
 	}
@@ -126,8 +126,8 @@ func TestReliableLuaRedis7AckOutcomeUsesRedisTimeAndBoundedCleanup(t *testing.T)
 	if total := client.ZCard(ctx, q.keys.outcomes).Val(); total != 73 {
 		t.Fatalf("outcome members after bounded cleanup = %d, want 72 expired + 1 confirmed", total)
 	}
-	if ttl := client.PTTL(ctx, q.keys.outcomes).Val(); ttl <= ackOutcomeRetention || ttl > ackOutcomeKeyTTL {
-		t.Fatalf("outcome key TTL = %v, want (%v, %v]", ttl, ackOutcomeRetention, ackOutcomeKeyTTL)
+	if ttl := client.PTTL(ctx, q.keys.outcomes).Val(); ttl <= 24*time.Hour || ttl > 25*time.Hour {
+		t.Fatalf("outcome key TTL = %v, want (24h, 25h]", ttl)
 	}
 }
 
