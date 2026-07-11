@@ -312,7 +312,7 @@ func ExampleShutdown()  {
 
 ### singleflight
 
-归并回源
+归并回源。`Forget` 语义以 `go.mod` 固定的 `golang.org/x/sync/singleflight.Group.Forget` v0.11.0 为准（核对日期：2026-07-12）。
 ```go
 package main
 
@@ -361,7 +361,8 @@ func main() {
 	// result.Val就是获取到的资源
 	cache(result.Val)
 	
-	// 尽力取消
+	// Forget 仅移除 singleflight 对该 key 的关联，不会取消 fn；
+	// 后续同 key 调用会独立执行。
 	f.Forget("test2")
 }
 ```
