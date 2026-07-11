@@ -131,11 +131,10 @@ func (b *BackendMongoDB) TriggerCompleted(groupID string) (bool, error) {
 
 func (b *BackendMongoDB) SetStatePending(signature *task.Signature) error {
 	update := bson.M{
-		"_id":       signature.ID,
-		"status":    task.StatePending,
-		"group_id":  signature.GroupID,
-		"name":      signature.Name,
-		"create_at": time.Now().Local(),
+		"_id":      signature.ID,
+		"status":   task.StatePending,
+		"group_id": signature.GroupID,
+		"name":     signature.Name,
 	}
 	return b.updateStatus(signature, update)
 }
@@ -211,10 +210,19 @@ func (b *BackendMongoDB) ResetGroup(groupIDs ...string) error {
 
 // updateStatus 更新状态
 func (b *BackendMongoDB) updateStatus(signature *task.Signature, update bson.M) error {
-	update = bson.M{"$set": update}
+	update = buildTaskStatusUpdate(update, time.Now().Local())
 	query := bson.M{"_id": signature.ID}
 	_, err := b.taskTable.UpdateOne(context.Background(), query, update, moption.Update().SetUpsert(true))
 	return err
+}
+
+func buildTaskStatusUpdate(fields bson.M, createAt time.Time) bson.M {
+	return bson.M{
+		"$set": fields,
+		"$setOnInsert": bson.M{
+			"create_at": createAt,
+		},
+	}
 }
 
 func normalizeResultExpire(expire int64) int64 {
