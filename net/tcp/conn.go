@@ -245,20 +245,22 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 
 // RecvWithTimeout 读取已经超时的链接
 func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) {
-	if err := c.SetRecvDeadline(time.Now().Add(timeout)); err != nil {
+	deadline := time.Now().Add(timeout)
+	if err := c.SetRecvDeadline(deadline); err != nil {
 		return nil, err
 	}
 	defer c.SetRecvDeadline(time.Time{})
-	return c.Recv(length, retry)
+	return c.recv(length, retry, sleepForRetryUntil(deadline))
 }
 
 // SendWithTimeout 写入数据给已经超时的链接
 func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error {
-	if err := c.SetSendDeadline(time.Now().Add(timeout)); err != nil {
+	deadline := time.Now().Add(timeout)
+	if err := c.SetSendDeadline(deadline); err != nil {
 		return err
 	}
 	defer c.SetSendDeadline(time.Time{})
-	return c.Send(data, retry)
+	return c.send(data, retry, sleepForRetryUntil(deadline))
 }
 
 // SendRecv 写入数据并读取返回

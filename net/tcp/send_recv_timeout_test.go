@@ -24,6 +24,17 @@ func (c *closePeerOnDeadlineConn) SetDeadline(deadline time.Time) error {
 	if err := c.Conn.SetDeadline(deadline); err != nil {
 		return err
 	}
+	return c.closePeer(deadline)
+}
+
+func (c *closePeerOnDeadlineConn) SetWriteDeadline(deadline time.Time) error {
+	if err := c.Conn.SetWriteDeadline(deadline); err != nil {
+		return err
+	}
+	return c.closePeer(deadline)
+}
+
+func (c *closePeerOnDeadlineConn) closePeer(deadline time.Time) error {
 	if !deadline.IsZero() && !c.peerClosed {
 		c.peerClosed = true
 		return c.peer.Close()
@@ -186,6 +197,48 @@ func TestSendRecvWithTimeoutBoundsReceiveRetryWait(t *testing.T) {
 	}
 	if elapsed >= 100*time.Millisecond {
 		t.Fatalf("SendRecvWithTimeout elapsed = %v, want retry wait bounded by timeout", elapsed)
+	}
+	if retry.Count != 2 {
+		t.Fatalf("retry count after timeout = %d, want 2; retries must share one deadline", retry.Count)
+	}
+}
+
+func TestSendWithTimeoutBoundsRetryWait(t *testing.T) {
+	client, peer := net.Pipe()
+	defer client.Close()
+	defer peer.Close()
+	conn := NewConnByNetConn(&closePeerOnDeadlineConn{Conn: client, peer: peer})
+	retry := &Retry{Count: 3, Interval: 120 * time.Millisecond}
+
+	started := time.Now()
+	err := conn.SendWithTimeout([]byte("request"), 10*time.Millisecond, retry)
+	elapsed := time.Since(started)
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("SendWithTimeout error = %v, want os.ErrDeadlineExceeded", err)
+	}
+	if elapsed >= 100*time.Millisecond {
+		t.Fatalf("SendWithTimeout elapsed = %v, want retry wait bounded by timeout", elapsed)
+	}
+	if retry.Count != 2 {
+		t.Fatalf("retry count after timeout = %d, want 2; retries must share one deadline", retry.Count)
+	}
+}
+
+func TestRecvWithTimeoutBoundsRetryWait(t *testing.T) {
+	client, peer := net.Pipe()
+	defer client.Close()
+	defer peer.Close()
+	conn := NewConnByNetConn(client)
+	retry := &Retry{Count: 3, Interval: 120 * time.Millisecond}
+
+	started := time.Now()
+	_, err := conn.RecvWithTimeout(1, 10*time.Millisecond, retry)
+	elapsed := time.Since(started)
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("RecvWithTimeout error = %v, want os.ErrDeadlineExceeded", err)
+	}
+	if elapsed >= 100*time.Millisecond {
+		t.Fatalf("RecvWithTimeout elapsed = %v, want retry wait bounded by timeout", elapsed)
 	}
 	if retry.Count != 2 {
 		t.Fatalf("retry count after timeout = %d, want 2; retries must share one deadline", retry.Count)
