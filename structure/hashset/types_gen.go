@@ -68,6 +68,24 @@ func main() {
 		// Common cases.
 		data = strings.Replace(data, "int64", lower, -1)
 		data = strings.Replace(data, "Int64", upper, -1)
+		switch upper {
+		case "Float32", "Float64":
+			data = addNaNGuards(
+				data,
+				upper,
+				lower,
+				"// Returns false for NaN; otherwise applies the operation and returns true",
+				"value != value",
+			)
+		case "Complex64", "Complex128":
+			data = addNaNGuards(
+				data,
+				upper,
+				lower,
+				"// Returns false when either component is NaN; otherwise applies the operation and returns true",
+				"real(value) != real(value) || imag(value) != imag(value)",
+			)
+		}
 		if inSlice(lowerSlice(ts), lower) {
 			data = strings.Replace(data, "length "+lower, "length int64", 1)
 		}
@@ -84,6 +102,25 @@ func main() {
 	if err := ioutil.WriteFile("types.go", out, 0660); err != nil {
 		panic(err)
 	}
+}
+
+func addNaNGuards(data, upper, lower, returnComment, condition string) string {
+	const genericReturnComment = "// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists\n// Reserves the return type for future extension"
+	if strings.Count(data, genericReturnComment) != 2 {
+		panic("unexpected Add/Remove comments for " + upper)
+	}
+	data = strings.Replace(data, genericReturnComment, returnComment, -1)
+	addSignature := "func (s " + upper + "Set) Add(value " + lower + ") bool {\n"
+	if strings.Count(data, addSignature) != 1 {
+		panic("unexpected Add signature for " + upper)
+	}
+	data = strings.Replace(data, addSignature, addSignature+"\tif "+condition+" {\n\t\treturn false\n\t}\n", 1)
+	removeSignature := "func (s " + upper + "Set) Remove(value " + lower + ") bool {\n"
+	if strings.Count(data, removeSignature) != 1 {
+		panic("unexpected Remove signature for " + upper)
+	}
+	data = strings.Replace(data, removeSignature, removeSignature+"\tif "+condition+" {\n\t\treturn false\n\t}\n", 1)
+	return data
 }
 
 func lowerSlice(s []string) []string {
