@@ -337,7 +337,8 @@ func (g *GoParsePB) PackageName() string {
 // Generate 生成pb文件
 func (g *GoParsePB) Generate() string {
 	temp := `syntax = "proto3";
-package {{.PackageName}};
+{{if .Server}}import "google/api/annotations.proto";
+{{end}}package {{.PackageName}};
 
 // message{{range .Message}}
 message {{.Name}}{
