@@ -18,7 +18,10 @@ const Lot = 10
 // MagicNumberGeneration 要保证同一个服务种子一致
 type MagicNumberGeneration func() int64
 
-var ErrorHasBeenClosed = errors.New("has been closed")
+var (
+	ErrorHasBeenClosed = errors.New("has been closed")
+	ErrorNoClients     = errors.New("no clients")
+)
 
 //func corput(n int, base int) float64 {
 //	var q float64
@@ -151,16 +154,18 @@ func NewRockSteadierSubset(ctx context.Context, clients, services []int, magicNu
 		uniqueServices = append(uniqueServices, service)
 	}
 	col := 0
-	for i := 0; i < len(uniqueServices); i++ {
-		matrix[i%pad] = append(matrix[i%pad], toPoint(uniqueServices[i]))
-		col = max(col, len(matrix[i%pad]))
+	if pad > 0 {
+		for i := 0; i < len(uniqueServices); i++ {
+			matrix[i%pad] = append(matrix[i%pad], toPoint(uniqueServices[i]))
+			col = max(col, len(matrix[i%pad]))
+		}
+		// padding
+		ls := len(uniqueServices)
+		for ; ls%pad != 0; ls++ {
+			matrix[ls%pad] = append(matrix[ls%pad], nil)
+		}
+		shuffle(magicNumberGeneration(), clients, matrix)
 	}
-	// padding
-	ls := len(uniqueServices)
-	for ; ls%pad != 0; ls++ {
-		matrix[ls%pad] = append(matrix[ls%pad], nil)
-	}
-	shuffle(magicNumberGeneration(), clients, matrix)
 	hasClient := make(map[int]int)
 	hasService := make(map[int][2]int)
 	for idx, client := range clients {
@@ -215,6 +220,9 @@ func shuffle(magicNumber int64, clients []int, matrixServices [][]*int) {
 func (r *RockSteadierSubset) AddService(ctx context.Context, ids []int) error {
 	if atomic.LoadInt32(&r.close) == 1 {
 		return ErrorHasBeenClosed
+	}
+	if len(r.clients) == 0 {
+		return ErrorNoClients
 	}
 	select {
 	case <-ctx.Done():
@@ -282,6 +290,9 @@ func (r *RockSteadierSubset) addService(ids []int) {
 func (r *RockSteadierSubset) RemoveService(ctx context.Context, ids []int) error {
 	if atomic.LoadInt32(&r.close) == 1 {
 		return ErrorHasBeenClosed
+	}
+	if len(r.clients) == 0 {
+		return ErrorNoClients
 	}
 	select {
 	case <-ctx.Done():
