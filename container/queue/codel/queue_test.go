@@ -2,6 +2,7 @@ package codel
 
 import (
 	"context"
+	"math"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -118,10 +119,51 @@ func TestQueueJudgeDropScheduleAdvancesCount(t *testing.T) {
 		if got := atomic.LoadInt64(&q.count); got != 2 {
 			t.Fatalf("drop count after due drop = %d, want 2", got)
 		}
-		if got := atomic.LoadInt64(&q.dropNext); got <= oldDropNext {
-			t.Fatalf("dropNext after due drop = %d, want greater than %d", got, oldDropNext)
+		wantDropNext := oldDropNext + controlLawOffset(q.conf.internal, 2)
+		if got := atomic.LoadInt64(&q.dropNext); got != wantDropNext {
+			t.Fatalf("dropNext after due drop = %d, want previous schedule %d + control-law offset = %d", got, oldDropNext, wantDropNext)
 		}
 	})
+}
+
+func TestQueueJudgeRecentDropCycleReentry(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		lastCount int64
+		wantCount int64
+	}{
+		{name: "count above two resumes two steps back", lastCount: 5, wantCount: 3},
+		{name: "count at most two restarts at one", lastCount: 2, wantCount: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+			q.dropping = false
+			atomic.StoreInt64(&q.count, test.lastCount)
+			before := nowMillis()
+			atomic.StoreInt64(&q.faTime, before-decisionMargin-1)
+			atomic.StoreInt64(&q.dropNext, before)
+
+			if drop := q.judge(packet{ts: 0}); !drop {
+				t.Fatal("judge() allowed an above-target packet when re-entering a recent drop cycle")
+			}
+			after := nowMillis()
+			if !q.dropping {
+				t.Fatal("queue did not re-enter dropping for a recent drop cycle")
+			}
+			if got := atomic.LoadInt64(&q.count); got != test.wantCount {
+				t.Fatalf("drop count on recent-cycle re-entry = %d, want %d", got, test.wantCount)
+			}
+
+			offset := controlLawOffset(q.conf.internal, test.wantCount)
+			if got := atomic.LoadInt64(&q.dropNext); got < before+offset || got > after+offset {
+				t.Fatalf("dropNext on recent-cycle re-entry = %d, want within logical-now range [%d, %d]", got, before+offset, after+offset)
+			}
+		})
+	}
+}
+
+func controlLawOffset(interval, count int64) int64 {
+	return int64(float64(interval) / math.Sqrt(float64(count)))
 }
 
 func queueInDroppingState(count, dropNext int64) *Queue {
