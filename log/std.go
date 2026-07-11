@@ -16,6 +16,18 @@ type stdLogger struct {
 	minLevel Lever
 }
 
+type shortWriteWriter struct {
+	io.Writer
+}
+
+func (w shortWriteWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
+	if n < len(p) && err == nil {
+		err = io.ErrShortWrite
+	}
+	return n, err
+}
+
 // NewStdLogger new a logger with writer. The minimum level filter is
 // LevelDebug (i.e. everything is emitted).
 func NewStdLogger(w io.Writer) Logger {
@@ -28,7 +40,7 @@ func NewStdLogger(w io.Writer) Logger {
 // was never invoked.
 func NewStdLoggerWithLevel(w io.Writer, min Lever) Logger {
 	return &stdLogger{
-		log: log.New(w, "", 0),
+		log: log.New(shortWriteWriter{Writer: w}, "", 0),
 		pool: &sync.Pool{
 			New: func() interface{} {
 				return new(bytes.Buffer)
@@ -54,8 +66,8 @@ func (l *stdLogger) Log(level Lever, kvs ...interface{}) error {
 	for i := 0; i < len(kvs); i += 2 {
 		fmt.Fprintf(buf, " %s=%v", kvs[i], kvs[i+1])
 	}
-	_ = l.log.Output(4, buf.String())
+	err := l.log.Output(4, buf.String())
 	buf.Reset()
 	l.pool.Put(buf)
-	return nil
+	return err
 }
