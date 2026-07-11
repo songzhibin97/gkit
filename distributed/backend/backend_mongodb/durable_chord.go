@@ -273,7 +273,10 @@ func (b *BackendMongoDB) CleanupTerminalChordDeliveries(ctx context.Context, now
 		return 0, cursor.Err()
 	}
 	result, err := b.chordTable.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": ids}})
-	return int(result.DeletedCount), err
+	if err != nil {
+		return 0, fmt.Errorf("delete terminal chord deliveries: %w", err)
+	}
+	return int(result.DeletedCount), nil
 }
 
 func (b *BackendMongoDB) getChordDelivery(ctx context.Context, deliveryKey string) (*backend.ChordDelivery, error) {
