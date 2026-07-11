@@ -26,21 +26,35 @@ var emptyField = reflect.StructField{}
 
 func mapFormByTag(ptr interface{}, form map[string][]string, tag string) error {
 	ptrVal := reflect.ValueOf(ptr)
-	var pointed interface{}
-	// 如果 ptr 是指针
-	if ptrVal.Kind() == reflect.Ptr {
-		// 获取指针内下的值 并且记录一下 当前类型的 interface模式存储在 pointed 位置
-		ptrVal = ptrVal.Elem()
-		pointed = ptrVal.Interface()
+	if !ptrVal.IsValid() {
+		return errUnknownType
 	}
-	if ptrVal.Kind() == reflect.Map &&
-		ptrVal.Type().Key().Kind() == reflect.String {
-		// 如果 ptr 是map类型 && 并且 key 是 string 的情况下
-		if pointed != nil {
-			// 如果上面 pointed 不是nil 有值的情况下 ptr = pointed 赋值
-			ptr = pointed
+	rootKind := ptrVal.Kind()
+	if ptrVal.Kind() == reflect.Ptr {
+		if ptrVal.IsNil() {
+			return errUnknownType
 		}
-		return setFormMap(ptr, form)
+		ptrVal = ptrVal.Elem()
+	} else if rootKind != reflect.Map {
+		return errUnknownType
+	}
+	if ptrVal.Kind() == reflect.Map {
+		if ptrVal.Type().Key().Kind() != reflect.String {
+			return errUnknownType
+		}
+		if ptrVal.IsNil() {
+			switch ptrVal.Interface().(type) {
+			case map[string]string, map[string][]string:
+				if !ptrVal.CanSet() {
+					return errUnknownType
+				}
+				ptrVal.Set(reflect.MakeMap(ptrVal.Type()))
+			}
+		}
+		return setFormMap(ptrVal.Interface(), form)
+	}
+	if ptrVal.Kind() != reflect.Struct && ptrVal.Kind() != reflect.Ptr {
+		return errUnknownType
 	}
 
 	return mappingByPtr(ptr, formSource(form), tag)
