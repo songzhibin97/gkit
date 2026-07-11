@@ -68,6 +68,22 @@ func NewGroupCallbackAsyncResult(groupAsyncResult []*task.Signature, callbackAsy
 	}
 }
 
+func waitForPoll(ctx context.Context, duration time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	timer := time.NewTimer(duration)
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 // Get 返回结果
 func (asyncResult *AsyncResult) Get(sleepDuration time.Duration) ([]reflect.Value, error) {
 	for {
@@ -91,7 +107,9 @@ func (asyncResult *AsyncResult) GetWithTimeout(timeoutDuration, sleepDuration ti
 		default:
 			results, err := asyncResult.Monitor()
 			if results == nil && err == nil {
-				time.Sleep(sleepDuration)
+				if err := waitForPoll(ctx, sleepDuration); err != nil {
+					return nil, err
+				}
 			} else {
 				return results, err
 			}
@@ -196,7 +214,9 @@ func (chainAsyncResult *ChainAsyncResult) GetWithTimeout(timeoutDuration, sleepD
 			if results != nil {
 				return results, err
 			}
-			time.Sleep(sleepDuration)
+			if err := waitForPoll(ctx, sleepDuration); err != nil {
+				return nil, err
+			}
 		}
 	}
 }
@@ -245,7 +265,9 @@ func (groupCallbackAsyncResult *GroupCallbackAsyncResult) GetWithTimeout(timeout
 			if results != nil {
 				return results, err
 			}
-			time.Sleep(sleepDuration)
+			if err := waitForPoll(ctx, sleepDuration); err != nil {
+				return nil, err
+			}
 		}
 	}
 }
