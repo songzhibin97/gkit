@@ -418,7 +418,6 @@ func (c *ControllerRedis) restoreDelayedTask(queue string, taskBody []byte, scor
 func (c *ControllerRedis) StopConsuming() {
 	c.Broker.StopConsuming()
 	c.consumingWg.Wait()
-	c.client.Close()
 }
 
 func (c *ControllerRedis) Publish(ctx context.Context, t *task.Signature) error {
@@ -470,6 +469,8 @@ func (c *ControllerRedis) GetDelayedTasks() ([]*task.Signature, error) {
 	return taskSlice, nil
 }
 
+// NewControllerRedis borrows client. The caller remains responsible for
+// closing it after every component sharing the client has stopped using it.
 func NewControllerRedis(broker *broker.Broker, client redis.UniversalClient, consumingQueue, delayedQueue string) controller.Controller {
 	return &ControllerRedis{
 		Broker:         broker,
