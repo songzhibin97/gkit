@@ -200,10 +200,13 @@ func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
 // duplicate task IDs must de-duplicate first; otherwise the upsert
 // (ON CONFLICT id) cannot dedupe.
 func (b *BackendSQLDB) autoMigrate() error {
-	return b.gClient.AutoMigrate(
+	if err := b.gClient.AutoMigrate(
 		task.GroupMeta{},
 		task.Status{},
-	)
+	); err != nil {
+		return err
+	}
+	return b.migrateDurableChord()
 }
 
 // NewBackendSQLDB constructs a SQL-backed Backend. Returns nil on failure

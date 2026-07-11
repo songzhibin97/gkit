@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"time"
 
 	"github.com/songzhibin97/gkit/distributed/task"
@@ -35,7 +36,10 @@ type BackendMongoDB struct {
 	// taskTable taskTable
 	taskTable *mongo.Collection
 	// groupTable groupTable
-	groupTable *mongo.Collection
+	groupTable     *mongo.Collection
+	chordTable     *mongo.Collection
+	chordIndexOnce sync.Once
+	chordIndexErr  error
 }
 
 // SetResultExpire normalizes and stores the retention value for compatibility.
@@ -303,11 +307,20 @@ func NewBackendMongoDBE(client *mongo.Client, resultExpire int64, options ...opt
 		resultExpire: normalizedExpire,
 		taskTable:    client.Database(c.databaseName).Collection(c.tableTaskName),
 		groupTable:   client.Database(c.databaseName).Collection(c.tableGroupName),
+		chordTable:   client.Database(c.databaseName).Collection("chord_deliveries"),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), mongoIndexSetupTimeout)
 	defer cancel()
 	if err := b.createIndexes(ctx, taskModels, groupModels); err != nil {
 		return nil, err
+	}
+	// A negative retention value has historically guaranteed that construction
+	// performs no MongoDB I/O. Preserve that compatibility contract and create
+	// durable-chord indexes lazily on the first durable operation instead.
+	if normalizedExpire >= 0 {
+		if err := b.ensureChordIndexes(ctx); err != nil {
+			return nil, err
+		}
 	}
 	return &b, nil
 }

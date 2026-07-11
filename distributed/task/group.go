@@ -31,9 +31,9 @@ func (s StringSlice) Value() (driver.Value, error) {
 type GroupMeta struct {
 	ID uint `json:"-" bson:"-" gorm:"column:_id;primarykey;comment:_id"`
 	// GroupID 组的唯一标识
-	GroupID string `json:"group_id" bson:"_id" gorm:"column:id;index;comment:id"`
+	GroupID string `json:"group_id" bson:"_id" gorm:"column:id;size:255;index;comment:id"`
 	// 组名称
-	Name string `json:"name" bson:"name" gorm:"column:name;comment:组名称"`
+	Name string `json:"name" bson:"name" gorm:"column:name;size:255;comment:组名称"`
 	// TaskIDs 接管的任务id
 	TaskIDs StringSlice `json:"task_ids" bson:"task_ids" gorm:"column:task_ids;comment:接管的任务id;type:text"`
 	// TriggerCompleted 是否触发完成
