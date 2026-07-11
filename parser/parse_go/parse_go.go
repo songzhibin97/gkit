@@ -76,15 +76,17 @@ func docTagValue(doc string) (string, bool) {
 	return strings.TrimSpace(parts[1]), true
 }
 
-func rpcDocTag(doc string) (name, value string, ok bool) {
+func normalizeDocLine(doc string) string {
 	doc = strings.TrimSpace(doc)
-	switch {
-	case strings.HasPrefix(doc, "//"):
-		doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
-	case strings.HasPrefix(doc, "/*"):
-		doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
-		doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
-	}
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
+	doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "*"))
+	return doc
+}
+
+func rpcDocTag(doc string) (name, value string, ok bool) {
+	doc = normalizeDocLine(doc)
 
 	for _, tag := range []struct {
 		prefix string
@@ -104,17 +106,19 @@ func rpcDocTag(doc string) (name, value string, ok bool) {
 
 func parseDoc(server *Server) {
 	for _, doc := range server.Doc {
-		name, value, ok := rpcDocTag(doc)
-		if !ok {
-			continue
-		}
-		switch name {
-		case "method":
-			server.Method = value
-		case "service":
-			server.ServerName = value
-		case "router":
-			server.Router = value
+		for _, line := range strings.Split(doc, "\n") {
+			name, value, ok := rpcDocTag(line)
+			if !ok {
+				continue
+			}
+			switch name {
+			case "method":
+				server.Method = value
+			case "service":
+				server.ServerName = value
+			case "router":
+				server.Router = value
+			}
 		}
 	}
 }
