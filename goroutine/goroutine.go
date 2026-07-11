@@ -139,7 +139,15 @@ func (g *Goroutine) AddTaskN(ctx context.Context, f func()) (ok bool) {
 
 // ChangeMax 修改pool上限值
 func (g *Goroutine) ChangeMax(m int64) {
+	if m <= 0 {
+		m = 1
+	}
+	g.growMu.Lock()
+	defer g.growMu.Unlock()
 	atomic.StoreInt64(&g.max, m)
+	if atomic.LoadInt32(&g.close) == 0 && atomic.LoadInt64(&g.n) == 0 {
+		g._go()
+	}
 }
 
 // Shutdown 优雅关闭
@@ -221,6 +229,12 @@ func NewGoroutine(ctx context.Context, opts ...options.Option) GGroup {
 	}
 	for _, opt := range opts {
 		opt(&o)
+	}
+	if o.checkTime <= 0 {
+		o.checkTime = 10 * time.Minute
+	}
+	if o.max <= 0 {
+		o.max = 1
 	}
 	g := &Goroutine{
 		ctx:    ctx,

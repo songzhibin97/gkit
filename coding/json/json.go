@@ -39,6 +39,9 @@ func (c code) Marshal(v interface{}) ([]byte, error) {
 
 func (c code) Unmarshal(data []byte, v interface{}) error {
 	rv := reflect.ValueOf(v)
+	if !rv.IsValid() {
+		return fmt.Errorf("json: unmarshal target is nil")
+	}
 	for rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
 			if !rv.CanSet() {

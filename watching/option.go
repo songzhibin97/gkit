@@ -20,7 +20,7 @@ func WithCollectInterval(interval string) options.Option {
 		// CollectInterval wouldn't be zero value, because it
 		// will be initialized as defaultInterval at newOptions()
 		newInterval, err := time.ParseDuration(interval)
-		if err != nil || opts.config.CollectInterval.Seconds() == newInterval.Seconds() {
+		if err != nil || newInterval <= 0 || opts.config.CollectInterval.Seconds() == newInterval.Seconds() {
 			return
 		}
 		opts.config.CollectInterval = newInterval

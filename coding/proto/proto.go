@@ -2,6 +2,7 @@ package proto
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/songzhibin97/gkit/coding"
 	"google.golang.org/protobuf/proto"
@@ -27,6 +28,9 @@ func (c code) Unmarshal(data []byte, v interface{}) error {
 	m, ok := v.(proto.Message)
 	if !ok {
 		return fmt.Errorf("proto: Unmarshal expects proto.Message, got %T", v)
+	}
+	if rv := reflect.ValueOf(m); rv.Kind() == reflect.Ptr && rv.IsNil() {
+		return fmt.Errorf("proto: unmarshal target is a nil %T", v)
 	}
 	return proto.Unmarshal(data, m)
 }

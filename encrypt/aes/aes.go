@@ -30,6 +30,10 @@ const defaultKey = "gkit"
 // fallback ("gkit"), which produced a publicly-known KDF.
 var ErrEmptyKey = errors.New("aes: empty key")
 
+// ErrInvalidTargetLength is returned by PadKeyToLengthE when targetLength is
+// negative.
+var ErrInvalidTargetLength = errors.New("aes: invalid target length")
+
 // PadKey pads s to a valid AES key length (16, 24, or 32 bytes).
 //
 // Deprecated: PadKey("") silently substitutes the hard-coded "gkit" default,
@@ -88,10 +92,13 @@ func PadKeyToLength(s string, targetLength int) string {
 }
 
 // PadKeyToLengthE pads s to targetLength bytes. It returns ErrEmptyKey when s
-// is empty.
+// is empty and ErrInvalidTargetLength when targetLength is negative.
 func PadKeyToLengthE(s string, targetLength int) (string, error) {
 	if s == "" {
 		return "", ErrEmptyKey
+	}
+	if targetLength < 0 {
+		return "", ErrInvalidTargetLength
 	}
 	return PadKeyToLength(s, targetLength), nil
 }

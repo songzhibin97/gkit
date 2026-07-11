@@ -18,7 +18,8 @@ func WithPropagator(propagator propagation.TextMapPropagator) options.Option {
 	}
 }
 
-// WithTracerProvider with tracer provider.
+// WithTracerProvider configures the provider used by the returned Tracer. It
+// does not install provider as OpenTelemetry's global provider.
 func WithTracerProvider(provider trace.TracerProvider) options.Option {
 	return func(o interface{}) {
 		o.(*config).tracerProvider = provider

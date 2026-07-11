@@ -5,12 +5,10 @@ import (
 	"runtime"
 	"sync"
 	"unsafe"
-
-	"golang.org/x/sys/cpu"
 )
 
 const (
-	cacheLineSize = unsafe.Sizeof(cpu.CacheLinePad{})
+	cacheLineSize = 128
 )
 
 var (
@@ -22,7 +20,7 @@ type RWMutex []rwMutexShard
 
 type rwMutexShard struct {
 	sync.RWMutex
-	_pad [cacheLineSize - unsafe.Sizeof(sync.RWMutex{})]byte
+	_pad [cacheLineSize - unsafe.Sizeof(sync.RWMutex{})%cacheLineSize]byte
 }
 
 func init() {

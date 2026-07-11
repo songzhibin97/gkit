@@ -25,14 +25,14 @@ func ExampleNewLimiter() {
 
 	// 在middleware中
 	// ctx中携带这两个可配置的有效数据
-	// 可以通过 ctx.Set
+	// 使用 WithLimitKey 和 WithLimitOp 设置
 
 	// 配置获取限制器类型,可以根据不同api获取不同的限制器
-	ctx := context.WithValue(context.TODO(), LimitKey, "key")
+	ctx := WithLimitKey(context.TODO(), "key")
 
 	// 可配置成功是否上报
 	// 必须是 overload.Op 类型
-	ctx = context.WithValue(ctx, LimitOp, overload.Success)
+	ctx = WithLimitOp(ctx, overload.Success)
 
 	_ = middle
 }

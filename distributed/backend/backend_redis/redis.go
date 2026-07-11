@@ -23,10 +23,10 @@ var defaultResultExpire int64 = 3600
 
 var ErrType = errors.New("err type")
 
-// ErrGroupAlreadyExists is returned when a group identifier has already been
-// taken over. Callers can use errors.Is to distinguish this conflict from a
-// Redis transport failure.
-var ErrGroupAlreadyExists = errors.New("group already exists")
+// ErrGroupAlreadyExists is kept as an alias for callers that historically
+// imported the Redis-specific sentinel. New code can use the shared backend
+// contract instead.
+var ErrGroupAlreadyExists = backend.ErrGroupAlreadyExists
 
 type persistedTaskStatus struct {
 	*task.Status

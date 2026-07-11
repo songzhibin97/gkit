@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/songzhibin97/gkit/cache/buffer"
@@ -39,8 +40,36 @@ type Retry struct {
 	Interval time.Duration
 }
 
+type retryWait func(time.Duration) error
+
+func sleepForRetry(interval time.Duration) error {
+	time.Sleep(interval)
+	return nil
+}
+
+func sleepForRetryUntil(deadline time.Time) retryWait {
+	return func(interval time.Duration) error {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return os.ErrDeadlineExceeded
+		}
+		if interval > remaining {
+			interval = remaining
+		}
+		time.Sleep(interval)
+		if !time.Now().Before(deadline) {
+			return os.ErrDeadlineExceeded
+		}
+		return nil
+	}
+}
+
 // Send 发送数据至对端,有重试机制
 func (c *Conn) Send(data []byte, retry *Retry) error {
+	return c.send(data, retry, sleepForRetry)
+}
+
+func (c *Conn) send(data []byte, retry *Retry, wait retryWait) error {
 	if retry == nil {
 		// Take a per-call zero-value Retry rather than mutating a package
 		// global. The previous code stored `&defaultRetry` and then wrote
@@ -62,7 +91,9 @@ func (c *Conn) Send(data []byte, retry *Retry) error {
 				if retry.Interval == 0 {
 					retry.Interval = DefaultRetryInterval
 				}
-				time.Sleep(retry.Interval)
+				if waitErr := wait(retry.Interval); waitErr != nil {
+					return fmt.Errorf("tcp send retry wait after %d of %d bytes: %w", offset, len(data), waitErr)
+				}
 				continue
 			}
 			return fmt.Errorf("tcp send after %d of %d bytes: %w", offset, len(data), err)
@@ -79,6 +110,10 @@ func (c *Conn) Send(data []byte, retry *Retry) error {
 // length < 0 从 Conn 接收所有数据，并将其返回，直到没有数据
 // length > 0 从 Conn 接收到对应的数据返回
 func (c *Conn) Recv(length int, retry *Retry) (result []byte, retErr error) {
+	return c.recv(length, retry, sleepForRetry)
+}
+
+func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, retErr error) {
 	if retry == nil {
 		var local Retry
 		retry = &local
@@ -93,7 +128,9 @@ func (c *Conn) Recv(length int, retry *Retry) (result []byte, retErr error) {
 			if retry.Interval == 0 {
 				retry.Interval = DefaultRetryInterval
 			}
-			time.Sleep(retry.Interval)
+			if waitErr := wait(retry.Interval); waitErr != nil {
+				return n, waitErr
+			}
 			if n > 0 {
 				// Preserve bytes returned with a retryable error. The caller
 				// advances its offset and the next read retries the remainder.
@@ -208,36 +245,53 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 
 // RecvWithTimeout 读取已经超时的链接
 func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) {
-	if err := c.SetRecvDeadline(time.Now().Add(timeout)); err != nil {
+	deadline := time.Now().Add(timeout)
+	if err := c.SetRecvDeadline(deadline); err != nil {
 		return nil, err
 	}
 	defer c.SetRecvDeadline(time.Time{})
-	return c.Recv(length, retry)
+	return c.recv(length, retry, sleepForRetryUntil(deadline))
 }
 
 // SendWithTimeout 写入数据给已经超时的链接
 func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error {
-	if err := c.SetSendDeadline(time.Now().Add(timeout)); err != nil {
+	deadline := time.Now().Add(timeout)
+	if err := c.SetSendDeadline(deadline); err != nil {
 		return err
 	}
 	defer c.SetSendDeadline(time.Time{})
-	return c.Send(data, retry)
+	return c.send(data, retry, sleepForRetryUntil(deadline))
 }
 
 // SendRecv 写入数据并读取返回
 func (c *Conn) SendRecv(data []byte, length int, retry *Retry) ([]byte, error) {
-	if err := c.Send(data, retry); err != nil {
+	return c.sendRecv(data, length, retry, sleepForRetry)
+}
+
+func (c *Conn) sendRecv(data []byte, length int, retry *Retry, wait retryWait) ([]byte, error) {
+	if err := c.send(data, retry, wait); err != nil {
 		return nil, err
 	}
-	return c.Recv(length, retry)
+	return c.recv(length, retry, wait)
 }
 
 // SendRecvWithTimeout 将数据写入并读出已经超时的链接
-func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error) {
-	if err := c.Send(data, retry); err != nil {
-		return nil, err
+func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) (result []byte, retErr error) {
+	deadline := time.Now().Add(timeout)
+	if err := c.SetDeadline(deadline); err != nil {
+		return nil, fmt.Errorf("tcp send receive: set deadline: %w", err)
 	}
-	return c.RecvWithTimeout(length, timeout, retry)
+	defer func() {
+		if err := c.SetDeadline(time.Time{}); err != nil {
+			clearErr := fmt.Errorf("tcp send receive: clear deadline: %w", err)
+			if retErr == nil {
+				retErr = clearErr
+				return
+			}
+			retErr = errors.Join(retErr, clearErr)
+		}
+	}()
+	return c.sendRecv(data, length, retry, sleepForRetryUntil(deadline))
 }
 
 func (c *Conn) SetDeadline(t time.Time) error {
