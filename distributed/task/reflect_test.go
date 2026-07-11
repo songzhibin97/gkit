@@ -1,6 +1,7 @@
 package task
 
 import (
+	stdjson "encoding/json"
 	"reflect"
 	"testing"
 
@@ -236,5 +237,71 @@ func TestReflectValue(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNewTaskWithSignatureRejectsNonSliceArgument(t *testing.T) {
+	testCases := []struct {
+		name      string
+		value     interface{}
+		wantError string
+	}{
+		{name: "int", value: 1, wantError: "1 is not []int"},
+		{name: "bool", value: true, wantError: "true is not []int"},
+		{name: "map", value: map[string]int{"value": 1}, wantError: "map[value:1] is not []int"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("NewTaskWithSignature panicked for %T input: %v", tc.value, recovered)
+				}
+			}()
+
+			signature := &Signature{Args: []Arg{{Type: "[]int", Value: tc.value}}}
+			_, err := NewTaskWithSignature(func([]int) error { return nil }, signature)
+			if err == nil {
+				t.Fatal("NewTaskWithSignature returned nil error for non-slice argument")
+			}
+			if err.Error() != tc.wantError {
+				t.Fatalf("NewTaskWithSignature error = %q, want %q", err, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestReflectValueAcceptsSliceAndArrayInput(t *testing.T) {
+	testCases := []struct {
+		name  string
+		value interface{}
+	}{
+		{name: "slice", value: []interface{}{json.Number("1"), json.Number("2")}},
+		{name: "array", value: [2]interface{}{json.Number("1"), json.Number("2")}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			value, err := ReflectValue("[]int", tc.value)
+			if err != nil {
+				t.Fatalf("ReflectValue returned error: %v", err)
+			}
+			if got, want := value.Interface(), []int{1, 2}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("ReflectValue value = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestReflectValuePreservesJSONNumberError(t *testing.T) {
+	number := stdjson.Number("not-a-number")
+	_, wantErr := number.Int64()
+
+	_, err := ReflectValue("[]int", []interface{}{number})
+	if err == nil {
+		t.Fatal("ReflectValue returned nil error for invalid json.Number")
+	}
+	if err.Error() != wantErr.Error() {
+		t.Fatalf("ReflectValue error = %q, want %q", err, wantErr)
 	}
 }
