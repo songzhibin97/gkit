@@ -250,7 +250,7 @@ func parseRPCSignature(fn *ast.FuncType) (string, string, error) {
 	}
 	input, ok := rpcMessageType(params[0])
 	if !ok {
-		return "", "", errors.New("request must be a named type or pointer to a named type")
+		return "", "", errors.New("request must resolve to a declared struct message")
 	}
 
 	results := fieldTypes(fn.Results)
@@ -262,7 +262,7 @@ func parseRPCSignature(fn *ast.FuncType) (string, string, error) {
 	}
 	output, ok := rpcMessageType(results[0])
 	if !ok {
-		return "", "", errors.New("response must be a named type or pointer to a named type")
+		return "", "", errors.New("response must resolve to a declared struct message")
 	}
 	if len(results) == 2 && !isErrorType(results[1]) {
 		return "", "", errors.New("second result must be error")
@@ -307,7 +307,14 @@ func rpcMessageType(expr ast.Expr) (string, bool) {
 		expr = pointer.X
 	}
 	ident, ok := expr.(*ast.Ident)
-	if !ok || ident.Name == "error" {
+	if !ok || ident.Obj == nil {
+		return "", false
+	}
+	declaration, ok := ident.Obj.Decl.(*ast.TypeSpec)
+	if !ok {
+		return "", false
+	}
+	if _, ok := declaration.Type.(*ast.StructType); !ok {
 		return "", false
 	}
 	return ident.Name, true
@@ -315,8 +322,10 @@ func rpcMessageType(expr ast.Expr) (string, bool) {
 
 func hasRPCDocTags(docs []string) bool {
 	for _, doc := range docs {
-		if _, _, ok := rpcDocTag(doc); ok {
-			return true
+		for _, line := range strings.Split(doc, "\n") {
+			if _, _, ok := rpcDocTag(line); ok {
+				return true
+			}
 		}
 	}
 	return false
@@ -422,7 +431,8 @@ func (g *GoParsePB) PackageName() string {
 // Generate 生成pb文件
 func (g *GoParsePB) Generate() string {
 	temp := `syntax = "proto3";
-package {{.PackageName}};
+{{if .Server}}import "google/api/annotations.proto";
+{{end}}package {{.PackageName}};
 
 // message{{range .Message}}
 message {{.Name}}{
