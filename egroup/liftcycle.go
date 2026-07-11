@@ -2,6 +2,7 @@ package egroup
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,6 +22,13 @@ type Member struct {
 	Start    func(ctx context.Context) error
 	Shutdown func(ctx context.Context) error
 }
+
+type memberStartError struct {
+	err error
+}
+
+func (e *memberStartError) Error() string { return e.err.Error() }
+func (e *memberStartError) Unwrap() error { return e.err }
 
 // LifeAdmin 生命周期管理
 type LifeAdmin struct {
@@ -57,7 +65,20 @@ func (l *LifeAdmin) Start() error {
 			}
 			if m.Start != nil {
 				l.g.Go(func() error {
-					return goroutine.Delegate(l.g.ctx, l.opts.startTimeout, m.Start)
+					err := goroutine.Delegate(l.g.ctx, l.opts.startTimeout, func(ctx context.Context) error {
+						if err := m.Start(ctx); err != nil {
+							return &memberStartError{err: err}
+						}
+						return nil
+					})
+					var memberErr *memberStartError
+					if errors.As(err, &memberErr) {
+						return memberErr.err
+					}
+					if errors.Is(err, context.Canceled) && l.g.ctx.Err() != nil {
+						return nil
+					}
+					return err
 				})
 			}
 		}(m)
@@ -77,7 +98,7 @@ func (l *LifeAdmin) Start() error {
 		for {
 			select {
 			case <-l.g.ctx.Done():
-				return l.g.ctx.Err()
+				return nil
 			case sig := <-c:
 				l.opts.handler(l, sig)
 			}
@@ -115,13 +136,14 @@ func NewLifeAdmin(opts ...options.Option) *LifeAdmin {
 
 	l := &LifeAdmin{opts: o}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	if o.g == nil {
+		ctx, cancel := context.WithCancel(context.Background())
 		o.g = WithContext(ctx)
+		l.shutdown = cancel
+	} else {
+		l.shutdown = o.g.cancel
 	}
 	l.g = o.g
-	l.shutdown = cancel
 
 	return l
 }

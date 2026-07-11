@@ -433,14 +433,17 @@ func (s *Int64Map) LoadOrStoreLazy(key int64, f func() interface{}) (actual inte
 			unlockInt64(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt64Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt64(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt64(preds, highestLocked)
+			value = f()
+			nn := newInt64Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}

@@ -64,6 +64,11 @@ func main() {
 		// Step 4-2. Replace all cases
 		dataDesc := replace(data, upper, true)
 		dataAsc := replace(data, upper, false)
+		if upper == "Float32" || upper == "Float64" {
+			const rejectNaN = "if value != value {\n\treturn false // NaN is unordered and violates skip-list ordering.\n}"
+			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Set) Add", rejectNaN)
+			dataDesc = addLineAfter(dataDesc, "func (s *"+upper+"SetDesc) Add", rejectNaN)
+		}
 		w.WriteString(dataAsc)
 		w.WriteString("\r\n")
 		w.WriteString(dataDesc)

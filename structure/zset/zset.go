@@ -23,6 +23,7 @@
 package zset
 
 import (
+	"math"
 	"sync"
 )
 
@@ -50,20 +51,32 @@ func NewFloat64() *Float64Set {
 
 // UnionFloat64 returns the union of given sorted sets, the resulting score of
 // a value is the sum of its scores in the sorted sets where it exists.
+// Values whose accumulated score is NaN are omitted because this API has no
+// error return and NaN cannot be ordered safely in the backing skiplist.
 //
 // UnionFloat64 is the replacement of UNIONSTORE command of redis.
 func UnionFloat64(zs ...*Float64Set) *Float64Set {
 	dest := NewFloat64()
+	scores := make(map[string]float64)
 	for _, z := range zs {
 		for _, n := range z.Range(0, -1) {
-			dest.Add(n.Score, n.Value)
+			score := n.Score
+			if previous, ok := scores[n.Value]; ok {
+				score += previous
+			}
+			scores[n.Value] = score
 		}
+	}
+	for value, score := range scores {
+		dest.Add(score, value)
 	}
 	return dest
 }
 
 // InterFloat64 returns the intersection of given sorted sets, the resulting
 // score of a value is the sum of its scores in the sorted sets where it exists.
+// Values whose accumulated score is NaN are omitted because this API has no
+// error return and NaN cannot be ordered safely in the backing skiplist.
 //
 // InterFloat64 is the replacement of INTERSTORE command of redis.
 func InterFloat64(zs ...*Float64Set) *Float64Set {
@@ -72,15 +85,18 @@ func InterFloat64(zs ...*Float64Set) *Float64Set {
 		return dest
 	}
 	for _, n := range zs[0].Range(0, -1) {
+		score := n.Score
 		ok := true
 		for _, z := range zs[1:] {
-			if !z.Contains(n.Value) {
+			otherScore, exists := z.Score(n.Value)
+			if !exists {
 				ok = false
 				break
 			}
+			score += otherScore
 		}
 		if ok {
-			dest.Add(n.Score, n.Value)
+			dest.Add(score, n.Value)
 		}
 	}
 	return dest
@@ -98,9 +114,13 @@ func (z *Float64Set) Len() int {
 
 // Add adds a new value or update the score of an existing value.
 // Returns true if the value is newly created.
+// A NaN score is rejected without changing the set and returns false.
 //
 // Add is the replacement of ZADD command of redis.
 func (z *Float64Set) Add(score float64, value string) bool {
+	if math.IsNaN(score) {
+		return false
+	}
 	z.mu.Lock()
 	defer z.mu.Unlock()
 
@@ -141,6 +161,9 @@ func (z *Float64Set) Remove(value string) (float64, bool) {
 // IncrBy increments the score of value in the sorted set by incr.
 // If value does not exist in the sorted set, it is added with incr as its score
 // (as if its previous score was zero).
+// A NaN increment or result is rejected without changing the set. For an
+// existing value the current score and true are returned; otherwise it returns
+// zero and false.
 //
 // IncrBy is the replacement of ZINCRBY command of redis.
 func (z *Float64Set) IncrBy(incr float64, value string) (float64, bool) {
@@ -148,6 +171,12 @@ func (z *Float64Set) IncrBy(incr float64, value string) (float64, bool) {
 	defer z.mu.Unlock()
 
 	oldScore, ok := z.dict[value]
+	if math.IsNaN(incr) {
+		if ok {
+			return oldScore, true
+		}
+		return 0, false
+	}
 	if !ok {
 		// Insert a new element.
 		z.list.Insert(incr, value)
@@ -156,6 +185,9 @@ func (z *Float64Set) IncrBy(incr float64, value string) (float64, bool) {
 	}
 	// Update score.
 	newScore := oldScore + incr
+	if math.IsNaN(newScore) {
+		return oldScore, true
+	}
 	_ = z.list.UpdateScore(oldScore, value, newScore)
 	z.dict[value] = newScore
 	return newScore, true

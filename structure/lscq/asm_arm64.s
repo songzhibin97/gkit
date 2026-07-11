@@ -16,7 +16,7 @@ TEXT ·compareAndSwapUint128(SB), NOSPLIT, $0-41
 	BNE 	ok
 	CMP 	R3, R7
 	CSET	EQ, R0
-	MOVB	R0, ret+40(FP)
+	MOVB	R0, swapped+40(FP)
 	RET
 load_store_loop:
 	LDAXP	(R0), (R6, R7)
@@ -28,28 +28,28 @@ load_store_loop:
 	CBNZ	R6, load_store_loop
 ok:
 	CSET	EQ, R0
-	MOVB	R0, ret+40(FP)
+	MOVB	R0, swapped+40(FP)
 	RET
 
 TEXT ·loadUint128(SB),NOSPLIT,$0-24
-	MOVD	ptr+0(FP), R0
+	MOVD	addr+0(FP), R0
 	LDAXP	(R0), (R0, R1)
-	MOVD	R0, ret+8(FP)
-	MOVD	R1, ret+16(FP)
+	MOVD	R0, val_0+8(FP)
+	MOVD	R1, val_1+16(FP)
 	RET
 
 TEXT ·loadSCQNodeUint64(SB),NOSPLIT,$0
-	MOVD	ptr+0(FP), R0
+	MOVD	addr+0(FP), R0
 	LDAXP	(R0), (R0, R1)
-	MOVD	R0, ret+8(FP)
-	MOVD	R1, ret+16(FP)
+	MOVD	R0, val_flags+8(FP)
+	MOVD	R1, val_data+16(FP)
 	RET
 
 TEXT ·loadSCQNodePointer(SB),NOSPLIT,$0
-	MOVD	ptr+0(FP), R0
+	MOVD	addr+0(FP), R0
 	LDAXP	(R0), (R0, R1)
-	MOVD	R0, ret+8(FP)
-	MOVD	R1, ret+16(FP)
+	MOVD	R0, val_flags+8(FP)
+	MOVD	R1, val_data+16(FP)
 	RET
 
 TEXT ·atomicTestAndSetFirstBit(SB),NOSPLIT,$0

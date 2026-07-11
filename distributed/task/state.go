@@ -132,9 +132,9 @@ func (s Results) Value() (driver.Value, error) {
 // Status 任务状态
 type Status struct {
 	ID        uint           `json:"-" bson:"-" gorm:"column:_id;primarykey;comment:_id"`
-	TaskID    string         `json:"task_id" bson:"_id" gorm:"column:id;size:255;uniqueIndex:uq_status_task_id;comment:id"`
-	GroupID   string         `json:"group_id" bson:"group_id" gorm:"column:group_id;size:255;comment:组唯一标识"`
-	Name      string         `json:"name" bson:"name" gorm:"column:name;size:255;comment:组名称"`
+	TaskID    string         `json:"task_id" bson:"_id" gorm:"column:id;size:191;uniqueIndex:uq_status_task_id;comment:id"`
+	GroupID   string         `json:"group_id" bson:"group_id" gorm:"column:group_id;comment:组唯一标识"`
+	Name      string         `json:"name" bson:"name" gorm:"column:name;comment:组名称"`
 	Status    State          `json:"status" bson:"status" gorm:"column:status;comment:任务状态"`
 	TTL       int64          `json:"ttl" bson:"ttl" gorm:"column:ttl;comment:过期时间"`
 	Error     string         `json:"error" bson:"error" gorm:"column:error;comment:错误"`

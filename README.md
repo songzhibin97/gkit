@@ -1168,15 +1168,14 @@ func main() {
 	middle := bbr.NewLimiter()
 
 	// in the middleware 
-	// The ctx carries these two configurable valid data
-	// You can get the limiter type via the ctx.Set
+	// The ctx carries these two configurable values through the typed helpers.
 
 	// Configure to get the limiter type, you can get different limiter according to different api
-	ctx := context.WithValue(context.TODO(), bbr.LimitKey, "key")
+	ctx := bbr.WithLimitKey(context.TODO(), "key")
 
 	// Configurable to report success or not
 	// must be of type overload.
-	ctx = context.WithValue(ctx, bbr.LimitOp, overload.Success)
+	ctx = bbr.WithLimitOp(ctx, overload.Success)
 
 	_ = middle
 }
@@ -1516,6 +1515,7 @@ func main() {
 ```
 Other(currently, gorm also has a related type that is supported.)
 > timeout.DbJSON // provides some functionality in db json format
+> Use timeout.DBJSONFromObjectE to create DbJSON from Go values and handle JSON encoding errors. The deprecated DBJSONFromObject preserves its legacy nil fallback on encoding failure.
 > timeout.DTime // provides some functionality in db 15:04:05 format
 > DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
 > Date // provides some functionality in db 2006-01-02 format

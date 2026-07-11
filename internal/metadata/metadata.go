@@ -101,7 +101,7 @@ func MergeToClientContext(ctx context.Context, cmd Metadata) context.Context {
 	md, _ := FromClientContext(ctx)
 	md = md.Clone()
 	for k, v := range cmd {
-		md[k] = v
+		md.Set(k, v)
 	}
 	return NewClientContext(ctx, md)
 }
