@@ -76,28 +76,32 @@ func docTagValue(doc string) (string, bool) {
 	return strings.TrimSpace(parts[1]), true
 }
 
+func normalizeDocLine(doc string) string {
+	doc = strings.TrimSpace(doc)
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
+	doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "*"))
+	return doc
+}
+
 func parseDoc(server *Server) {
 	for _, doc := range server.Doc {
-		doc = strings.TrimSpace(doc)
-		switch {
-		case strings.HasPrefix(doc, "//"):
-			doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
-		case strings.HasPrefix(doc, "/*"):
-			doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
-			doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
-		}
-		switch {
-		case strings.HasPrefix(doc, "@method:"):
-			if v, ok := docTagValue(doc); ok {
-				server.Method = v
-			}
-		case strings.HasPrefix(doc, "@service:"):
-			if v, ok := docTagValue(doc); ok {
-				server.ServerName = v
-			}
-		case strings.HasPrefix(doc, "@router:"):
-			if v, ok := docTagValue(doc); ok {
-				server.Router = v
+		for _, line := range strings.Split(doc, "\n") {
+			line = normalizeDocLine(line)
+			switch {
+			case strings.HasPrefix(line, "@method:"):
+				if v, ok := docTagValue(line); ok {
+					server.Method = v
+				}
+			case strings.HasPrefix(line, "@service:"):
+				if v, ok := docTagValue(line); ok {
+					server.ServerName = v
+				}
+			case strings.HasPrefix(line, "@router:"):
+				if v, ok := docTagValue(line); ok {
+					server.Router = v
+				}
 			}
 		}
 	}
