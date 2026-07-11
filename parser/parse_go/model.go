@@ -522,15 +522,20 @@ func (g *GoParsePB) pileDismantle(srcData []byte, clearCode string) ([]byte, err
 // cleanCode: 清除桩内内容
 func cleanCode(clearCode string, srcData string) ([]byte, error) {
 	bf := make([]rune, 0, 1024)
+	lineStart := 0
 	for i, v := range srcData {
 		if v == '\n' {
 			if strings.TrimSpace(string(bf)) == clearCode {
-				return append([]byte(srcData[:i-len(bf)]), []byte(srcData[i+1:])...), nil
+				return append([]byte(srcData[:lineStart]), []byte(srcData[i+1:])...), nil
 			}
 			bf = (bf)[:0]
+			lineStart = i + 1
 			continue
 		}
 		bf = append(bf, v)
+	}
+	if lineStart < len(srcData) && strings.TrimSpace(string(bf)) == clearCode {
+		return []byte(srcData[:lineStart]), nil
 	}
 	return []byte(srcData), errors.New("未找到内容")
 }
