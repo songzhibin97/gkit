@@ -152,6 +152,9 @@ func (s *Server) SendTask(signature *task.Signature) (*result.AsyncResult, error
 
 // SendChain 发送链式调用任务
 func (s *Server) SendChain(chain *task.Chain) (*result.ChainAsyncResult, error) {
+	if err := task.ValidateChain(chain); err != nil {
+		return nil, err
+	}
 	_, err := s.SendTask(chain.Tasks[0])
 	if err != nil {
 		return nil, err
@@ -161,6 +164,9 @@ func (s *Server) SendChain(chain *task.Chain) (*result.ChainAsyncResult, error) 
 
 // SendGroupWithContext 发送并行执行的任务组
 func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, concurrency int) ([]*result.AsyncResult, error) {
+	if err := task.ValidateGroup(group); err != nil {
+		return nil, err
+	}
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -313,6 +319,9 @@ func (s *Server) SendGroup(group *task.Group, concurrency int) ([]*result.AsyncR
 
 // SendGroupCallbackWithContext 发送具有回调任务的任务组
 func (s *Server) SendGroupCallbackWithContext(ctx context.Context, groupCallback *task.GroupCallback, concurrency int) (*result.GroupCallbackAsyncResult, error) {
+	if err := task.ValidateGroupCallback(groupCallback); err != nil {
+		return nil, err
+	}
 	_, err := s.SendGroupWithContext(ctx, groupCallback.Group, concurrency)
 	if err != nil {
 		return nil, err
@@ -364,6 +373,9 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 	if err != nil {
 		return err
 	}
+	if err := task.ValidateChain(&task.Chain{Name: name, Tasks: signatures}); err != nil {
+		return err
+	}
 	f := func() {
 		chain, _ := task.NewChain(name, task.CopySignatures(signatures...)...)
 
@@ -394,6 +406,9 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 	if err != nil {
 		return err
 	}
+	if err := task.ValidateGroup(&task.Group{GroupID: groupID, Name: name, Tasks: signatures}); err != nil {
+		return err
+	}
 	f := func() {
 		runSuffix := rand_string.RandomLetter(timedRunSuffixLength)
 		group := newTimedGroupRun(groupID, name, runSuffix, signatures...)
@@ -421,6 +436,17 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 	// 检查spec是否合法
 	schedule, err := cron.ParseStandard(spec)
 	if err != nil {
+		return err
+	}
+	if err := task.ValidateGroupCallback(&task.GroupCallback{
+		Name: name,
+		Group: &task.Group{
+			GroupID: groupID,
+			Name:    name,
+			Tasks:   signatures,
+		},
+		Callback: callback,
+	}); err != nil {
 		return err
 	}
 	f := func() {
