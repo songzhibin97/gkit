@@ -86,7 +86,21 @@ func (r *RollingPolicy) Reduce(f func(Iterator) float64) (val float64) {
 		if offset >= r.size {
 			offset = offset - r.size
 		}
-		val = f(r.window.Iterator(offset, count))
+		buckets := make([]Bucket, count)
+		source := &r.window.window[offset]
+		for i := range buckets {
+			points := make([]float64, len(source.Points))
+			copy(points, source.Points)
+			buckets[i] = Bucket{Points: points, Count: source.Count}
+			if i > 0 {
+				buckets[i-1].next = &buckets[i]
+			}
+			source = source.Next()
+		}
+		buckets[len(buckets)-1].next = &buckets[0]
+		iterator := Iterator{count: count, cur: &buckets[0]}
+		r.mu.RUnlock()
+		return f(iterator)
 	}
 	r.mu.RUnlock()
 	return val
