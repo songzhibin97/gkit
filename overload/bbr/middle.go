@@ -9,9 +9,32 @@ import (
 )
 
 const (
+	// LimitKey is the legacy string context key for selecting a limiter.
+	//
+	// Deprecated: use WithLimitKey.
 	LimitKey = "LimitKey"
-	LimitOp  = "LimitLoad"
+	// LimitOp is the legacy string context key for selecting the completion op.
+	//
+	// Deprecated: use WithLimitOp.
+	LimitOp = "LimitLoad"
 )
+
+type contextKey uint8
+
+const (
+	limitKeyContextKey contextKey = iota
+	limitOpContextKey
+)
+
+// WithLimitKey returns a child context that selects the named limiter.
+func WithLimitKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, limitKeyContextKey, key)
+}
+
+// WithLimitOp returns a child context that reports op when the endpoint returns.
+func WithLimitOp(ctx context.Context, op overload.Op) context.Context {
+	return context.WithValue(ctx, limitOpContextKey, op)
+}
 
 func NewLimiter(options ...options.Option) middleware.MiddleWare {
 	return newLimiterWithGroup(NewGroup(options...))
@@ -25,11 +48,15 @@ func newLimiterWithGroup(g *Group) middleware.MiddleWare {
 		return func(ctx context.Context, i interface{}) (resp interface{}, err error) {
 			defaultKey := "default"
 			defaultOp := overload.Success
-			if v := ctx.Value(LimitKey); v != nil {
-				defaultKey = v.(string)
+			if v, ok := ctx.Value(limitKeyContextKey).(string); ok {
+				defaultKey = v
+			} else if v, ok := ctx.Value(LimitKey).(string); ok {
+				defaultKey = v
 			}
-			if v := ctx.Value(LimitOp); v != nil {
-				defaultOp = v.(overload.Op)
+			if v, ok := ctx.Value(limitOpContextKey).(overload.Op); ok {
+				defaultOp = v
+			} else if v, ok := ctx.Value(LimitOp).(overload.Op); ok {
+				defaultOp = v
 			}
 			limiter := g.Get(defaultKey)
 			f, allowErr := limiter.Allow(ctx)
