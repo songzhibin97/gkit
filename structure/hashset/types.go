@@ -185,9 +185,11 @@ func NewFloat32WithSize(size int) Float32Set {
 }
 
 // Add adds the specified element to this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float32Set) Add(value float32) bool {
+	if value != value {
+		return false
+	}
 	s[value] = struct{}{}
 	return true
 }
@@ -201,9 +203,11 @@ func (s Float32Set) Contains(value float32) bool {
 }
 
 // Remove removes the specified element from this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float32Set) Remove(value float32) bool {
+	if value != value {
+		return false
+	}
 	delete(s, value)
 	return true
 }
@@ -237,9 +241,11 @@ func NewFloat64WithSize(size int) Float64Set {
 }
 
 // Add adds the specified element to this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float64Set) Add(value float64) bool {
+	if value != value {
+		return false
+	}
 	s[value] = struct{}{}
 	return true
 }
@@ -253,9 +259,11 @@ func (s Float64Set) Contains(value float64) bool {
 }
 
 // Remove removes the specified element from this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float64Set) Remove(value float64) bool {
+	if value != value {
+		return false
+	}
 	delete(s, value)
 	return true
 }
