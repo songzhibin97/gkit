@@ -1,6 +1,10 @@
 package distributed
 
-import "github.com/songzhibin97/gkit/options"
+import (
+	"time"
+
+	"github.com/songzhibin97/gkit/options"
+)
 
 // SetNoUnixSignals 设置是否优雅关闭
 func SetNoUnixSignals(noUnixSignals bool) options.Option {
@@ -34,5 +38,23 @@ func SetConsumeQueue(consumeQueue string) options.Option {
 func SetDelayedQueue(delayedQueue string) options.Option {
 	return func(o interface{}) {
 		o.(*Config).DelayedQueue = delayedQueue
+	}
+}
+
+func SetEnableDurableChordRegistration(enabled bool) options.Option {
+	return func(o interface{}) {
+		o.(*Config).EnableDurableChordRegistration = enabled
+	}
+}
+
+func SetRequireDurableChordBackend(required bool) options.Option {
+	return func(o interface{}) {
+		o.(*Config).RequireDurableChordBackend = required
+	}
+}
+
+func SetDurableChordRegistrationTimeout(timeout time.Duration) options.Option {
+	return func(o interface{}) {
+		o.(*Config).DurableChordRegistrationTimeout = timeout
 	}
 }
