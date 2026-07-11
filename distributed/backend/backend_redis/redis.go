@@ -241,6 +241,9 @@ func (b *BackendRedis) FailPendingAttempt(signature *task.Signature, attemptID, 
 	if attemptID == "" {
 		return false, nil
 	}
+	if err := validateRedisUserKey("task", signature.ID); err != nil {
+		return false, err
+	}
 	changed, err := failPendingAttemptScript.Run(
 		context.Background(),
 		b.client,
