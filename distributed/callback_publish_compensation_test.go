@@ -1,6 +1,7 @@
 package distributed
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/songzhibin97/gkit/distributed/backend"
 	backendredis "github.com/songzhibin97/gkit/distributed/backend/backend_redis"
 	"github.com/songzhibin97/gkit/distributed/task"
+	"github.com/songzhibin97/gkit/log"
 )
 
 const wantTaskPublicationFailureMessage = "task publication outcome unknown"
@@ -473,6 +475,61 @@ func TestOrdinaryCallbackPublicationErrorsReachErrorHandler(t *testing.T) {
 			}
 			if callbackErr == nil || !errors.Is(callbackErr, publishErr) || !errors.Is(callbackErr, compensationErr) {
 				t.Fatalf("reported errors = %v, want joined callback publication and compensation errors", reported)
+			}
+		})
+	}
+}
+
+func TestOrdinaryCallbackPublicationErrorsReachStructuredLogger(t *testing.T) {
+	publishErr := errors.New("callback publish failed")
+	compensationErr := errors.New("callback compensation failed")
+	parentErr := errors.New("parent task failed")
+	tests := []struct {
+		name     string
+		dispatch func(*Worker, *task.Signature) error
+	}{
+		{name: "success callback", dispatch: func(worker *Worker, parent *task.Signature) error {
+			return worker.handlerSucceeded(parent, nil)
+		}},
+		{name: "error callback", dispatch: func(worker *Worker, parent *task.Signature) error {
+			return worker.handlerFailed(parent, parentErr)
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server, baseBackend := newCallbackPublishTestServer(t, func(context.Context, *task.Signature) error {
+				return publishErr
+			})
+			server.backend = &callbackCompensationFailBackend{Backend: baseBackend, err: compensationErr}
+			var logs bytes.Buffer
+			server.helper = log.NewHelper(log.NewStdLogger(&logs))
+
+			const sensitivePayload = "sensitive-callback-payload"
+			callback := task.NewSignature("logged-callback", "callback")
+			callback.Args = []task.Arg{{Type: "string", Value: sensitivePayload}}
+			parent := task.NewSignature("logged-parent", "parent")
+			parent.CallbackOnSuccess = []*task.Signature{callback}
+			parent.CallbackOnError = []*task.Signature{callback}
+			worker := &Worker{bindService: server}
+
+			if err := tt.dispatch(worker, parent); err != nil {
+				t.Fatalf("dispatch returned error: %v", err)
+			}
+			output := logs.String()
+			if strings.Contains(output, sensitivePayload) {
+				t.Fatal("structured callback publication log exposed callback arguments")
+			}
+			for _, want := range []string{
+				"[Error] message=Callback publication failed:",
+				callback.ID,
+				parent.ID,
+				publishErr.Error(),
+				compensationErr.Error(),
+			} {
+				if !strings.Contains(output, want) {
+					t.Fatalf("structured callback publication log = %q, want %q", output, want)
+				}
 			}
 		})
 	}
