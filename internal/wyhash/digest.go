@@ -44,7 +44,10 @@ func (d *Digest) Reset() {
 	d.length = 0
 }
 
-func (d *Digest) SetSeed(seed uint64)     { d.seed = seed }
+func (d *Digest) SetSeed(seed uint64) {
+	d.seed = seed
+	d.see1 = seed
+}
 func (d *Digest) Seed() uint64            { return d.seed }
 func (d *Digest) SetInitSeed(seed uint64) { d.initseed = seed }
 func (d *Digest) InitSeed() uint64        { return d.initseed }
