@@ -1,6 +1,7 @@
 package page_token
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -91,5 +92,18 @@ func Test_token_ProcessPageTokens(t *testing.T) {
 		s, e, tk, err = n.ProcessPageTokens(10, 3, tk)
 		t.Log(s, e, tk)
 		assert.NoError(t, err)
+	}
+}
+
+func TestProcessPageTokens_LargePageSizeDoesNotOverflow(t *testing.T) {
+	n := NewTokenGenerate("test")
+	token := n.ForIndex(1)
+
+	start, end, nextToken, err := n.ProcessPageTokens(10, math.MaxInt, token)
+	if err != nil {
+		t.Fatalf("ProcessPageTokens() error = %v", err)
+	}
+	if start != 1 || end != 10 || nextToken != "" {
+		t.Fatalf("ProcessPageTokens() = (%d, %d, %q), want (1, 10, %q)", start, end, nextToken, "")
 	}
 }
