@@ -29,6 +29,41 @@ var ErrType = errors.New("err type")
 // contract instead.
 var ErrGroupAlreadyExists = backend.ErrGroupAlreadyExists
 
+type persistedTaskStatus struct {
+	*task.Status
+	PublicationAttemptID string `json:"publication_attempt_id,omitempty"`
+}
+
+var failPendingAttemptScript = redis.NewScript(`
+local raw = redis.call("GET", KEYS[1])
+if not raw then
+  return 0
+end
+
+local current = cjson.decode(raw)
+if tonumber(current.status) ~= tonumber(ARGV[2]) then
+  return 0
+end
+if current.publication_attempt_id ~= ARGV[1] then
+  return 0
+end
+
+local ttl = redis.call("PTTL", KEYS[1])
+if ttl == 0 or ttl == -2 then
+  return 0
+end
+
+current.status = tonumber(ARGV[3])
+current.error = ARGV[4]
+local updated = cjson.encode(current)
+if ttl > 0 then
+  redis.call("SET", KEYS[1], updated, "PX", ttl)
+else
+  redis.call("SET", KEYS[1], updated)
+end
+return 1
+`)
+
 type BackendRedis struct {
 	// client redis客户端
 	client redis.UniversalClient
@@ -195,6 +230,35 @@ func (b *BackendRedis) SetStatePending(signature *task.Signature) error {
 	return b.updateStatus(task.NewPendingState(signature))
 }
 
+func (b *BackendRedis) SetStatePendingAttempt(signature *task.Signature, attemptID string) error {
+	if attemptID == "" {
+		return errors.New("backend_redis: empty publication attempt ID")
+	}
+	return b.updateStatusWithAttempt(task.NewPendingState(signature), attemptID)
+}
+
+func (b *BackendRedis) FailPendingAttempt(signature *task.Signature, attemptID, reason string) (bool, error) {
+	if attemptID == "" {
+		return false, nil
+	}
+	if err := validateRedisUserKey("task", signature.ID); err != nil {
+		return false, err
+	}
+	changed, err := failPendingAttemptScript.Run(
+		context.Background(),
+		b.client,
+		[]string{signature.ID},
+		attemptID,
+		int(task.StatePending),
+		int(task.StateFailure),
+		reason,
+	).Int()
+	if err != nil {
+		return false, err
+	}
+	return changed == 1, nil
+}
+
 func (b *BackendRedis) SetStateReceived(signature *task.Signature) error {
 	dst := task.NewReceivedState(signature)
 	b.migrate(dst)
@@ -294,10 +358,17 @@ func (b *BackendRedis) getGroup(groupID string) (*task.GroupMeta, error) {
 
 // updateStatus 更新状态
 func (b *BackendRedis) updateStatus(status *task.Status) error {
+	return b.updateStatusWithAttempt(status, "")
+}
+
+func (b *BackendRedis) updateStatusWithAttempt(status *task.Status, attemptID string) error {
 	if err := validateRedisUserKey("task", status.TaskID); err != nil {
 		return err
 	}
-	body, err := json.Marshal(status)
+	body, err := json.Marshal(&persistedTaskStatus{
+		Status:               status,
+		PublicationAttemptID: attemptID,
+	})
 	if err != nil {
 		return err
 	}

@@ -37,6 +37,15 @@ type BackendSQLDB struct {
 	now            func() time.Time
 }
 
+const publicationAttemptColumn = "publication_attempt_id"
+
+// statusPublicationAttempt is migration metadata for a private column on the
+// task status table. It deliberately stays out of task.Status so the public
+// status and backend interfaces remain compatible.
+type statusPublicationAttempt struct {
+	PublicationAttemptID string `gorm:"column:publication_attempt_id;size:64"`
+}
+
 // SetResultExpire 设置结果超时时间
 func (b *BackendSQLDB) SetResultExpire(expire int64) {
 	b.resultExpireMu.Lock()
@@ -172,36 +181,82 @@ func (b *BackendSQLDB) upsertStatus(s *task.Status, updateColumns []string) erro
 	if err := b.deleteExpiredStatusByTaskID(s.TaskID, s.CreateAt); err != nil {
 		return err
 	}
+	return b.upsertStatusWithDB(b.gClient, s, updateColumns)
+}
+
+func (b *BackendSQLDB) upsertStatusWithDB(db *gorm.DB, s *task.Status, updateColumns []string) error {
 	// Conflict target is the DB column TaskID maps to (`id`, uniqueIndex), NOT
 	// the field name. GORM writes the conflict column verbatim, so `task_id`
 	// (no such column) errored on Postgres; and the column must be a UNIQUE
 	// index for ON CONFLICT / ON DUPLICATE KEY to dedupe at all.
-	return b.gClient.Clauses(clause.OnConflict{
+	return db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(updateColumns),
 	}).Create(s).Error
 }
 
 func (b *BackendSQLDB) SetStatePending(signature *task.Signature) error {
-	return b.upsertStatus(b.newStatus(signature, task.StatePending), []string{"status"})
+	return b.setStatePendingAttempt(signature, "")
+}
+
+func (b *BackendSQLDB) SetStatePendingAttempt(signature *task.Signature, attemptID string) error {
+	if attemptID == "" {
+		return fmt.Errorf("backend_db: empty publication attempt ID")
+	}
+	return b.setStatePendingAttempt(signature, attemptID)
+}
+
+func (b *BackendSQLDB) setStatePendingAttempt(signature *task.Signature, attemptID string) error {
+	status := b.newStatus(signature, task.StatePending)
+	if err := b.deleteExpiredStatusByTaskID(status.TaskID, status.CreateAt); err != nil {
+		return err
+	}
+	return b.gClient.Transaction(func(tx *gorm.DB) error {
+		if err := b.upsertStatusWithDB(tx, status, []string{"status", "error"}); err != nil {
+			return err
+		}
+		var value interface{}
+		if attemptID != "" {
+			value = attemptID
+		}
+		return tx.Model(&task.Status{}).
+			Where("id = ?", signature.ID).
+			Update(publicationAttemptColumn, value).Error
+	})
+}
+
+func (b *BackendSQLDB) FailPendingAttempt(signature *task.Signature, attemptID, reason string) (bool, error) {
+	if attemptID == "" {
+		return false, nil
+	}
+	result := b.gClient.Model(&task.Status{}).
+		Where("id = ? AND status = ? AND "+publicationAttemptColumn+" = ?", signature.ID, task.StatePending, attemptID).
+		Updates(map[string]interface{}{
+			"status": task.StateFailure,
+			"error":  reason,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (b *BackendSQLDB) SetStateReceived(signature *task.Signature) error {
-	return b.upsertStatus(b.newStatus(signature, task.StateReceived), []string{"status"})
+	return b.upsertStatus(b.newStatus(signature, task.StateReceived), []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateStarted(signature *task.Signature) error {
-	return b.upsertStatus(b.newStatus(signature, task.StateStarted), []string{"status"})
+	return b.upsertStatus(b.newStatus(signature, task.StateStarted), []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateRetry(t *task.Signature) error {
-	return b.upsertStatus(b.newStatus(t, task.StateRetry), []string{"status"})
+	return b.upsertStatus(b.newStatus(t, task.StateRetry), []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateSuccess(signature *task.Signature, results []*task.Result) error {
 	status := b.newStatus(signature, task.StateSuccess)
 	status.Results = task.Results(results)
-	return b.upsertStatus(status, []string{"status", "results"})
+	return b.upsertStatus(status, []string{"status", "results", "error"})
 }
 
 func (b *BackendSQLDB) SetStateFailure(signature *task.Signature, err string) error {
@@ -365,6 +420,16 @@ func (b *BackendSQLDB) autoMigrate() error {
 		task.Status{},
 	); err != nil {
 		return err
+	}
+	stmt := &gorm.Statement{DB: b.gClient}
+	if err := stmt.Parse(&task.Status{}); err != nil {
+		return err
+	}
+	migrator := b.gClient.Table(stmt.Schema.Table).Migrator()
+	if !migrator.HasColumn(&statusPublicationAttempt{}, "PublicationAttemptID") {
+		if err := migrator.AddColumn(&statusPublicationAttempt{}, "PublicationAttemptID"); err != nil {
+			return err
+		}
 	}
 	return b.migrateDurableChord()
 }

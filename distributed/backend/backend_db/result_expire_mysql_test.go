@@ -18,16 +18,17 @@ const sqlExpiryMySQLDSNEnv = "GKIT_TEST_MYSQL_DSN"
 // production migration fix. Explicit identifier sizes let MySQL create the
 // indexes while retaining the same table/column layout used by BackendSQLDB.
 type sqlExpiryMySQLStatus struct {
-	ID        uint           `gorm:"column:_id;primaryKey"`
-	TaskID    string         `gorm:"column:id;size:191;uniqueIndex"`
-	GroupID   string         `gorm:"column:group_id"`
-	Name      string         `gorm:"column:name"`
-	Status    task.State     `gorm:"column:status"`
-	TTL       int64          `gorm:"column:ttl"`
-	Error     string         `gorm:"column:error"`
-	Results   task.Results   `gorm:"column:results;type:text"`
-	CreateAt  time.Time      `gorm:"column:create_at"`
-	DeletedAt gorm.DeletedAt `gorm:"column:deleted_at;index"`
+	ID                   uint           `gorm:"column:_id;primaryKey"`
+	TaskID               string         `gorm:"column:id;size:191;uniqueIndex"`
+	GroupID              string         `gorm:"column:group_id"`
+	Name                 string         `gorm:"column:name"`
+	Status               task.State     `gorm:"column:status"`
+	TTL                  int64          `gorm:"column:ttl"`
+	Error                string         `gorm:"column:error"`
+	Results              task.Results   `gorm:"column:results;type:text"`
+	CreateAt             time.Time      `gorm:"column:create_at"`
+	PublicationAttemptID string         `gorm:"column:publication_attempt_id;size:64"`
+	DeletedAt            gorm.DeletedAt `gorm:"column:deleted_at;index"`
 }
 
 func (sqlExpiryMySQLStatus) TableName() string { return "statuses" }
