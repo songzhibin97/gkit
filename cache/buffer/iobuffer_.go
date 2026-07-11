@@ -23,8 +23,8 @@ type IoBuffer interface {
 	ReadFrom(r io.Reader) (n int64, err error)
 
 	// Grow updates the length of the buffer by n, growing the buffer as
-	// needed. The return value n is the length of p; err is always nil. If the
-	// buffer becomes too large, Write will panic with ErrTooLarge.
+	// needed. It returns ErrNegativeCount when n is negative. If the buffer
+	// becomes too large, Grow will panic with ErrTooLarge.
 	Grow(n int) error
 
 	// Write appends the contents of p to the buffer, growing the buffer as
@@ -64,7 +64,7 @@ type IoBuffer interface {
 	WriteTo(w io.Writer) (n int64, err error)
 
 	// Peek returns n bytes from buffer, without draining any buffered data.
-	// If n > readable buffer, nil will be returned.
+	// If n is negative or greater than the readable buffer, nil will be returned.
 	// It can be used in codec to check first-n-bytes magic bytes
 	// Note: do not change content in return bytes, use write instead
 	Peek(n int) []byte
@@ -74,7 +74,7 @@ type IoBuffer interface {
 	// Note: do not change content in return bytes, use write instead
 	Bytes() []byte
 
-	// Drain drains a offset length of bytes in buffer.
+	// Drain drains an offset length of bytes in buffer. Negative offsets are ignored.
 	// It can be used with Bytes(), after consuming a fixed-length of data
 	Drain(offset int)
 
