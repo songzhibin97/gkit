@@ -233,11 +233,21 @@ func (c *Conn) SendRecv(data []byte, length int, retry *Retry) ([]byte, error) {
 }
 
 // SendRecvWithTimeout 将数据写入并读出已经超时的链接
-func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) ([]byte, error) {
-	if err := c.Send(data, retry); err != nil {
-		return nil, err
+func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length int, retry *Retry) (result []byte, retErr error) {
+	if err := c.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return nil, fmt.Errorf("tcp send receive: set deadline: %w", err)
 	}
-	return c.RecvWithTimeout(length, timeout, retry)
+	defer func() {
+		if err := c.SetDeadline(time.Time{}); err != nil {
+			clearErr := fmt.Errorf("tcp send receive: clear deadline: %w", err)
+			if retErr == nil {
+				retErr = clearErr
+				return
+			}
+			retErr = errors.Join(retErr, clearErr)
+		}
+	}()
+	return c.SendRecv(data, length, retry)
 }
 
 func (c *Conn) SetDeadline(t time.Time) error {
