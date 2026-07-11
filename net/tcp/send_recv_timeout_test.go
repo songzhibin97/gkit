@@ -3,6 +3,7 @@ package tcp
 import (
 	"errors"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,23 @@ import (
 type sendRecvResult struct {
 	data []byte
 	err  error
+}
+
+type closePeerOnDeadlineConn struct {
+	net.Conn
+	peer       net.Conn
+	peerClosed bool
+}
+
+func (c *closePeerOnDeadlineConn) SetDeadline(deadline time.Time) error {
+	if err := c.Conn.SetDeadline(deadline); err != nil {
+		return err
+	}
+	if !deadline.IsZero() && !c.peerClosed {
+		c.peerClosed = true
+		return c.peer.Close()
+	}
+	return nil
 }
 
 func TestSendRecvWithTimeoutBoundsSendAndClearsDeadline(t *testing.T) {
@@ -120,5 +138,56 @@ func TestSendRecvWithTimeoutUsesSingleBudget(t *testing.T) {
 	}
 	if elapsed > maxTotal {
 		t.Fatalf("SendRecvWithTimeout took %v, want one %v budget (max %v)", elapsed, timeout, maxTotal)
+	}
+}
+
+func TestSendRecvWithTimeoutBoundsSendRetryWait(t *testing.T) {
+	client, peer := net.Pipe()
+	defer client.Close()
+	defer peer.Close()
+	conn := NewConnByNetConn(&closePeerOnDeadlineConn{Conn: client, peer: peer})
+	retry := &Retry{Count: 3, Interval: 120 * time.Millisecond}
+
+	started := time.Now()
+	_, err := conn.SendRecvWithTimeout([]byte("request"), 10*time.Millisecond, 1, retry)
+	elapsed := time.Since(started)
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("SendRecvWithTimeout error = %v, want os.ErrDeadlineExceeded", err)
+	}
+	if elapsed >= 100*time.Millisecond {
+		t.Fatalf("SendRecvWithTimeout elapsed = %v, want retry wait bounded by timeout", elapsed)
+	}
+	if retry.Count != 2 {
+		t.Fatalf("retry count after timeout = %d, want 2; retries must share one deadline", retry.Count)
+	}
+}
+
+func TestSendRecvWithTimeoutBoundsReceiveRetryWait(t *testing.T) {
+	client, peer := net.Pipe()
+	defer client.Close()
+	defer peer.Close()
+	conn := NewConnByNetConn(client)
+	retry := &Retry{Count: 3, Interval: 120 * time.Millisecond}
+	peerDone := make(chan error, 1)
+	go func() {
+		request := make([]byte, len("request"))
+		_, err := peer.Read(request)
+		peerDone <- err
+	}()
+
+	started := time.Now()
+	_, err := conn.SendRecvWithTimeout([]byte("request"), 10*time.Millisecond, 1, retry)
+	elapsed := time.Since(started)
+	if peerErr := <-peerDone; peerErr != nil {
+		t.Fatalf("peer read: %v", peerErr)
+	}
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("SendRecvWithTimeout error = %v, want os.ErrDeadlineExceeded", err)
+	}
+	if elapsed >= 100*time.Millisecond {
+		t.Fatalf("SendRecvWithTimeout elapsed = %v, want retry wait bounded by timeout", elapsed)
+	}
+	if retry.Count != 2 {
+		t.Fatalf("retry count after timeout = %d, want 2; retries must share one deadline", retry.Count)
 	}
 }
