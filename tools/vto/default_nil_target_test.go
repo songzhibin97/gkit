@@ -14,16 +14,21 @@ func TestCompletionDefaultRejectsInvalidTargets(t *testing.T) {
 	var typedNil *target
 
 	for _, tt := range []struct {
-		name   string
-		target interface{}
+		name    string
+		target  interface{}
+		wantErr error
 	}{
-		{name: "untyped-nil", target: nil},
-		{name: "typed-nil-pointer", target: typedNil},
-		{name: "non-pointer", target: target{}},
+		{name: "untyped-nil", target: nil, wantErr: tools.ErrorInvalidValue},
+		{name: "typed-nil-pointer", target: typedNil, wantErr: tools.ErrorInvalidValue},
+		{name: "non-pointer", target: target{}, wantErr: tools.ErrorMustPtr},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := CompletionDefault(tt.target); !errors.Is(err, tools.ErrorInvalidValue) {
-				t.Fatalf("CompletionDefault error = %v, want %v", err, tools.ErrorInvalidValue)
+			err := CompletionDefault(tt.target)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("CompletionDefault error = %v, want errors.Is(_, %v)", err, tt.wantErr)
+			}
+			if err != tt.wantErr {
+				t.Fatalf("CompletionDefault error = %v, want exact sentinel %v", err, tt.wantErr)
 			}
 		})
 	}

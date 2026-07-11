@@ -8,7 +8,13 @@ import (
 
 func CompletionDefault(dst interface{}) error {
 	dstV := reflect.ValueOf(dst)
-	if !dstV.IsValid() || dstV.Kind() != reflect.Ptr || dstV.IsNil() {
+	if !dstV.IsValid() {
+		return tools.ErrorInvalidValue
+	}
+	if dstV.Kind() != reflect.Ptr {
+		return tools.ErrorMustPtr
+	}
+	if dstV.IsNil() {
 		return tools.ErrorInvalidValue
 	}
 
