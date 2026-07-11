@@ -81,9 +81,11 @@ func NewComplex64WithSize(size int) Complex64Set {
 }
 
 // Add adds the specified element to this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false when either component is NaN; otherwise applies the operation and returns true
 func (s Complex64Set) Add(value complex64) bool {
+	if real(value) != real(value) || imag(value) != imag(value) {
+		return false
+	}
 	s[value] = struct{}{}
 	return true
 }
@@ -97,9 +99,11 @@ func (s Complex64Set) Contains(value complex64) bool {
 }
 
 // Remove removes the specified element from this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false when either component is NaN; otherwise applies the operation and returns true
 func (s Complex64Set) Remove(value complex64) bool {
+	if real(value) != real(value) || imag(value) != imag(value) {
+		return false
+	}
 	delete(s, value)
 	return true
 }
@@ -133,9 +137,11 @@ func NewComplex128WithSize(size int) Complex128Set {
 }
 
 // Add adds the specified element to this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false when either component is NaN; otherwise applies the operation and returns true
 func (s Complex128Set) Add(value complex128) bool {
+	if real(value) != real(value) || imag(value) != imag(value) {
+		return false
+	}
 	s[value] = struct{}{}
 	return true
 }
@@ -149,9 +155,11 @@ func (s Complex128Set) Contains(value complex128) bool {
 }
 
 // Remove removes the specified element from this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false when either component is NaN; otherwise applies the operation and returns true
 func (s Complex128Set) Remove(value complex128) bool {
+	if real(value) != real(value) || imag(value) != imag(value) {
+		return false
+	}
 	delete(s, value)
 	return true
 }
@@ -185,9 +193,11 @@ func NewFloat32WithSize(size int) Float32Set {
 }
 
 // Add adds the specified element to this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float32Set) Add(value float32) bool {
+	if value != value {
+		return false
+	}
 	s[value] = struct{}{}
 	return true
 }
@@ -201,9 +211,11 @@ func (s Float32Set) Contains(value float32) bool {
 }
 
 // Remove removes the specified element from this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float32Set) Remove(value float32) bool {
+	if value != value {
+		return false
+	}
 	delete(s, value)
 	return true
 }
@@ -237,9 +249,11 @@ func NewFloat64WithSize(size int) Float64Set {
 }
 
 // Add adds the specified element to this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float64Set) Add(value float64) bool {
+	if value != value {
+		return false
+	}
 	s[value] = struct{}{}
 	return true
 }
@@ -253,9 +267,11 @@ func (s Float64Set) Contains(value float64) bool {
 }
 
 // Remove removes the specified element from this set
-// Always returns true due to the build-in map doesn't indicate caller whether the given element already exists
-// Reserves the return type for future extension
+// Returns false for NaN; otherwise applies the operation and returns true
 func (s Float64Set) Remove(value float64) bool {
+	if value != value {
+		return false
+	}
 	delete(s, value)
 	return true
 }

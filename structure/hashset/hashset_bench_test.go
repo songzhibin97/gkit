@@ -16,6 +16,7 @@ package hashset
 
 import (
 	"math/rand"
+	"sync"
 	"testing"
 )
 
@@ -97,15 +98,33 @@ func (s *int64SetAdd) Len() int {
 
 const capacity = 10000000
 
-var randomList [capacity]int64
+var (
+	randomList     []int64
+	randomListOnce sync.Once
+)
 
-func init() {
-	for i := 0; i < capacity; i++ {
-		randomList[i] = int64(rand.Int63())
+func benchmarkRandomList(b *testing.B) []int64 {
+	b.Helper()
+	b.StopTimer()
+	randomListOnce.Do(func() {
+		randomList = make([]int64, capacity)
+		for i := range randomList {
+			randomList[i] = rand.Int63()
+		}
+	})
+	b.ResetTimer()
+	b.StartTimer()
+	return randomList
+}
+
+func TestBenchmarkDataIsLazy(t *testing.T) {
+	if randomList != nil {
+		t.Fatalf("benchmark data initialized during ordinary tests: len = %d", len(randomList))
 	}
 }
 
 func BenchmarkValueAsBool(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	b.ResetTimer()
 	l := newInt64Bool()
 	for n := 0; n < b.N; n++ {
@@ -114,6 +133,7 @@ func BenchmarkValueAsBool(b *testing.B) {
 }
 
 func BenchmarkValueAsEmptyStruct(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	b.ResetTimer()
 	l := NewInt64()
 	for n := 0; n < b.N; n++ {
@@ -122,6 +142,7 @@ func BenchmarkValueAsEmptyStruct(b *testing.B) {
 }
 
 func BenchmarkAddAfterContains(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	b.ResetTimer()
 	l := newInt64Add()
 	for n := 0; n < b.N; n++ {
@@ -130,6 +151,7 @@ func BenchmarkAddAfterContains(b *testing.B) {
 }
 
 func BenchmarkAddWithoutContains(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	b.ResetTimer()
 	l := NewInt64()
 	for n := 0; n < b.N; n++ {
@@ -138,6 +160,7 @@ func BenchmarkAddWithoutContains(b *testing.B) {
 }
 
 func BenchmarkRemoveAfterContains_Missing(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	l := newInt64Add()
 	for n := 0; n < b.N; n++ {
 		l.Add(randomList[n%capacity])
@@ -150,7 +173,7 @@ func BenchmarkRemoveAfterContains_Missing(b *testing.B) {
 }
 
 func BenchmarkRemoveWithoutContains_Missing(b *testing.B) {
-
+	randomList := benchmarkRandomList(b)
 	l := NewInt64()
 	for n := 0; n < b.N; n++ {
 		l.Add(randomList[n%capacity])
@@ -163,6 +186,7 @@ func BenchmarkRemoveWithoutContains_Missing(b *testing.B) {
 }
 
 func BenchmarkRemoveAfterContains_Hitting(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	l := newInt64Add()
 	for n := 0; n < b.N; n++ {
 		l.Add(randomList[n%capacity])
@@ -175,6 +199,7 @@ func BenchmarkRemoveAfterContains_Hitting(b *testing.B) {
 }
 
 func BenchmarkRemoveWithoutContains_Hitting(b *testing.B) {
+	randomList := benchmarkRandomList(b)
 	l := NewInt64()
 	for n := 0; n < b.N; n++ {
 		l.Add(randomList[n%capacity])

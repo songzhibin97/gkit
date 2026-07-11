@@ -7,17 +7,24 @@ import (
 )
 
 func CompletionDefault(dst interface{}) error {
-	dstT := reflect.TypeOf(dst)
-	if dstT.Kind() != reflect.Ptr {
+	dstV := reflect.ValueOf(dst)
+	if !dstV.IsValid() {
+		return tools.ErrorInvalidValue
+	}
+	if dstV.Kind() != reflect.Ptr {
 		return tools.ErrorMustPtr
 	}
+	if dstV.IsNil() {
+		return tools.ErrorInvalidValue
+	}
 
+	dstT := dstV.Type()
 	dstT = dstT.Elem()
 	if dstT.Kind() != reflect.Struct {
 		return tools.ErrorMustStructPtr
 	}
 
-	dstV := reflect.ValueOf(dst).Elem()
+	dstV = dstV.Elem()
 	for i := 0; i < dstT.NumField(); i++ {
 		field := dstT.Field(i)
 		if !field.IsExported() {

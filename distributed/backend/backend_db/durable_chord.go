@@ -257,7 +257,7 @@ func (b *BackendSQLDB) ReconcileChord(ctx context.Context, deliveryKey string) e
 		var group task.GroupMeta
 		groupErr := tx.Where("id = ?", delivery.GroupID).First(&group).Error
 		if errors.Is(groupErr, gorm.ErrRecordNotFound) {
-			group = *task.InitGroupMeta(delivery.GroupID, delivery.GroupName, b.resultExpire, ids...)
+			group = *task.InitGroupMeta(delivery.GroupID, delivery.GroupName, b.configuredResultExpire(), ids...)
 			if err := tx.Create(&group).Error; err != nil {
 				return err
 			}

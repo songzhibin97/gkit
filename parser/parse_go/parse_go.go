@@ -67,34 +67,57 @@ func parseTag(file *File) {
 	}
 }
 
-// docTagValue returns the part after the first colon, or "" if the doc
-// line doesn't actually contain a colon. The previous implementation did
-// `strings.Split(doc, ":")[1]` which panicked on a malformed line; the
-// panic was then swallowed by a recover that printed to stdout, so the
-// affected field was silently left at its zero value and the generated
-// code went out the door with empty Method / ServerName / Router.
+// docTagValue returns the trimmed part after the first colon.
 func docTagValue(doc string) (string, bool) {
 	parts := strings.SplitN(doc, ":", 2)
 	if len(parts) != 2 {
 		return "", false
 	}
-	return parts[1], true
+	return strings.TrimSpace(parts[1]), true
+}
+
+func normalizeDocLine(doc string) string {
+	doc = strings.TrimSpace(doc)
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
+	doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
+	doc = strings.TrimSpace(strings.TrimPrefix(doc, "*"))
+	return doc
+}
+
+func rpcDocTag(doc string) (name, value string, ok bool) {
+	doc = normalizeDocLine(doc)
+
+	for _, tag := range []struct {
+		prefix string
+		name   string
+	}{
+		{prefix: "@method:", name: "method"},
+		{prefix: "@service:", name: "service"},
+		{prefix: "@router:", name: "router"},
+	} {
+		if strings.HasPrefix(doc, tag.prefix) {
+			value, ok := docTagValue(doc)
+			return tag.name, value, ok
+		}
+	}
+	return "", "", false
 }
 
 func parseDoc(server *Server) {
 	for _, doc := range server.Doc {
-		switch {
-		case strings.Contains(doc, "@method"):
-			if v, ok := docTagValue(doc); ok {
-				server.Method = v
+		for _, line := range strings.Split(doc, "\n") {
+			name, value, ok := rpcDocTag(line)
+			if !ok {
+				continue
 			}
-		case strings.Contains(doc, "@service"):
-			if v, ok := docTagValue(doc); ok {
-				server.ServerName = v
-			}
-		case strings.Contains(doc, "@router"):
-			if v, ok := docTagValue(doc); ok {
-				server.Router = v
+			switch name {
+			case "method":
+				server.Method = value
+			case "service":
+				server.ServerName = value
+			case "router":
+				server.Router = value
 			}
 		}
 	}

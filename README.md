@@ -315,7 +315,7 @@ func ExampleShutdown() {
 
 ### singleflight
 
-Merge back to source
+Merge back to source. `Forget` follows `golang.org/x/sync/singleflight.Group.Forget` v0.11.0 pinned in `go.mod` (reconciled 2026-07-12).
 ```go
 package main
 
@@ -364,7 +364,8 @@ func main() {
 	// result.Val is the fetched resource
 	cache(result.Val)
 	
-	// try to cancel
+	// Forget only removes singleflight's association with this key; it does not
+	// cancel fn. A later call with the same key executes independently.
 	f.Forget("test2")
 }
 ```
