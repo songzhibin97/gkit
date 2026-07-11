@@ -135,6 +135,7 @@ func (b *BackendMongoDB) SetStatePending(signature *task.Signature) error {
 		"status":    task.StatePending,
 		"group_id":  signature.GroupID,
 		"name":      signature.Name,
+		"error":     "",
 		"create_at": time.Now().Local(),
 	}
 	return b.updateStatus(signature, update)
@@ -143,6 +144,7 @@ func (b *BackendMongoDB) SetStatePending(signature *task.Signature) error {
 func (b *BackendMongoDB) SetStateReceived(signature *task.Signature) error {
 	update := bson.M{
 		"status": task.StateReceived,
+		"error":  "",
 	}
 	return b.updateStatus(signature, update)
 }
@@ -150,6 +152,7 @@ func (b *BackendMongoDB) SetStateReceived(signature *task.Signature) error {
 func (b *BackendMongoDB) SetStateStarted(signature *task.Signature) error {
 	update := bson.M{
 		"status": task.StateStarted,
+		"error":  "",
 	}
 	return b.updateStatus(signature, update)
 }
@@ -157,6 +160,7 @@ func (b *BackendMongoDB) SetStateStarted(signature *task.Signature) error {
 func (b *BackendMongoDB) SetStateRetry(signature *task.Signature) error {
 	update := bson.M{
 		"status": task.StateRetry,
+		"error":  "",
 	}
 	return b.updateStatus(signature, update)
 }
@@ -165,6 +169,7 @@ func (b *BackendMongoDB) SetStateSuccess(signature *task.Signature, results []*t
 	update := bson.M{
 		"status":  task.StateSuccess,
 		"results": results,
+		"error":   "",
 	}
 	return b.updateStatus(signature, update)
 }

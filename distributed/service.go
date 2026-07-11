@@ -35,6 +35,8 @@ const minLockTTLMs = 100
 
 const timedRunSuffixLength = 16
 
+const taskPublicationFailureMessage = "task publication outcome unknown"
+
 // timedTaskLockTTL clamps the user-requested TTL into a Redis-acceptable
 // positive integer.
 func timedTaskLockTTL(d time.Duration) int {
@@ -140,9 +142,20 @@ func (s *Server) SendTaskWithContext(ctx context.Context, signature *task.Signat
 	s.bindDefaultRouter(signature)
 	// 任务发布
 	if err := s.controller.Publish(ctx, signature); err != nil {
-		return nil, errors.Wrap(err, "publish err")
+		return nil, s.withTaskPublicationCompensation(signature, err)
 	}
 	return result.NewAsyncResult(signature, s.backend), nil
+}
+
+func (s *Server) withTaskPublicationCompensation(signature *task.Signature, publishErr error) error {
+	primaryErr := fmt.Errorf("publish task %s: %w", signature.ID, publishErr)
+	if err := s.backend.SetStateFailure(signature, taskPublicationFailureMessage); err != nil {
+		return stderrors.Join(
+			primaryErr,
+			fmt.Errorf("converge task %s after publication failure: %w", signature.ID, err),
+		)
+	}
+	return primaryErr
 }
 
 // SendTask 发送任务

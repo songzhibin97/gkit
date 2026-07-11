@@ -114,7 +114,7 @@ func (b *BackendSQLDB) SetStatePending(signature *task.Signature) error {
 		Name:     signature.Name,
 		Status:   task.StatePending,
 		CreateAt: time.Now(),
-	}, []string{"status"})
+	}, []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateReceived(signature *task.Signature) error {
@@ -124,7 +124,7 @@ func (b *BackendSQLDB) SetStateReceived(signature *task.Signature) error {
 		Name:     signature.Name,
 		Status:   task.StateReceived,
 		CreateAt: time.Now(),
-	}, []string{"status"})
+	}, []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateStarted(signature *task.Signature) error {
@@ -134,7 +134,7 @@ func (b *BackendSQLDB) SetStateStarted(signature *task.Signature) error {
 		Name:     signature.Name,
 		Status:   task.StateStarted,
 		CreateAt: time.Now(),
-	}, []string{"status"})
+	}, []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateRetry(t *task.Signature) error {
@@ -144,7 +144,7 @@ func (b *BackendSQLDB) SetStateRetry(t *task.Signature) error {
 		Name:     t.Name,
 		Status:   task.StateRetry,
 		CreateAt: time.Now(),
-	}, []string{"status"})
+	}, []string{"status", "error"})
 }
 
 func (b *BackendSQLDB) SetStateSuccess(signature *task.Signature, results []*task.Result) error {
@@ -155,7 +155,7 @@ func (b *BackendSQLDB) SetStateSuccess(signature *task.Signature, results []*tas
 		Status:   task.StateSuccess,
 		Results:  task.Results(results),
 		CreateAt: time.Now(),
-	}, []string{"status", "results"})
+	}, []string{"status", "results", "error"})
 }
 
 func (b *BackendSQLDB) SetStateFailure(signature *task.Signature, err string) error {

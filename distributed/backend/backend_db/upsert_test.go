@@ -104,6 +104,49 @@ func TestResetTask_AllowsReuse(t *testing.T) {
 	}
 }
 
+func TestNonFailureTransitionsClearPreviousError(t *testing.T) {
+	tests := []struct {
+		name       string
+		wantState  task.State
+		transition func(*BackendSQLDB, *task.Signature) error
+	}{
+		{name: "pending", wantState: task.StatePending, transition: func(b *BackendSQLDB, sig *task.Signature) error { return b.SetStatePending(sig) }},
+		{name: "received", wantState: task.StateReceived, transition: func(b *BackendSQLDB, sig *task.Signature) error { return b.SetStateReceived(sig) }},
+		{name: "started", wantState: task.StateStarted, transition: func(b *BackendSQLDB, sig *task.Signature) error { return b.SetStateStarted(sig) }},
+		{name: "retry", wantState: task.StateRetry, transition: func(b *BackendSQLDB, sig *task.Signature) error { return b.SetStateRetry(sig) }},
+		{name: "success", wantState: task.StateSuccess, transition: func(b *BackendSQLDB, sig *task.Signature) error { return b.SetStateSuccess(sig, nil) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := newSQLiteBackend(t)
+			sig := &task.Signature{ID: "task-" + tt.name, GroupID: "g1", Name: "n"}
+			if err := b.SetStateFailure(sig, "stale failure"); err != nil {
+				t.Fatalf("SetStateFailure: %v", err)
+			}
+			failed, err := b.GetStatus(sig.ID)
+			if err != nil {
+				t.Fatalf("GetStatus after failure: %v", err)
+			}
+			if failed.Status != task.StateFailure || failed.Error != "stale failure" {
+				t.Fatalf("failure state = (%s, %q), want (FAILURE, stale failure)", failed.Status, failed.Error)
+			}
+			if err := tt.transition(b, sig); err != nil {
+				t.Fatalf("%s transition: %v", tt.name, err)
+			}
+			status, err := b.GetStatus(sig.ID)
+			if err != nil {
+				t.Fatalf("GetStatus: %v", err)
+			}
+			if status.Status != tt.wantState {
+				t.Fatalf("status = %s, want %s", status.Status, tt.wantState)
+			}
+			if status.Error != "" {
+				t.Fatalf("%s error = %q, want cleared", tt.name, status.Error)
+			}
+		})
+	}
+}
+
 // TestNewBackendSQLDB_NilOnFailure pins the deprecated constructor's documented
 // contract: it returns nil (not panic) on failure. An unsupported dbType fails
 // before any connection, so this needs no live DB. (Regression: the PR briefly
