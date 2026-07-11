@@ -30,6 +30,17 @@ type Parent struct {
 	Count uint
 	Small uint8
 	Medium uint16
+	Octet byte
+	CodePoint rune
+	UintList []uint
+	ByteList []byte
+	RuneList []rune
+	UintValues map[string]uint
+	ByteValues map[string]byte
+	RuneValues map[string]rune
+	UintKeys map[uint]string
+	ByteKeys map[byte]string
+	RuneKeys map[rune]string
 	Alias Alias
 }
 `
@@ -55,26 +66,61 @@ func TestParseStructSupportsBoolMapKeys(t *testing.T) {
 	assertFieldType(t, fields, "Flags", "map<bool,uint32>")
 }
 
-func TestParseStructMapsNarrowIntegerScalars(t *testing.T) {
+func TestParseStructMapsIntegerScalars(t *testing.T) {
 	parsed, fields := parseFieldFixture(t)
-	want := map[string]string{
-		"Tiny":   "int32",
-		"Count":  "uint32",
-		"Small":  "uint32",
-		"Medium": "uint32",
+	want := []struct {
+		name string
+		typ  string
+	}{
+		{name: "Tiny", typ: "int32"},
+		{name: "Count", typ: "uint64"},
+		{name: "Small", typ: "uint32"},
+		{name: "Medium", typ: "uint32"},
+		{name: "Octet", typ: "uint32"},
+		{name: "CodePoint", typ: "int32"},
 	}
-	for name, typ := range want {
-		assertFieldType(t, fields, name, typ)
+	for _, test := range want {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			assertFieldType(t, fields, test.name, test.typ)
+		})
 	}
 
 	generated := parsed.Generate()
-	for name, typ := range want {
-		line := typ + " " + name + " = "
+	for _, test := range want {
+		line := test.typ + " " + test.name + " = "
 		if !strings.Contains(generated, line) {
 			t.Fatalf("generated proto missing %q:\n%s", line, generated)
 		}
 	}
 	compileGeneratedProto(t, generated)
+}
+
+func TestParseStructMapsIntegerSlicesAndMapValues(t *testing.T) {
+	_, fields := parseFieldFixture(t)
+	want := map[string]string{
+		"UintList":   "repeated uint64",
+		"ByteList":   "bytes",
+		"RuneList":   "repeated int32",
+		"UintValues": "map<string,uint64>",
+		"ByteValues": "map<string,uint32>",
+		"RuneValues": "map<string,int32>",
+	}
+	for name, typ := range want {
+		assertFieldType(t, fields, name, typ)
+	}
+}
+
+func TestParseStructMapsLegalIntegerMapKeys(t *testing.T) {
+	_, fields := parseFieldFixture(t)
+	want := map[string]string{
+		"UintKeys": "map<uint64,string>",
+		"ByteKeys": "map<uint32,string>",
+		"RuneKeys": "map<int32,string>",
+	}
+	for name, typ := range want {
+		assertFieldType(t, fields, name, typ)
+	}
 }
 
 func parseFieldFixture(t *testing.T) (*GoParsePB, map[string]string) {
