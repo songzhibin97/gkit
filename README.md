@@ -1516,6 +1516,7 @@ func main() {
 ```
 Other(currently, gorm also has a related type that is supported.)
 > timeout.DbJSON // provides some functionality in db json format
+> Use timeout.DBJSONFromObjectE to create DbJSON from Go values and handle JSON encoding errors. The deprecated DBJSONFromObject preserves its legacy nil fallback on encoding failure.
 > timeout.DTime // provides some functionality in db 15:04:05 format
 > DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
 > Date // provides some functionality in db 2006-01-02 format

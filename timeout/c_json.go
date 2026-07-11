@@ -10,9 +10,22 @@ import (
 
 type DbJSON []byte
 
+// DBJSONFromObject marshals obj into DbJSON. On marshal failure it returns nil,
+// preserving the legacy behavior that DbJSON.Value treats as SQL NULL.
+//
+// Deprecated: use DBJSONFromObjectE and handle the returned error.
 func DBJSONFromObject(obj interface{}) DbJSON {
-	bin, _ := json.Marshal(obj)
-	return DbJSON(bin)
+	bin, _ := DBJSONFromObjectE(obj)
+	return bin
+}
+
+// DBJSONFromObjectE marshals obj into DbJSON and reports JSON encoding errors.
+func DBJSONFromObjectE(obj interface{}) (DbJSON, error) {
+	bin, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("timeout: marshal DbJSON: %w", err)
+	}
+	return DbJSON(bin), nil
 }
 
 func (j *DbJSON) Scan(value interface{}) error {
