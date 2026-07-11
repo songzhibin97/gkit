@@ -360,10 +360,13 @@ func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
 // their indexes under utf8mb4; without a size GORM maps strings to LONGTEXT,
 // which MySQL rejects as an index key without an explicit prefix length.
 func (b *BackendSQLDB) autoMigrate() error {
-	return b.gClient.AutoMigrate(
+	if err := b.gClient.AutoMigrate(
 		task.GroupMeta{},
 		task.Status{},
-	)
+	); err != nil {
+		return err
+	}
+	return b.migrateDurableChord()
 }
 
 // NewBackendSQLDB constructs a SQL-backed Backend. Returns nil on failure

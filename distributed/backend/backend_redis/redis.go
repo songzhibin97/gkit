@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -73,6 +74,9 @@ func (b *BackendRedis) SetResultExpire(expire int64) {
 }
 
 func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
+	if err := validateRedisUserKey("group", groupID); err != nil {
+		return err
+	}
 	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
 	body, err := json.Marshal(group)
 	if err != nil {
@@ -149,6 +153,9 @@ func (b *BackendRedis) GroupTaskStatus(groupID string) ([]*task.Status, error) {
 }
 
 func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
+	if err := validateRedisUserKey("group", groupID); err != nil {
+		return false, err
+	}
 	// 分布式锁
 	l := b.lock.NewMutex("TriggerCompletedMutex" + groupID)
 	if err := l.Lock(); err != nil {
@@ -226,12 +233,18 @@ func (b *BackendRedis) ResetTask(taskIDs ...string) error {
 	if len(taskIDs) == 0 {
 		return nil
 	}
+	if err := validateRedisUserKeys("task", taskIDs); err != nil {
+		return err
+	}
 	return b.client.Del(context.Background(), taskIDs...).Err()
 }
 
 func (b *BackendRedis) ResetGroup(groupIDs ...string) error {
 	if len(groupIDs) == 0 {
 		return nil
+	}
+	if err := validateRedisUserKeys("group", groupIDs); err != nil {
+		return err
 	}
 	return b.client.Del(context.Background(), groupIDs...).Err()
 }
@@ -281,6 +294,9 @@ func (b *BackendRedis) getGroup(groupID string) (*task.GroupMeta, error) {
 
 // updateStatus 更新状态
 func (b *BackendRedis) updateStatus(status *task.Status) error {
+	if err := validateRedisUserKey("task", status.TaskID); err != nil {
+		return err
+	}
 	body, err := json.Marshal(status)
 	if err != nil {
 		return err
@@ -316,4 +332,20 @@ func (b *BackendRedis) migrate(dst *task.Status) {
 		dst.CreateAt = src.CreateAt
 		dst.Name = src.Name
 	}
+}
+
+func validateRedisUserKeys(kind string, keys []string) error {
+	for _, key := range keys {
+		if err := validateRedisUserKey(kind, key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRedisUserKey(kind, key string) error {
+	if strings.HasPrefix(key, redisChordKeyPrefix) {
+		return fmt.Errorf("%w: redis %s id %q uses reserved key prefix %q", backend.ErrChordInvalidInput, kind, key, redisChordKeyPrefix)
+	}
+	return nil
 }

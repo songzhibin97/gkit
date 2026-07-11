@@ -47,22 +47,40 @@ func timedTaskLockTTL(d time.Duration) int {
 
 // Config distributed service配置文件
 type Config struct {
-	NoUnixSignals bool   `json:"no_unix_signals"`
-	ResultExpire  int64  `json:"result_expire"`
-	Concurrency   int64  `json:"concurrency"`
-	ConsumeQueue  string `json:"consume_queue"`
-	DelayedQueue  string `json:"delayed_queue"`
+	NoUnixSignals                   bool          `json:"no_unix_signals"`
+	ResultExpire                    int64         `json:"result_expire"`
+	Concurrency                     int64         `json:"concurrency"`
+	ConsumeQueue                    string        `json:"consume_queue"`
+	DelayedQueue                    string        `json:"delayed_queue"`
+	EnableDurableChordRegistration  bool          `json:"enable_durable_chord_registration"`
+	RequireDurableChordBackend      bool          `json:"require_durable_chord_backend"`
+	DurableChordRegistrationTimeout time.Duration `json:"durable_chord_registration_timeout"`
 }
 
 type Server struct {
-	config            *Config
-	registeredTasks   *sync.Map                  // registeredTasks 注册任务处理函数
-	controller        controller.Controller      // controller 控制器
-	backend           backend.Backend            // backend 后端引擎
-	lock              locker.Locker              // lock 锁
-	scheduler         *cron.Cron                 // scheduler 调度器
-	prePublishHandler func(task *task.Signature) // prePublishHandler 预处理器
-	helper            *log.Helper
+	config             *Config
+	registeredTasks    *sync.Map                  // registeredTasks 注册任务处理函数
+	controller         controller.Controller      // controller 控制器
+	backend            backend.Backend            // backend 后端引擎
+	lock               locker.Locker              // lock 锁
+	scheduler          *cron.Cron                 // scheduler 调度器
+	prePublishHandler  func(task *task.Signature) // prePublishHandler 预处理器
+	helper             *log.Helper
+	durableBackend     backend.DurableChordBackend
+	registrationCtx    context.Context
+	registrationCancel context.CancelFunc
+	cleanupRootCtx     context.Context
+	cleanupRootCancel  context.CancelFunc
+	chordCtx           context.Context
+	chordCancel        context.CancelFunc
+	chordOutcomeCtx    context.Context
+	chordOutcomeCancel context.CancelFunc
+	registrationWG     sync.WaitGroup
+	chordWG            sync.WaitGroup
+	lifecycleMu        sync.Mutex
+	closing            bool
+	startupErr         error
+	lifecycleErrs      []error
 }
 
 // GetConfig 获取配置文件
@@ -319,14 +337,82 @@ func (s *Server) SendGroup(group *task.Group, concurrency int) ([]*result.AsyncR
 
 // SendGroupCallbackWithContext 发送具有回调任务的任务组
 func (s *Server) SendGroupCallbackWithContext(ctx context.Context, groupCallback *task.GroupCallback, concurrency int) (*result.GroupCallbackAsyncResult, error) {
-	if err := task.ValidateGroupCallback(groupCallback); err != nil {
+	workflowErr := task.ValidateGroupCallback(groupCallback)
+	chordErr := validateGroupCallback(groupCallback)
+	if err := stderrors.Join(workflowErr, chordErr); err != nil {
 		return nil, err
+	}
+	if s.config != nil && s.config.EnableDurableChordRegistration {
+		if s.durableBackend == nil {
+			if s.config.RequireDurableChordBackend {
+				return nil, backend.ErrDurableChordUnsupported
+			}
+		} else {
+			s.lifecycleMu.Lock()
+			if s.closing {
+				s.lifecycleMu.Unlock()
+				return nil, context.Canceled
+			}
+			s.registrationWG.Add(1)
+			s.lifecycleMu.Unlock()
+			defer s.registrationWG.Done()
+			registrationCtx, cancel := contextWithCancellation(ctx, s.registrationCtx)
+			defer cancel()
+			return s.sendDurableGroupCallback(registrationCtx, groupCallback, concurrency)
+		}
 	}
 	_, err := s.SendGroupWithContext(ctx, groupCallback.Group, concurrency)
 	if err != nil {
 		return nil, err
 	}
 	return result.NewGroupCallbackAsyncResult(groupCallback.Group.Tasks, groupCallback.Callback, s.backend), nil
+}
+
+func contextWithCancellation(parent, shutdown context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	go func() {
+		select {
+		case <-shutdown.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
+}
+
+func validateGroupCallback(groupCallback *task.GroupCallback) error {
+	if groupCallback == nil {
+		return fmt.Errorf("%w: nil group callback", backend.ErrChordInvalidInput)
+	}
+	if groupCallback.Group == nil {
+		return fmt.Errorf("%w: nil group", backend.ErrChordInvalidInput)
+	}
+	if groupCallback.Callback == nil {
+		return fmt.Errorf("%w: nil callback", backend.ErrChordInvalidInput)
+	}
+	if groupCallback.Group.GroupID == "" {
+		return fmt.Errorf("%w: empty group id", backend.ErrChordInvalidInput)
+	}
+	if groupCallback.Callback.ID == "" {
+		return fmt.Errorf("%w: empty callback id", backend.ErrChordInvalidInput)
+	}
+	if len(groupCallback.Group.Tasks) == 0 {
+		return fmt.Errorf("%w: empty group", backend.ErrChordInvalidInput)
+	}
+	seen := make(map[string]struct{}, len(groupCallback.Group.Tasks))
+	for ordinal, member := range groupCallback.Group.Tasks {
+		if member == nil {
+			return fmt.Errorf("%w: nil member at ordinal %d", backend.ErrChordInvalidInput, ordinal)
+		}
+		if member.ID == "" {
+			return fmt.Errorf("%w: empty member id at ordinal %d", backend.ErrChordInvalidInput, ordinal)
+		}
+		if _, exists := seen[member.ID]; exists {
+			return fmt.Errorf("%w: duplicate member id %q", backend.ErrChordInvalidInput, member.ID)
+		}
+		seen[member.ID] = struct{}{}
+	}
+	return nil
 }
 
 // SendGroupCallback 发送具有回调任务的任务组
@@ -438,7 +524,7 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 	if err != nil {
 		return err
 	}
-	if err := task.ValidateGroupCallback(&task.GroupCallback{
+	groupCallback := &task.GroupCallback{
 		Name: name,
 		Group: &task.Group{
 			GroupID: groupID,
@@ -446,8 +532,33 @@ func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string,
 			Tasks:   signatures,
 		},
 		Callback: callback,
-	}); err != nil {
+	}
+	workflowErr := task.ValidateGroupCallback(groupCallback)
+	chordErr := validateGroupCallback(groupCallback)
+	if err := stderrors.Join(workflowErr, chordErr); err != nil {
 		return err
+	}
+	if s.config != nil && s.config.EnableDurableChordRegistration {
+		if s.startupErr != nil {
+			return s.startupErr
+		}
+		if s.durableBackend == nil {
+			if s.config.RequireDurableChordBackend {
+				return backend.ErrDurableChordUnsupported
+			}
+		} else {
+			contextLock, ok := s.contextLocker()
+			if !ok {
+				return ErrDurableTimedChordLockerUnsupported
+			}
+			f := func() {
+				if err := s.runDurableTimedGroupCallback(contextLock, schedule, spec, name, groupID, concurrency, callback, signatures...); err != nil {
+					s.recordLifecycleError(err)
+				}
+			}
+			_, err = s.scheduler.AddFunc(spec, f)
+			return err
+		}
 	}
 	f := func() {
 		runSuffix := rand_string.RandomLetter(timedRunSuffixLength)
@@ -514,29 +625,56 @@ func getLockName(name, spec string) string {
 }
 
 // NewServer 创建服务
-func NewServer(controller controller.Controller, backend backend.Backend, lock locker.Locker, helper *log.Helper, prePublishHandler func(task *task.Signature), options ...options.Option) *Server {
+func NewServer(controller controller.Controller, backendEngine backend.Backend, lock locker.Locker, helper *log.Helper, prePublishHandler func(task *task.Signature), options ...options.Option) *Server {
+	server, _ := newServer(controller, backendEngine, lock, helper, prePublishHandler, options...)
+	return server
+}
+
+func NewServerE(controller controller.Controller, backendEngine backend.Backend, lock locker.Locker, helper *log.Helper, prePublishHandler func(task *task.Signature), options ...options.Option) (*Server, error) {
+	return newServer(controller, backendEngine, lock, helper, prePublishHandler, options...)
+}
+
+func newServer(controller controller.Controller, backendEngine backend.Backend, lock locker.Locker, helper *log.Helper, prePublishHandler func(task *task.Signature), optionList ...options.Option) (*Server, error) {
 	server := &Server{
 		config: &Config{
-			NoUnixSignals: false,
-			ResultExpire:  0,
-			Concurrency:   1,
-			ConsumeQueue:  "consume_queue",
-			DelayedQueue:  "delayed_queue",
+			NoUnixSignals:                   false,
+			ResultExpire:                    0,
+			Concurrency:                     1,
+			ConsumeQueue:                    "consume_queue",
+			DelayedQueue:                    "delayed_queue",
+			DurableChordRegistrationTimeout: 5 * time.Minute,
 		},
 		registeredTasks:   &sync.Map{},
 		controller:        controller,
-		backend:           backend,
+		backend:           backendEngine,
 		lock:              lock,
 		scheduler:         cron.New(),
 		prePublishHandler: prePublishHandler,
 		helper:            helper,
 	}
-	for _, option := range options {
+	for _, option := range optionList {
 		option(server.config)
 	}
+	if server.config.DurableChordRegistrationTimeout <= 0 {
+		server.config.DurableChordRegistrationTimeout = 5 * time.Minute
+	}
+	server.durableBackend, _ = backendEngine.(backend.DurableChordBackend)
+	server.registrationCtx, server.registrationCancel = context.WithCancel(context.Background())
+	server.cleanupRootCtx, server.cleanupRootCancel = context.WithCancel(context.Background())
+	server.chordCtx, server.chordCancel = context.WithCancel(context.Background())
+	server.chordOutcomeCtx, server.chordOutcomeCancel = context.WithCancel(context.Background())
 	server.EnforcementConf()
 	go server.scheduler.Run()
-	return server
+	if server.durableBackend != nil {
+		if err := server.startChordDispatcher(); err != nil {
+			server.startupErr = err
+			if server.helper != nil {
+				server.helper.Errorf("durable chord startup failed: %v", err)
+			}
+			return server, err
+		}
+	}
+	return server, nil
 }
 
 func (s *Server) EnforcementConf() {
@@ -550,13 +688,7 @@ func (s *Server) EnforcementConf() {
 // this, the goroutine launched by `go server.scheduler.Run()` survives until
 // process exit, holding timers for every registered job.
 func (s *Server) Shutdown(ctx context.Context) error {
-	stopCtx := s.scheduler.Stop()
-	select {
-	case <-stopCtx.Done():
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return s.shutdown(ctx)
 }
 
 func (s *Server) NewWorker(consumerTag string, concurrency int, queue string) *Worker {

@@ -1,6 +1,7 @@
 package lock_redis
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"time"
@@ -32,8 +33,7 @@ type Lock struct {
 	client redis.UniversalClient
 }
 
-func (l *Lock) lock(key string, expire int, mark string) error {
-	ctx := l.client.Context()
+func (l *Lock) lock(ctx context.Context, key string, expire int, mark string) error {
 	resp, err := l.client.Eval(ctx, CMDLock, []string{key}, []string{mark, strconv.Itoa(expire)}).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return err
@@ -49,21 +49,42 @@ func (l *Lock) lock(key string, expire int, mark string) error {
 }
 
 func (l *Lock) Lock(key string, expire int, mark string) error {
+	return l.LockContext(l.client.Context(), key, expire, mark)
+}
+
+func (l *Lock) LockContext(ctx context.Context, key string, expire int, mark string) error {
 	var err error
 	for i := 0; i < l.retries+1; i++ {
-		err = l.lock(key, expire, mark)
-		if err == nil {
-			break
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
 		}
-		if l.interval > 0 {
-			time.Sleep(l.interval)
+		err = l.lock(ctx, key, expire, mark)
+		if err == nil {
+			return nil
+		}
+		if l.interval > 0 && i < l.retries {
+			timer := time.NewTimer(l.interval)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return ctx.Err()
+			}
 		}
 	}
 	return err
 }
 
 func (l *Lock) UnLock(key string, mark string) error {
-	ctx := l.client.Context()
+	return l.UnlockContext(l.client.Context(), key, mark)
+}
+
+func (l *Lock) UnlockContext(ctx context.Context, key string, mark string) error {
 	resp, err := l.client.Eval(ctx, CMDUnlock, []string{key}, []string{mark}).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return err
