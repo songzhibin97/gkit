@@ -76,6 +76,10 @@ func (q *Queue) Stat() Stat {
 // Push 请求进入CoDel Queue
 // 如果返回错误为nil，则在完成请求处理后，调用方必须调用q.Done()
 func (q *Queue) Push(ctx context.Context) (err error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	r := packet{
 		ch: make(chan bool, 1),
 		ts: time.Now().UnixNano() / int64(time.Millisecond),
