@@ -47,6 +47,88 @@ func TestFloat64SetRejectsNaN(t *testing.T) {
 	}
 }
 
+func TestComplex64SetRejectsNaNComponents(t *testing.T) {
+	set := NewComplex64()
+	valid := complex(float32(1), float32(2))
+	if !set.Add(valid) {
+		t.Fatal("Add(valid) = false, want true")
+	}
+	nan := float32(math.NaN())
+	values := []struct {
+		name  string
+		value complex64
+	}{
+		{name: "real", value: complex(nan, 1)},
+		{name: "imaginary", value: complex(1, nan)},
+		{name: "both", value: complex(nan, nan)},
+	}
+
+	for _, tt := range values {
+		t.Run(tt.name, func(t *testing.T) {
+			before := set.Len()
+			if set.Add(tt.value) {
+				t.Fatal("Add(complex NaN) = true, want false")
+			}
+			if got := set.Len(); got != before {
+				t.Fatalf("Len() after Add(complex NaN) = %d, want %d", got, before)
+			}
+			if set.Contains(tt.value) {
+				t.Fatal("Contains(complex NaN) = true, want false")
+			}
+			if set.Remove(tt.value) {
+				t.Fatal("Remove(complex NaN) = true, want false")
+			}
+			if got := set.Len(); got != before {
+				t.Fatalf("Len() after Remove(complex NaN) = %d, want %d", got, before)
+			}
+		})
+	}
+	if !set.Contains(valid) || set.Len() != 1 {
+		t.Fatalf("valid value changed while rejecting NaN: contains=%t len=%d", set.Contains(valid), set.Len())
+	}
+}
+
+func TestComplex128SetRejectsNaNComponents(t *testing.T) {
+	set := NewComplex128()
+	valid := complex(1.0, 2.0)
+	if !set.Add(valid) {
+		t.Fatal("Add(valid) = false, want true")
+	}
+	nan := math.NaN()
+	values := []struct {
+		name  string
+		value complex128
+	}{
+		{name: "real", value: complex(nan, 1)},
+		{name: "imaginary", value: complex(1, nan)},
+		{name: "both", value: complex(nan, nan)},
+	}
+
+	for _, tt := range values {
+		t.Run(tt.name, func(t *testing.T) {
+			before := set.Len()
+			if set.Add(tt.value) {
+				t.Fatal("Add(complex NaN) = true, want false")
+			}
+			if got := set.Len(); got != before {
+				t.Fatalf("Len() after Add(complex NaN) = %d, want %d", got, before)
+			}
+			if set.Contains(tt.value) {
+				t.Fatal("Contains(complex NaN) = true, want false")
+			}
+			if set.Remove(tt.value) {
+				t.Fatal("Remove(complex NaN) = true, want false")
+			}
+			if got := set.Len(); got != before {
+				t.Fatalf("Len() after Remove(complex NaN) = %d, want %d", got, before)
+			}
+		})
+	}
+	if !set.Contains(valid) || set.Len() != 1 {
+		t.Fatalf("valid value changed while rejecting NaN: contains=%t len=%d", set.Contains(valid), set.Len())
+	}
+}
+
 func TestFloat32SetPreservesComparableValues(t *testing.T) {
 	set := NewFloat32()
 	positiveZero := float32(0)
