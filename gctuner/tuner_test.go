@@ -2,18 +2,94 @@ package gctuner
 
 import (
 	"runtime"
+	"runtime/debug"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var testHeap []byte
 
+func TestTuningZeroRestoresRuntimeGCPercent(t *testing.T) {
+	originalGCPercent := debug.SetGCPercent(int(defaultGCPercent))
+	t.Cleanup(func() {
+		tuningMu.Lock()
+		if globalTuner != nil {
+			globalTuner.stop()
+			globalTuner = nil
+		}
+		tuningMu.Unlock()
+		debug.SetGCPercent(originalGCPercent)
+	})
+
+	Tuning(50)
+	tuningMu.Lock()
+	if globalTuner == nil {
+		tuningMu.Unlock()
+		t.Fatal("Tuning(50) did not install a tuner")
+	}
+	globalTuner.setGCPercent(minGCPercent)
+	tuningMu.Unlock()
+
+	Tuning(0)
+
+	gotRuntimeGCPercent := debug.SetGCPercent(int(defaultGCPercent))
+	debug.SetGCPercent(gotRuntimeGCPercent)
+	assert.Equal(t, int(defaultGCPercent), gotRuntimeGCPercent)
+	assert.Equal(t, defaultGCPercent, GetGCPercent())
+
+	tuningMu.Lock()
+	defer tuningMu.Unlock()
+	assert.Nil(t, globalTuner)
+}
+
+func TestTunerStopWaitsForInFlightTuning(t *testing.T) {
+	tn := &tuner{finalizer: &finalizer{}}
+	tn.tuningMu.Lock()
+
+	stopReturned := make(chan struct{})
+	go func() {
+		tn.stop()
+		close(stopReturned)
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for atomic.LoadInt32(&tn.finalizer.stopped) == 0 && time.Now().Before(deadline) {
+		runtime.Gosched()
+	}
+	if atomic.LoadInt32(&tn.finalizer.stopped) == 0 {
+		tn.tuningMu.Unlock()
+		t.Fatal("stop did not mark the finalizer as stopped")
+	}
+
+	select {
+	case <-stopReturned:
+		tn.tuningMu.Unlock()
+		t.Fatal("stop returned while a tuning callback was still in flight")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	tn.tuningMu.Unlock()
+	select {
+	case <-stopReturned:
+	case <-time.After(time.Second):
+		t.Fatal("stop did not return after the tuning callback completed")
+	}
+}
+
 func TestTuner(t *testing.T) {
 	is := assert.New(t)
 	memLimit := uint64(100 * 1024 * 1024) // 100 MB
 	threshold := memLimit / 2
+	originalGCPercent := debug.SetGCPercent(int(defaultGCPercent))
 	tn := newTuner(threshold)
+	t.Cleanup(func() {
+		tn.stop()
+		testHeap = nil
+		debug.SetGCPercent(originalGCPercent)
+	})
 	currentGCPercent := tn.getGCPercent()
 	is.Equal(tn.threshold, threshold)
 	is.Equal(defaultGCPercent, currentGCPercent)

@@ -45,10 +45,13 @@ var tuningMu sync.Mutex
 func Tuning(threshold uint64) {
 	tuningMu.Lock()
 	defer tuningMu.Unlock()
-	// disable gc tuner if percent is zero
-	if threshold <= 0 && globalTuner != nil {
-		globalTuner.stop()
-		globalTuner = nil
+	// disable gc tuner if threshold is zero
+	if threshold == 0 {
+		if globalTuner != nil {
+			globalTuner.stop()
+			globalTuner = nil
+		}
+		debug.SetGCPercent(int(defaultGCPercent))
 		return
 	}
 
@@ -111,11 +114,18 @@ type tuner struct {
 	finalizer *finalizer
 	gcPercent uint32
 	threshold uint64 // high water level, in bytes
+	stopped   int32
+	tuningMu  sync.Mutex
 }
 
 // tuning check the memory inuse and tune GC percent dynamically.
 // Go runtime ensure that it will be called serially.
 func (t *tuner) tuning() {
+	t.tuningMu.Lock()
+	defer t.tuningMu.Unlock()
+	if atomic.LoadInt32(&t.stopped) > 0 {
+		return
+	}
 	inuse := readMemoryInuse()
 	threshold := t.getThreshold()
 	// stop gc tuning
@@ -158,7 +168,11 @@ func newTuner(threshold uint64) *tuner {
 }
 
 func (t *tuner) stop() {
+	atomic.StoreInt32(&t.stopped, 1)
 	t.finalizer.stop()
+	// Wait for a callback that passed finalizerHandler's stopped check.
+	t.tuningMu.Lock()
+	t.tuningMu.Unlock()
 }
 
 func (t *tuner) setThreshold(threshold uint64) {
