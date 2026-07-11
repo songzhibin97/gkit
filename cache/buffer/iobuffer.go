@@ -72,6 +72,9 @@ func (p *pipe) Len() int {
 
 // Read 等待数据可用,将缓冲区内容复制到buffer中
 func (p *pipe) Read(buffer []byte) (int, error) {
+	if len(buffer) == 0 {
+		return 0, nil
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.checkCond()
@@ -238,6 +241,9 @@ func (i *ioBuffer) ReadFrom(r io.Reader) (n int64, err error) {
 
 // Grow 扩张
 func (i *ioBuffer) Grow(n int) error {
+	if n < 0 {
+		return ErrNegativeCount
+	}
 	start, ok := i.tryGrowByRelies(n)
 	if !ok {
 		start = i.grow(n)
@@ -349,6 +355,9 @@ func (i *ioBuffer) WriteTo(w io.Writer) (n int64, err error) {
 
 // Peek 从缓冲区读取n个字节,不会消耗缓冲区,如果超过或不合法返回nil
 func (i *ioBuffer) Peek(n int) []byte {
+	if n < 0 {
+		return nil
+	}
 	if len(i.buffer)-i.off < n {
 		return nil
 	}
@@ -367,6 +376,9 @@ func (i *ioBuffer) Bytes() []byte {
 
 // Drain 排出缓冲区 offset 长度
 func (i *ioBuffer) Drain(offset int) {
+	if offset < 0 {
+		return
+	}
 	if i.off+offset > len(i.buffer) {
 		return
 	}
