@@ -2,8 +2,11 @@ package distributed
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
+	backendapi "github.com/songzhibin97/gkit/distributed/backend"
 	"github.com/songzhibin97/gkit/distributed/task"
 )
 
@@ -17,7 +20,7 @@ func (b *issue104ValidationBackend) GroupTakeOver(string, string, ...string) err
 	return nil
 }
 
-func TestDurableChordValidationHasZeroSideEffects(t *testing.T) {
+func TestDurableChordValidationHasTypedFieldErrorsAndZeroSideEffects(t *testing.T) {
 	validMember := func(id string) *task.Signature {
 		return &task.Signature{ID: id, Name: "member"}
 	}
@@ -29,18 +32,19 @@ func TestDurableChordValidationHasZeroSideEffects(t *testing.T) {
 	}
 
 	tests := []struct {
-		name  string
-		value *task.GroupCallback
+		name        string
+		value       *task.GroupCallback
+		wantContext string
 	}{
-		{name: "nil group callback"},
-		{name: "nil group", value: &task.GroupCallback{Callback: validCallback()}},
-		{name: "nil callback", value: &task.GroupCallback{Group: validGroup(validMember("m1"))}},
-		{name: "empty group", value: &task.GroupCallback{Group: validGroup(), Callback: validCallback()}},
-		{name: "nil member", value: &task.GroupCallback{Group: validGroup(nil), Callback: validCallback()}},
-		{name: "empty group id", value: &task.GroupCallback{Group: &task.Group{Tasks: []*task.Signature{validMember("m1")}}, Callback: validCallback()}},
-		{name: "empty callback id", value: &task.GroupCallback{Group: validGroup(validMember("m1")), Callback: &task.Signature{Name: "callback"}}},
-		{name: "empty member id", value: &task.GroupCallback{Group: validGroup(validMember("")), Callback: validCallback()}},
-		{name: "duplicate member id", value: &task.GroupCallback{Group: validGroup(validMember("m1"), validMember("m1")), Callback: validCallback()}},
+		{name: "nil group callback", wantContext: "group callback"},
+		{name: "nil group", value: &task.GroupCallback{Callback: validCallback()}, wantContext: "group"},
+		{name: "nil callback", value: &task.GroupCallback{Group: validGroup(validMember("m1"))}, wantContext: "callback"},
+		{name: "empty group", value: &task.GroupCallback{Group: validGroup(), Callback: validCallback()}, wantContext: "group"},
+		{name: "nil member", value: &task.GroupCallback{Group: validGroup(nil), Callback: validCallback()}, wantContext: "member"},
+		{name: "empty group id", value: &task.GroupCallback{Group: &task.Group{Tasks: []*task.Signature{validMember("m1")}}, Callback: validCallback()}, wantContext: "group id"},
+		{name: "empty callback id", value: &task.GroupCallback{Group: validGroup(validMember("m1")), Callback: &task.Signature{Name: "callback"}}, wantContext: "callback id"},
+		{name: "empty member id", value: &task.GroupCallback{Group: validGroup(validMember("")), Callback: validCallback()}, wantContext: "member id"},
+		{name: "duplicate member id", value: &task.GroupCallback{Group: validGroup(validMember("m1"), validMember("m1")), Callback: validCallback()}, wantContext: "member id"},
 	}
 
 	for _, tt := range tests {
@@ -49,16 +53,21 @@ func TestDurableChordValidationHasZeroSideEffects(t *testing.T) {
 			controller := &groupTestController{}
 			server := &Server{backend: backend, controller: controller}
 
+			var validationErr error
 			func() {
 				defer func() {
 					if recovered := recover(); recovered != nil {
 						t.Fatalf("SendGroupCallbackWithContext panicked: %v", recovered)
 					}
 				}()
-				if _, err := server.SendGroupCallbackWithContext(context.Background(), tt.value, 1); err == nil {
-					t.Fatal("SendGroupCallbackWithContext returned nil error")
-				}
+				_, validationErr = server.SendGroupCallbackWithContext(context.Background(), tt.value, 1)
 			}()
+			if !errors.Is(validationErr, backendapi.ErrChordInvalidInput) {
+				t.Fatalf("validation error = %v, want ErrChordInvalidInput", validationErr)
+			}
+			if !strings.Contains(validationErr.Error(), tt.wantContext) {
+				t.Fatalf("validation error = %q, want %q field context", validationErr, tt.wantContext)
+			}
 
 			if backend.takeovers != 0 || len(backend.pendingIDs) != 0 || controller.publishCount.Load() != 0 {
 				t.Fatalf("invalid input caused side effects: takeovers=%d pending=%v publishes=%d", backend.takeovers, backend.pendingIDs, controller.publishCount.Load())

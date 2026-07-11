@@ -15,11 +15,14 @@ import (
 )
 
 const (
-	redisChordDeliveryIndexKey = "gkit:chord:{index}:deliveries:v1"
-	redisChordTerminalIndexKey = "gkit:chord:{index}:terminal:v1"
-	redisChordIndexStateKey    = "gkit:chord:{index}:delivery-state:v1"
+	redisChordKeyPrefix        = "gkit:chord:"
+	redisChordDeliveryIndexKey = redisChordKeyPrefix + "{index}:deliveries:v1"
+	redisChordTerminalIndexKey = redisChordKeyPrefix + "{index}:terminal:v1"
+	redisChordIndexStateKey    = redisChordKeyPrefix + "{index}:delivery-state:v1"
 	redisChordCursorPrefix     = "chord-index-v1."
 )
+
+var errInvalidRedisChordRecord = errors.New("invalid redis chord record")
 
 const (
 	redisChordPrepareIndexScript = `
@@ -94,11 +97,14 @@ func redisChordRecordKey(deliveryKey string) (string, error) {
 	if len(parts) != 4 || parts[0] != "chord" || parts[1] != "v1" || parts[2] == "" {
 		return "", fmt.Errorf("invalid chord delivery key %q", deliveryKey)
 	}
-	return "gkit:chord:{" + parts[2] + "}:record", nil
+	return redisChordKeyPrefix + "{" + parts[2] + "}:record", nil
 }
 
 func (b *BackendRedis) RegisterChord(ctx context.Context, registration backend.ChordRegistration) (backend.ChordRegistrationRef, error) {
 	if err := backend.FinalizeChordRegistration(&registration); err != nil {
+		return backend.ChordRegistrationRef{}, err
+	}
+	if err := validateRedisChordRegistration(registration); err != nil {
 		return backend.ChordRegistrationRef{}, err
 	}
 	owner, err := backend.NewChordOwner()
@@ -156,7 +162,13 @@ func (b *BackendRedis) RegisterChord(ctx context.Context, registration backend.C
 	}
 	existing, err := b.loadChordDelivery(ctx, key)
 	if err != nil {
+		if errors.Is(err, errInvalidRedisChordRecord) {
+			return backend.ChordRegistrationRef{}, b.rejectOccupiedChordRecord(ctx, delivery.DeliveryKey, owner, key)
+		}
 		return backend.ChordRegistrationRef{}, err
+	}
+	if !validRedisChordRecord(existing, key) {
+		return backend.ChordRegistrationRef{}, b.rejectOccupiedChordRecord(ctx, delivery.DeliveryKey, owner, key)
 	}
 	if existing.DeliveryKey == delivery.DeliveryKey {
 		if err := b.commitChordIndex(ctx, existing.DeliveryKey, owner, existing.RegistrationOwner); err != nil {
@@ -378,6 +390,9 @@ func (b *BackendRedis) ReconcileChord(ctx context.Context, deliveryKey string) e
 	if err != nil {
 		return err
 	}
+	if err := validateRedisChordDeliverySetup(delivery); err != nil {
+		return err
+	}
 	needsSetup := false
 	for index := range delivery.Members {
 		if delivery.Members[index].State == backend.ChordMemberSetup {
@@ -451,6 +466,9 @@ func (b *BackendRedis) ClaimCallbackPublication(ctx context.Context, claim backe
 	if len(delivery.CallbackPayload) > 0 {
 		var callback task.Signature
 		if err := json.Unmarshal(delivery.CallbackPayload, &callback); err != nil {
+			return lease, false, err
+		}
+		if err := validateRedisUserKey("callback", callback.ID); err != nil {
 			return lease, false, err
 		}
 		pending, err := json.Marshal(task.NewPendingState(&callback))
@@ -643,9 +661,74 @@ func loadRedisChordFromCmd(ctx context.Context, getter redisChordGetter, key str
 	}
 	var delivery backend.ChordDelivery
 	if err := json.Unmarshal(body, &delivery); err != nil {
-		return nil, fmt.Errorf("decode redis chord %q: %w", key, err)
+		return nil, fmt.Errorf("%w: decode redis chord %q: %v", errInvalidRedisChordRecord, key, err)
 	}
 	return &delivery, nil
+}
+
+func validateRedisChordRegistration(registration backend.ChordRegistration) error {
+	if err := validateRedisUserKey("group", registration.GroupID); err != nil {
+		return err
+	}
+	for index, member := range registration.Members {
+		if err := validateRedisUserKey(fmt.Sprintf("member %d", index), member.TaskID); err != nil {
+			return err
+		}
+		var signature task.Signature
+		if err := json.Unmarshal(member.Payload, &signature); err != nil {
+			return fmt.Errorf("%w: decode redis member %d: %v", backend.ErrChordInvalidInput, index, err)
+		}
+		if signature.ID != member.TaskID {
+			return fmt.Errorf("%w: redis member %d payload id %q does not match registration id %q", backend.ErrChordInvalidInput, index, signature.ID, member.TaskID)
+		}
+		if err := validateRedisUserKey(fmt.Sprintf("member %d", index), signature.ID); err != nil {
+			return err
+		}
+	}
+	var callback task.Signature
+	if err := json.Unmarshal(registration.Callback, &callback); err != nil {
+		return fmt.Errorf("%w: decode redis callback: %v", backend.ErrChordInvalidInput, err)
+	}
+	return validateRedisUserKey("callback", callback.ID)
+}
+
+func validateRedisChordDeliverySetup(delivery *backend.ChordDelivery) error {
+	if delivery == nil {
+		return fmt.Errorf("%w: nil redis chord delivery", backend.ErrChordInvalidInput)
+	}
+	if err := validateRedisUserKey("group", delivery.GroupID); err != nil {
+		return err
+	}
+	for index, member := range delivery.Members {
+		if err := validateRedisUserKey(fmt.Sprintf("member %d", index), member.TaskID); err != nil {
+			return err
+		}
+		var signature task.Signature
+		if err := json.Unmarshal(member.Payload, &signature); err != nil {
+			return fmt.Errorf("%w: decode redis member %d: %v", backend.ErrChordInvalidInput, index, err)
+		}
+		if signature.ID != member.TaskID {
+			return fmt.Errorf("%w: redis member %d payload id %q does not match stored id %q", backend.ErrChordInvalidInput, index, signature.ID, member.TaskID)
+		}
+		if err := validateRedisUserKey(fmt.Sprintf("member %d", index), signature.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validRedisChordRecord(delivery *backend.ChordDelivery, recordKey string) bool {
+	if delivery == nil || delivery.DeliveryKey == "" || delivery.GroupID == "" || delivery.RegistrationOwner == "" || delivery.RegistrationVersion <= 0 {
+		return false
+	}
+	key, err := redisChordRecordKey(delivery.DeliveryKey)
+	return err == nil && key == recordKey
+}
+
+func (b *BackendRedis) rejectOccupiedChordRecord(ctx context.Context, deliveryKey, owner, recordKey string) error {
+	collisionErr := fmt.Errorf("%w: redis chord record %q is occupied by incompatible data", backend.ErrChordRegistrationConflict, recordKey)
+	cleanupErr := b.removeChordIndexesIfState(ctx, deliveryKey, "pending:"+owner)
+	return errors.Join(collisionErr, cleanupErr)
 }
 
 func encodeRedisChordCursor(lastKey string) string {
