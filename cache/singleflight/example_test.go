@@ -40,6 +40,7 @@ func ExampleNewSingleFlight() {
 	}
 	cache(result.Val)
 
-	// 尽力取消
+	// Forget 仅移除 singleflight 对该 key 的关联，不会取消 fn；
+	// 后续同 key 调用会独立执行。
 	singleFlight.Forget("test2")
 }

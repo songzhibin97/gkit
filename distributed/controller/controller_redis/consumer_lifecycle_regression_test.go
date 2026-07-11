@@ -51,6 +51,34 @@ type issue79BlockingRPushHook struct {
 	once    sync.Once
 }
 
+type issue79BlockingClaimHook struct {
+	hash    string
+	started chan struct{}
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (h *issue79BlockingClaimHook) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	if strings.EqualFold(cmd.Name(), "evalsha") {
+		args := cmd.Args()
+		if len(args) >= 2 && fmt.Sprint(args[1]) == h.hash {
+			h.once.Do(func() { close(h.started) })
+			<-h.release
+		}
+	}
+	return ctx, nil
+}
+
+func (*issue79BlockingClaimHook) AfterProcess(context.Context, redis.Cmder) error { return nil }
+
+func (*issue79BlockingClaimHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (*issue79BlockingClaimHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
+	return nil
+}
+
 type issue79TrackingRedisClient struct {
 	redis.UniversalClient
 	active         atomic.Int32
@@ -181,7 +209,7 @@ func TestQueueProducerRestoresPoppedTaskWhenHandoffIsCancelled(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	handoff := make(chan []byte)
+	handoff := make(chan *reliableDelivery)
 	processorSlots := make(chan struct{}, 1)
 	failures := make(chan error, 1)
 	done := make(chan struct{})
@@ -253,7 +281,7 @@ func TestQueueProducerSurfacesRestoreFailureWithoutClientDetails(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	handoff := make(chan []byte)
+	handoff := make(chan *reliableDelivery)
 	processorSlots := make(chan struct{}, 1)
 	failures := make(chan error, 1)
 	done := make(chan struct{})
@@ -285,7 +313,7 @@ func TestQueueProducerSurfacesRestoreFailureWithoutClientDetails(t *testing.T) {
 	}
 	select {
 	case err := <-failures:
-		if got := err.Error(); got != "restore queued task: redis command failed" {
+		if got := err.Error(); got != "release queued task: redis command failed" {
 			t.Fatalf("restore error = %q, want operation context without client detail", got)
 		}
 		if !errors.Is(err, redis.ErrClosed) {
@@ -361,13 +389,8 @@ func TestStartConsumingCancelsAndJoinsAttemptBeforeReturn(t *testing.T) {
 }
 
 func TestRetryAttemptsDoNotAccumulateQueueProducers(t *testing.T) {
-	c, _, baseClient := newMiniController(t)
+	c, _, client := newMiniController(t)
 	c.Broker.SetRetry(true)
-	trackingClient := &issue79TrackingRedisClient{
-		UniversalClient: baseClient,
-		popCalls:        make(chan int32, 8),
-	}
-	c.client = trackingClient
 	defer c.StopConsuming()
 	c.RegisterTask("task")
 
@@ -376,17 +399,14 @@ func TestRetryAttemptsDoNotAccumulateQueueProducers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal attempt %d: %v", attempt, err)
 		}
-		if err := trackingClient.RPush(context.Background(), "test_task", body).Err(); err != nil {
+		if err := client.RPush(context.Background(), "test_task", body).Err(); err != nil {
 			t.Fatalf("enqueue attempt %d: %v", attempt, err)
 		}
 
 		failErr := fmt.Errorf("attempt %d failed", attempt)
-		abort := make(chan struct{})
-		processor := &issue79WaitForPopProcessor{
-			popCalls: trackingClient.popCalls,
-			wantCall: attempt * 2,
-			failErr:  failErr,
-			abort:    abort,
+		processor := &reliableTestProcessor{
+			started: make(chan struct{}),
+			err:     failErr,
 		}
 		result := make(chan issue79ConsumeResult, 1)
 		go func() {
@@ -403,78 +423,63 @@ func TestRetryAttemptsDoNotAccumulateQueueProducers(t *testing.T) {
 				t.Fatalf("attempt %d error = %v, want processor failure", attempt, outcome.err)
 			}
 		case <-time.After(3 * time.Second):
-			close(abort)
 			t.Fatalf("attempt %d did not return", attempt)
 		}
-		close(abort)
-		if active := trackingClient.active.Load(); active != 0 {
-			t.Fatalf("active queue producers after attempt %d = %d, want 0", attempt, active)
+		probe := fmt.Sprintf(`{"id":"probe-%d","name":"task"}`, attempt)
+		if err := client.RPush(context.Background(), "test_task", probe).Err(); err != nil {
+			t.Fatalf("enqueue probe %d: %v", attempt, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+		if got := client.LIndex(context.Background(), "test_task", 0).Val(); got != probe {
+			t.Fatalf("queue producer survived attempt %d and claimed probe", attempt)
+		}
+		if err := client.LPop(context.Background(), "test_task").Err(); err != nil {
+			t.Fatalf("remove probe %d: %v", attempt, err)
 		}
 	}
 }
 
 func TestStartConsumingJoinsQueueProducerBeforeReturn(t *testing.T) {
-	c, _, baseClient := newMiniController(t)
-	releasePop := make(chan struct{})
-	trackingClient := &issue79TrackingRedisClient{
-		UniversalClient: baseClient,
-		popCalls:        make(chan int32, 4),
-		blockAfterCall:  2,
-		popUnblocked:    make(chan struct{}),
-		releasePop:      releasePop,
-	}
-	c.client = trackingClient
+	c, _, client := newMiniController(t)
 	defer c.StopConsuming()
 	c.RegisterTask("task")
-
-	body, err := json.Marshal(task.NewSignature("producer-join", "task"))
-	if err != nil {
-		t.Fatalf("marshal task: %v", err)
+	if err := reliableClaimScript.Load(context.Background(), client).Err(); err != nil {
+		t.Fatalf("preload claim script: %v", err)
 	}
-	if err := trackingClient.RPush(context.Background(), "test_task", body).Err(); err != nil {
-		t.Fatalf("enqueue task: %v", err)
+	releaseClaim := make(chan struct{})
+	hook := &issue79BlockingClaimHook{
+		hash:    reliableClaimScript.Hash(),
+		started: make(chan struct{}),
+		release: releaseClaim,
 	}
-	failErr := errors.New("stop attempt")
-	abort := make(chan struct{})
-	processor := &issue79WaitForPopProcessor{
-		popCalls: trackingClient.popCalls,
-		wantCall: 2,
-		failErr:  failErr,
-		abort:    abort,
-	}
+	client.AddHook(hook)
 	result := make(chan issue79ConsumeResult, 1)
 	go func() {
-		retry, err := c.StartConsuming(2, processor)
+		retry, err := c.StartConsuming(2, issue79Processor{})
 		result <- issue79ConsumeResult{retry: retry, err: err}
 	}()
 
 	select {
-	case <-trackingClient.popUnblocked:
+	case <-hook.started:
 	case <-time.After(3 * time.Second):
-		close(abort)
-		close(releasePop)
+		close(releaseClaim)
 		t.Fatal("queue producer did not reach its cancellation gate")
 	}
+	c.Broker.StopConsuming()
 	select {
 	case early := <-result:
-		close(abort)
-		close(releasePop)
+		close(releaseClaim)
 		t.Fatalf("StartConsuming returned before queue producer joined: retry=%v err=%v", early.retry, early.err)
 	case <-time.After(100 * time.Millisecond):
 	}
-	close(releasePop)
+	close(releaseClaim)
 	select {
 	case outcome := <-result:
-		if !errors.Is(outcome.err, failErr) {
-			t.Fatalf("StartConsuming error = %v, want processor failure", outcome.err)
+		if !errors.Is(outcome.err, context.Canceled) {
+			t.Fatalf("StartConsuming error = %v, want context.Canceled", outcome.err)
 		}
 	case <-time.After(3 * time.Second):
-		close(abort)
 		t.Fatal("StartConsuming did not return after queue producer joined")
-	}
-	close(abort)
-	if active := trackingClient.active.Load(); active != 0 {
-		t.Fatalf("active queue producers = %d, want 0", active)
 	}
 }
 

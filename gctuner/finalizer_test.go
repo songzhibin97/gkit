@@ -11,8 +11,8 @@ import (
 
 func TestFinalizer(t *testing.T) {
 	// disable gc
-	debug.SetGCPercent(-1)
-	defer debug.SetGCPercent(100)
+	originalGCPercent := debug.SetGCPercent(-1)
+	defer debug.SetGCPercent(originalGCPercent)
 
 	maxCount := int32(16)
 	is := assert.New(t)

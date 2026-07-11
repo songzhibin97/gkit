@@ -2,78 +2,181 @@ package codel
 
 import (
 	"context"
-	"fmt"
-	"sync"
+	"math"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/songzhibin97/gkit/overload/bbr"
 )
 
-var qps = time.Microsecond * 2000
+const decisionMargin = int64(1_000_000)
 
-func TestCoDel1200(t *testing.T) {
-	q := NewQueue()
-	drop := new(int64)
-	tm := new(int64)
-	delay := time.Millisecond * 3000
-	testPush(q, qps, delay, drop, tm)
-	fmt.Printf("qps %v process time %v drop %d timeout %d \n", int64(time.Second/qps), delay, *drop, *tm)
-	time.Sleep(time.Second)
+func TestQueueJudgeTargetAndIntervalThresholds(t *testing.T) {
+	t.Run("below target clears first-above time", func(t *testing.T) {
+		q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+		atomic.StoreInt64(&q.faTime, nowMillis()+decisionMargin)
+
+		if drop := q.judge(packet{ts: nowMillis()}); drop {
+			t.Fatal("judge() dropped a packet below target")
+		}
+		if got := atomic.LoadInt64(&q.faTime); got != 0 {
+			t.Fatalf("faTime after packet below target = %d, want 0", got)
+		}
+	})
+
+	t.Run("first packet above target starts interval", func(t *testing.T) {
+		q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+		before := nowMillis()
+		if drop := q.judge(packet{ts: 0}); drop {
+			t.Fatal("judge() dropped the first packet above target")
+		}
+		after := nowMillis()
+		faTime := atomic.LoadInt64(&q.faTime)
+		if faTime < before+decisionMargin || faTime > after+decisionMargin {
+			t.Fatalf("faTime = %d, want within [%d, %d]", faTime, before+decisionMargin, after+decisionMargin)
+		}
+		if q.dropping {
+			t.Fatal("queue entered dropping before the interval elapsed")
+		}
+	})
+
+	t.Run("packet before interval deadline is allowed", func(t *testing.T) {
+		q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+		atomic.StoreInt64(&q.faTime, nowMillis()+decisionMargin)
+
+		if drop := q.judge(packet{ts: 0}); drop {
+			t.Fatal("judge() dropped a packet before faTime")
+		}
+		if q.dropping {
+			t.Fatal("queue entered dropping before faTime")
+		}
+	})
 }
 
-func TestCoDel200(t *testing.T) {
-	q := NewQueue()
-	drop := new(int64)
-	tm := new(int64)
-	delay := time.Millisecond * 2000
-	testPush(q, qps, delay, drop, tm)
-	fmt.Printf("qps %v process time %v drop %d timeout %d \n", int64(time.Second/qps), delay, *drop, *tm)
-	time.Sleep(time.Second)
-}
+func TestQueueJudgeDroppingLifecycleAndStat(t *testing.T) {
+	q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+	atomic.StoreInt64(&q.faTime, nowMillis()-decisionMargin-1_000)
 
-func TestCoDel100(t *testing.T) {
-	q := NewQueue()
-	drop := new(int64)
-	tm := new(int64)
-	delay := time.Millisecond * 1000
-	testPush(q, qps, delay, drop, tm)
-	fmt.Printf("qps %v process time %v drop %d timeout %d \n", int64(time.Second/qps), delay, *drop, *tm)
-}
-
-func TestCoDel50(t *testing.T) {
-	q := NewQueue()
-	drop := new(int64)
-	tm := new(int64)
-	delay := time.Millisecond * 500
-	testPush(q, qps, delay, drop, tm)
-	fmt.Printf("qps %v process time %v drop %d timeout %d \n", int64(time.Second/qps), delay, *drop, *tm)
-}
-
-func testPush(q *Queue, sleep time.Duration, delay time.Duration, drop *int64, tm *int64) {
-	var group sync.WaitGroup
-	for i := 0; i < 5000; i++ {
-		time.Sleep(sleep)
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Millisecond*1000))
-			defer cancel()
-			fmt.Println(q.Stat())
-			if err := q.Push(ctx); err != nil {
-				if err == bbr.LimitExceed {
-					atomic.AddInt64(drop, 1)
-				} else {
-					atomic.AddInt64(tm, 1)
-				}
-			} else {
-				time.Sleep(delay)
-				q.Pop()
-			}
-		}()
+	before := nowMillis()
+	if drop := q.judge(packet{ts: 0}); !drop {
+		t.Fatal("judge() allowed a packet after the interval elapsed")
 	}
-	group.Wait()
+	after := nowMillis()
+	if !q.dropping {
+		t.Fatal("queue did not enter dropping after the interval elapsed")
+	}
+	if got := atomic.LoadInt64(&q.count); got != 1 {
+		t.Fatalf("drop count on entry = %d, want 1", got)
+	}
+	dropNext := atomic.LoadInt64(&q.dropNext)
+	if dropNext < before+decisionMargin || dropNext > after+decisionMargin {
+		t.Fatalf("dropNext on entry = %d, want within [%d, %d]", dropNext, before+decisionMargin, after+decisionMargin)
+	}
+
+	q.packets <- packet{ch: make(chan bool, 1)}
+	stat := q.Stat()
+	if !stat.Dropping || stat.Packets != 1 || stat.FaTime != atomic.LoadInt64(&q.faTime) || stat.DropNext != dropNext {
+		t.Fatalf("Stat() = %+v, want dropping state, one packet, faTime %d, dropNext %d", stat, q.faTime, dropNext)
+	}
+	<-q.packets
+
+	if drop := q.judge(packet{ts: nowMillis()}); drop {
+		t.Fatal("judge() dropped a packet below target while leaving dropping")
+	}
+	if q.dropping {
+		t.Fatal("queue did not leave dropping after a packet below target")
+	}
+	if got := atomic.LoadInt64(&q.faTime); got != 0 {
+		t.Fatalf("faTime after leaving dropping = %d, want 0", got)
+	}
+	if got := atomic.LoadInt64(&q.count); got != 1 {
+		t.Fatalf("drop count after leaving dropping = %d, want 1", got)
+	}
+}
+
+func TestQueueJudgeDropScheduleAdvancesCount(t *testing.T) {
+	t.Run("not due", func(t *testing.T) {
+		q := queueInDroppingState(7, nowMillis()+decisionMargin)
+		dropNext := atomic.LoadInt64(&q.dropNext)
+
+		if drop := q.judge(packet{ts: 0}); !drop {
+			t.Fatal("judge() allowed an above-target packet while dropping")
+		}
+		if got := atomic.LoadInt64(&q.count); got != 7 {
+			t.Fatalf("drop count before dropNext = %d, want 7", got)
+		}
+		if got := atomic.LoadInt64(&q.dropNext); got != dropNext {
+			t.Fatalf("dropNext changed before it was due: got %d, want %d", got, dropNext)
+		}
+	})
+
+	t.Run("due", func(t *testing.T) {
+		oldDropNext := nowMillis() - 1
+		q := queueInDroppingState(1, oldDropNext)
+
+		if drop := q.judge(packet{ts: 0}); !drop {
+			t.Fatal("judge() allowed a due above-target packet while dropping")
+		}
+		if got := atomic.LoadInt64(&q.count); got != 2 {
+			t.Fatalf("drop count after due drop = %d, want 2", got)
+		}
+		wantDropNext := oldDropNext + controlLawOffset(q.conf.internal, 2)
+		if got := atomic.LoadInt64(&q.dropNext); got != wantDropNext {
+			t.Fatalf("dropNext after due drop = %d, want previous schedule %d + control-law offset = %d", got, oldDropNext, wantDropNext)
+		}
+	})
+}
+
+func TestQueueJudgeRecentDropCycleReentry(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		lastCount int64
+		wantCount int64
+	}{
+		{name: "count above two resumes two steps back", lastCount: 5, wantCount: 3},
+		{name: "count at most two restarts at one", lastCount: 2, wantCount: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+			q.dropping = false
+			atomic.StoreInt64(&q.count, test.lastCount)
+			before := nowMillis()
+			atomic.StoreInt64(&q.faTime, before-decisionMargin-1)
+			atomic.StoreInt64(&q.dropNext, before)
+
+			if drop := q.judge(packet{ts: 0}); !drop {
+				t.Fatal("judge() allowed an above-target packet when re-entering a recent drop cycle")
+			}
+			after := nowMillis()
+			if !q.dropping {
+				t.Fatal("queue did not re-enter dropping for a recent drop cycle")
+			}
+			if got := atomic.LoadInt64(&q.count); got != test.wantCount {
+				t.Fatalf("drop count on recent-cycle re-entry = %d, want %d", got, test.wantCount)
+			}
+
+			offset := controlLawOffset(q.conf.internal, test.wantCount)
+			if got := atomic.LoadInt64(&q.dropNext); got < before+offset || got > after+offset {
+				t.Fatalf("dropNext on recent-cycle re-entry = %d, want within logical-now range [%d, %d]", got, before+offset, after+offset)
+			}
+		})
+	}
+}
+
+func controlLawOffset(interval, count int64) int64 {
+	return int64(float64(interval) / math.Sqrt(float64(count)))
+}
+
+func queueInDroppingState(count, dropNext int64) *Queue {
+	q := NewQueue(SetTarget(decisionMargin), SetInternal(decisionMargin))
+	q.dropping = true
+	atomic.StoreInt64(&q.count, count)
+	atomic.StoreInt64(&q.faTime, nowMillis()-decisionMargin-1_000)
+	atomic.StoreInt64(&q.dropNext, dropNext)
+	return q
+}
+
+func nowMillis() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
 }
 
 func BenchmarkAQM(b *testing.B) {

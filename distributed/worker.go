@@ -1,6 +1,8 @@
 package distributed
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/songzhibin97/gkit/distributed/backend"
 	"github.com/songzhibin97/gkit/distributed/retry"
 
 	"github.com/pkg/errors"
@@ -164,6 +167,9 @@ func (w *Worker) handlerSucceeded(signature *task.Signature, results []*task.Res
 	if err := w.bindService.GetBackend().SetStateSuccess(signature, results); err != nil {
 		return errors.Wrap(err, "worker set task state to 'succeeded' error, signature id:"+signature.ID)
 	}
+	if err := w.recordDurableTerminal(signature, backend.MemberTerminalSuccess, backend.CallbackTerminalSuccess, results); err != nil {
+		return err
+	}
 
 	// 执行任务成功回调
 	for _, success := range signature.CallbackOnSuccess {
@@ -242,6 +248,9 @@ func (w *Worker) handlerFailed(signature *task.Signature, err error) error {
 	if err := w.bindService.GetBackend().SetStateFailure(signature, err.Error()); err != nil {
 		return errors.Wrap(err, "worker set task state to 'succeeded' error, signature id:"+signature.ID)
 	}
+	if durableErr := w.recordDurableTerminal(signature, backend.MemberTerminalFailure, backend.CallbackTerminalFailure, nil); durableErr != nil {
+		return durableErr
+	}
 	if w.errorHandler != nil {
 		w.errorHandler(err)
 	} else {
@@ -257,6 +266,69 @@ func (w *Worker) handlerFailed(signature *task.Signature, err error) error {
 		return errors.New("StopTaskDeletionOnError")
 	}
 	return nil
+}
+
+func (w *Worker) recordDurableTerminal(signature *task.Signature, memberOutcome backend.MemberTerminalOutcome, callbackOutcome backend.CallbackTerminalOutcome, results []*task.Result) error {
+	durable := w.bindService.durableBackend
+	if durable == nil || signature == nil || signature.Meta == nil {
+		return nil
+	}
+	value, ok := signature.Meta.Get(backend.DurableChordDeliveryKeyMeta)
+	if !ok {
+		return nil
+	}
+	deliveryKey, ok := value.(string)
+	if !ok || deliveryKey == "" {
+		return fmt.Errorf("invalid durable chord delivery key metadata on task %s", signature.ID)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), chordOperationTimeout)
+	defer cancel()
+	memberValue, isMember := signature.Meta.Get(backend.DurableChordMemberMeta)
+	if isMember && metadataBool(memberValue) {
+		ordinalValue, ok := signature.Meta.Get(backend.DurableChordMemberOrdinal)
+		if !ok {
+			return fmt.Errorf("missing durable chord ordinal metadata on task %s", signature.ID)
+		}
+		ordinal, ok := metadataInt(ordinalValue)
+		if !ok {
+			return fmt.Errorf("invalid durable chord ordinal metadata on task %s", signature.ID)
+		}
+		if err := durable.RecordMemberTerminal(ctx, deliveryKey, ordinal, signature.ID, memberOutcome, results); err != nil {
+			return fmt.Errorf("record durable chord member terminal %s: %w", signature.ID, err)
+		}
+		return nil
+	}
+	if err := durable.RecordCallbackTerminal(ctx, deliveryKey, callbackOutcome); err != nil {
+		return fmt.Errorf("record durable chord callback terminal %s: %w", signature.ID, err)
+	}
+	return nil
+}
+
+func metadataBool(value interface{}) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return typed == "true"
+	default:
+		return false
+	}
+}
+
+func metadataInt(value interface{}) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), typed == float64(int(typed))
+	case json.Number:
+		parsed, err := typed.Int64()
+		return int(parsed), err == nil
+	default:
+		return 0, false
+	}
 }
 
 func (w *Worker) reportCallbackPublicationError(parent, callback *task.Signature, kind string, err error) {
