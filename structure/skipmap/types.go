@@ -431,14 +431,17 @@ func (s *ByteMap) LoadOrStoreLazy(key byte, f func() interface{}) (actual interf
 			unlockByte(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newByteNode(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockByte(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockByte(preds, highestLocked)
+			value = f()
+			nn := newByteNode(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -943,14 +946,17 @@ func (s *ByteMapDesc) LoadOrStoreLazy(key byte, f func() interface{}) (actual in
 			unlockByteDesc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newByteNodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockByteDesc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockByteDesc(preds, highestLocked)
+			value = f()
+			nn := newByteNodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -1455,14 +1461,17 @@ func (s *Float32Map) LoadOrStoreLazy(key float32, f func() interface{}) (actual 
 			unlockFloat32(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newFloat32Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockFloat32(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockFloat32(preds, highestLocked)
+			value = f()
+			nn := newFloat32Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -1967,14 +1976,17 @@ func (s *Float32MapDesc) LoadOrStoreLazy(key float32, f func() interface{}) (act
 			unlockFloat32Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newFloat32NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockFloat32Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockFloat32Desc(preds, highestLocked)
+			value = f()
+			nn := newFloat32NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -2479,14 +2491,17 @@ func (s *Float64Map) LoadOrStoreLazy(key float64, f func() interface{}) (actual 
 			unlockFloat64(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newFloat64Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockFloat64(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockFloat64(preds, highestLocked)
+			value = f()
+			nn := newFloat64Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -2991,14 +3006,17 @@ func (s *Float64MapDesc) LoadOrStoreLazy(key float64, f func() interface{}) (act
 			unlockFloat64Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newFloat64NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockFloat64Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockFloat64Desc(preds, highestLocked)
+			value = f()
+			nn := newFloat64NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -3503,14 +3521,17 @@ func (s *IntMap) LoadOrStoreLazy(key int, f func() interface{}) (actual interfac
 			unlockInt(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newIntNode(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt(preds, highestLocked)
+			value = f()
+			nn := newIntNode(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -4015,14 +4036,17 @@ func (s *IntMapDesc) LoadOrStoreLazy(key int, f func() interface{}) (actual inte
 			unlockIntDesc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newIntNodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockIntDesc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockIntDesc(preds, highestLocked)
+			value = f()
+			nn := newIntNodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -4527,14 +4551,17 @@ func (s *Int8Map) LoadOrStoreLazy(key int8, f func() interface{}) (actual interf
 			unlockInt8(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt8Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt8(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt8(preds, highestLocked)
+			value = f()
+			nn := newInt8Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -5039,14 +5066,17 @@ func (s *Int8MapDesc) LoadOrStoreLazy(key int8, f func() interface{}) (actual in
 			unlockInt8Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt8NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt8Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt8Desc(preds, highestLocked)
+			value = f()
+			nn := newInt8NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -5551,14 +5581,17 @@ func (s *Int16Map) LoadOrStoreLazy(key int16, f func() interface{}) (actual inte
 			unlockInt16(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt16Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt16(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt16(preds, highestLocked)
+			value = f()
+			nn := newInt16Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -6063,14 +6096,17 @@ func (s *Int16MapDesc) LoadOrStoreLazy(key int16, f func() interface{}) (actual 
 			unlockInt16Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt16NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt16Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt16Desc(preds, highestLocked)
+			value = f()
+			nn := newInt16NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -6575,14 +6611,17 @@ func (s *Int32Map) LoadOrStoreLazy(key int32, f func() interface{}) (actual inte
 			unlockInt32(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt32Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt32(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt32(preds, highestLocked)
+			value = f()
+			nn := newInt32Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -7087,14 +7126,17 @@ func (s *Int32MapDesc) LoadOrStoreLazy(key int32, f func() interface{}) (actual 
 			unlockInt32Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newInt32NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockInt32Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockInt32Desc(preds, highestLocked)
+			value = f()
+			nn := newInt32NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -7599,14 +7641,17 @@ func (s *RuneMap) LoadOrStoreLazy(key rune, f func() interface{}) (actual interf
 			unlockRune(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newRuneNode(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockRune(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockRune(preds, highestLocked)
+			value = f()
+			nn := newRuneNode(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -8111,14 +8156,17 @@ func (s *RuneMapDesc) LoadOrStoreLazy(key rune, f func() interface{}) (actual in
 			unlockRuneDesc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newRuneNodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockRuneDesc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockRuneDesc(preds, highestLocked)
+			value = f()
+			nn := newRuneNodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -8623,14 +8671,17 @@ func (s *UintMap) LoadOrStoreLazy(key uint, f func() interface{}) (actual interf
 			unlockUint(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUintNode(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint(preds, highestLocked)
+			value = f()
+			nn := newUintNode(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -9135,14 +9186,17 @@ func (s *UintMapDesc) LoadOrStoreLazy(key uint, f func() interface{}) (actual in
 			unlockUintDesc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUintNodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUintDesc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUintDesc(preds, highestLocked)
+			value = f()
+			nn := newUintNodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -9647,14 +9701,17 @@ func (s *Uint8Map) LoadOrStoreLazy(key uint8, f func() interface{}) (actual inte
 			unlockUint8(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUint8Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint8(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint8(preds, highestLocked)
+			value = f()
+			nn := newUint8Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -10159,14 +10216,17 @@ func (s *Uint8MapDesc) LoadOrStoreLazy(key uint8, f func() interface{}) (actual 
 			unlockUint8Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUint8NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint8Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint8Desc(preds, highestLocked)
+			value = f()
+			nn := newUint8NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -10671,14 +10731,17 @@ func (s *Uint16Map) LoadOrStoreLazy(key uint16, f func() interface{}) (actual in
 			unlockUint16(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUint16Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint16(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint16(preds, highestLocked)
+			value = f()
+			nn := newUint16Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -11183,14 +11246,17 @@ func (s *Uint16MapDesc) LoadOrStoreLazy(key uint16, f func() interface{}) (actua
 			unlockUint16Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUint16NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint16Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint16Desc(preds, highestLocked)
+			value = f()
+			nn := newUint16NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -11695,14 +11761,17 @@ func (s *Uint32Map) LoadOrStoreLazy(key uint32, f func() interface{}) (actual in
 			unlockUint32(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUint32Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint32(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint32(preds, highestLocked)
+			value = f()
+			nn := newUint32Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -12207,14 +12276,17 @@ func (s *Uint32MapDesc) LoadOrStoreLazy(key uint32, f func() interface{}) (actua
 			unlockUint32Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUint32NodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint32Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint32Desc(preds, highestLocked)
+			value = f()
+			nn := newUint32NodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -12719,14 +12791,17 @@ func (s *Uint64Map) LoadOrStoreLazy(key uint64, f func() interface{}) (actual in
 			unlockUint64(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUuint64Node(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint64(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint64(preds, highestLocked)
+			value = f()
+			nn := newUuint64Node(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -13231,14 +13306,17 @@ func (s *Uint64MapDesc) LoadOrStoreLazy(key uint64, f func() interface{}) (actua
 			unlockUint64Desc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUuint64NodeDescDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUint64Desc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUint64Desc(preds, highestLocked)
+			value = f()
+			nn := newUuint64NodeDescDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -13743,14 +13821,17 @@ func (s *UintptrMap) LoadOrStoreLazy(key uintptr, f func() interface{}) (actual 
 			unlockUintptr(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUintptrNode(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUintptr(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUintptr(preds, highestLocked)
+			value = f()
+			nn := newUintptrNode(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -14255,14 +14336,17 @@ func (s *UintptrMapDesc) LoadOrStoreLazy(key uintptr, f func() interface{}) (act
 			unlockUintptrDesc(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newUintptrNodeDesc(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockUintptrDesc(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockUintptrDesc(preds, highestLocked)
+			value = f()
+			nn := newUintptrNodeDesc(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
@@ -14764,14 +14848,17 @@ func (s *StringMap) LoadOrStoreLazy(key string, f func() interface{}) (actual in
 			unlockString(preds, highestLocked)
 			continue
 		}
-		value := f()
-		nn := newStringNode(key, value, level)
-		for layer := 0; layer < level; layer++ {
-			nn.storeNext(layer, succs[layer])
-			preds[layer].atomicStoreNext(layer, nn)
-		}
-		nn.flags.SetTrue(fullyLinked)
-		unlockString(preds, highestLocked)
+		var value interface{}
+		func() {
+			defer unlockString(preds, highestLocked)
+			value = f()
+			nn := newStringNode(key, value, level)
+			for layer := 0; layer < level; layer++ {
+				nn.storeNext(layer, succs[layer])
+				preds[layer].atomicStoreNext(layer, nn)
+			}
+			nn.flags.SetTrue(fullyLinked)
+		}()
 		atomic.AddInt64(&s.length, 1)
 		return value, false
 	}
