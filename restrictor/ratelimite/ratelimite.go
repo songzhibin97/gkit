@@ -35,6 +35,9 @@ func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.Wa
 			if n < 0 {
 				return restrictor.ErrInvalidTokenCount
 			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			var maxWait time.Duration
 			if d, ok := ctx.Deadline(); ok {
 				maxWait = time.Until(d)
