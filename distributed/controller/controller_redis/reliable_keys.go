@@ -8,12 +8,13 @@ import (
 )
 
 type reliableQueueKeys struct {
-	ready        string
-	inflight     string
-	visibility   string
-	outcomes     string
-	repairCursor string
-	prefix       string
+	ready         string
+	inflight      string
+	visibility    string
+	outcomes      string
+	repairCursor  string
+	repairBacklog string
+	prefix        string
 }
 
 var reliableSlotTags = struct {
@@ -29,12 +30,13 @@ func deriveReliableQueueKeys(queue string) reliableQueueKeys {
 	digest := sha256.Sum256([]byte(queue))
 	prefix := fmt.Sprintf("{%s}:gkit:%x", tag, digest)
 	return reliableQueueKeys{
-		ready:        queue,
-		inflight:     prefix + ":inflight",
-		visibility:   prefix + ":visibility",
-		outcomes:     prefix + ":ack-outcomes",
-		repairCursor: prefix + ":repair-cursor",
-		prefix:       prefix,
+		ready:         queue,
+		inflight:      prefix + ":inflight",
+		visibility:    prefix + ":visibility",
+		outcomes:      prefix + ":ack-outcomes",
+		repairCursor:  prefix + ":repair-cursor",
+		repairBacklog: prefix + ":repair-backlog",
+		prefix:        prefix,
 	}
 }
 

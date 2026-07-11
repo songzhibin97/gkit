@@ -59,12 +59,66 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			}
 			script := injectProductionLuaFailure(t, reliableClaimScriptSource, boundary)
 			_, err := script.Run(context.Background(), client,
-				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor},
+				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor, keys.repairBacklog},
 				"claim-token", time.Minute.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err == nil {
 				t.Fatalf("boundary %q returned nil error", boundary.name)
 			}
 			assertRecoverablePayload(t, client, keys, payload)
+			cleanupReliableQueue(t, client, queue)
+		}
+	})
+
+	t.Run("oversized repair page", func(t *testing.T) {
+		boundaries := []productionLuaBoundary{
+			{name: "repair backlog ZADD", command: "redis.call('ZADD', KEYS[6], 'NX', unpack(backlog_add))", occurrence: 1},
+			{name: "repair cursor SET", command: "redis.call('SET', KEYS[5], next_cursor, 'PX', outcome_ttl)", occurrence: 1},
+		}
+		for boundaryIndex, boundary := range boundaries {
+			queue := fmt.Sprintf("gkit:103:production:oversized-repair:%d:{live}", boundaryIndex)
+			keys := deriveReliableQueueKeys(queue)
+			cleanupReliableQueue(t, client, queue)
+			const entries = 400
+			deadline := float64(time.Now().Add(time.Hour).UnixMilli())
+			ctx := context.Background()
+			_, err := client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+				for index := 0; index < entries; index++ {
+					token := fmt.Sprintf("oversized-token-%03d", index)
+					pipe.HSet(ctx, keys.inflight, token, fmt.Sprintf("0000000000:oversized-payload-%03d", index))
+					pipe.ZAdd(ctx, keys.visibility, &redis.Z{Score: deadline, Member: token})
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("seed %s: %v", boundary.name, err)
+			}
+			page, next, err := client.HScan(ctx, keys.inflight, 0, "*", 128).Result()
+			if err != nil || next != 0 || len(page)/2 != entries {
+				t.Fatalf("inspect oversized page for %s = %d pairs, cursor %d, %v", boundary.name, len(page)/2, next, err)
+			}
+			orphanToken := page[2*128]
+			wantPayload := page[2*128+1][reliableEnvelopeHeaderSize:]
+			if err := client.ZRem(ctx, keys.visibility, orphanToken).Err(); err != nil {
+				t.Fatalf("make overflow orphan for %s: %v", boundary.name, err)
+			}
+			script := injectProductionLuaFailure(t, reliableClaimScriptSource, boundary)
+			_, err = script.Run(ctx, client,
+				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor, keys.repairBacklog},
+				"oversized-claim-token", time.Minute.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
+			if err == nil {
+				t.Fatalf("boundary %q returned nil error", boundary.name)
+			}
+			q := newReliableQueue(client, queue, time.Minute, newDeliveryTokenGenerator(nil))
+			var recovered *reliableDelivery
+			for attempt := 0; attempt < 16 && recovered == nil; attempt++ {
+				recovered, err = q.claim(ctx)
+				if err != nil {
+					t.Fatalf("recover after %s attempt %d: %v", boundary.name, attempt, err)
+				}
+			}
+			if recovered == nil || string(recovered.payload) != wantPayload {
+				t.Fatalf("recovered after %s = %v, want %q", boundary.name, recovered, wantPayload)
+			}
 			cleanupReliableQueue(t, client, queue)
 		}
 	})
@@ -84,7 +138,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			seedReservedPayloadAt(t, client, keys, "old-token", payload, 0)
 			script := injectProductionLuaFailure(t, reliableClaimScriptSource, boundary)
 			_, err := script.Run(context.Background(), client,
-				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor},
+				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor, keys.repairBacklog},
 				"new-token", time.Minute.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err == nil {
 				t.Fatalf("boundary %q returned nil error", boundary.name)

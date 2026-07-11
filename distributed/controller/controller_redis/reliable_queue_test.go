@@ -385,7 +385,7 @@ func TestLegacyQueueAndClusterKeyCompatibility(t *testing.T) {
 	for _, queue := range []string{"legacy-queue", "queue:{tagged}", "queue:{broken"} {
 		keys := deriveReliableQueueKeys(queue)
 		wantSlot := redisClusterSlot(queue)
-		for _, key := range []string{keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor} {
+		for _, key := range []string{keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor, keys.repairBacklog} {
 			if got := redisClusterSlot(key); got != wantSlot {
 				t.Fatalf("queue %q internal key %q slot = %d, want %d", queue, key, got, wantSlot)
 			}

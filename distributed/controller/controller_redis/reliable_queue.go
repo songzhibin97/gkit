@@ -110,7 +110,7 @@ local function nowms()
 end
 if not requiretype(KEYS[1], 'list') or not requiretype(KEYS[2], 'hash') or
    not requiretype(KEYS[3], 'zset') or not requiretype(KEYS[4], 'zset') or
-   not requiretype(KEYS[5], 'string') then
+   not requiretype(KEYS[5], 'string') or not requiretype(KEYS[6], 'zset') then
   return redis.error_reply('reliable claim: invalid key type')
 end
 local token = ARGV[1]
@@ -120,7 +120,7 @@ if not token or token == '' or not lease or lease <= 0 or not outcome_ttl or out
   return redis.error_reply('reliable claim: invalid argument')
 end
 if redis.call('HEXISTS', KEYS[2], token) == 1 or redis.call('ZSCORE', KEYS[3], token) or
-   redis.call('ZSCORE', KEYS[4], token) then
+   redis.call('ZSCORE', KEYS[4], token) or redis.call('ZSCORE', KEYS[6], token) then
   return {2}
 end
 local now = nowms()
@@ -132,18 +132,50 @@ local expired = redis.call('ZRANGEBYSCORE', KEYS[4], '-inf', now, 'LIMIT', 0, 12
 local outcome_count = redis.call('ZCARD', KEYS[4])
 local outcome_ttl_missing = outcome_count > 0 and redis.call('PTTL', KEYS[4]) < 0
 local newest = redis.call('ZREVRANGE', KEYS[4], 0, 0, 'WITHSCORES')
-local scan = redis.call('HSCAN', KEYS[2], repair_cursor, 'COUNT', 128)
-local entries = scan[2]
-local next_cursor = scan[1]
-local entry_limit = math.min(#entries, 256)
-local entry_count = math.floor(entry_limit / 2)
-for index = 1, entry_limit, 2 do
-  local envelope = entries[index + 1]
-  if string.len(envelope) < 11 or string.sub(envelope, 11, 11) ~= ':' or
-     not tonumber(string.sub(envelope, 1, 10)) then
+local backlog_tokens = redis.call('ZRANGE', KEYS[6], 0, 127)
+local draining_backlog = #backlog_tokens > 0
+local next_cursor = repair_cursor
+local overflow_tokens = {}
+local repair = {}
+if draining_backlog then
+  for index = 1, #backlog_tokens do
+    local repair_token = backlog_tokens[index]
+    repair[#repair + 1] = {
+      token = repair_token,
+      envelope = redis.call('HGET', KEYS[2], repair_token),
+      outcome = redis.call('ZSCORE', KEYS[4], repair_token),
+      visibility = redis.call('ZSCORE', KEYS[3], repair_token)
+    }
+  end
+else
+  local scan = redis.call('HSCAN', KEYS[2], repair_cursor, 'COUNT', 128)
+  local entries = scan[2]
+  next_cursor = scan[1]
+  if #entries % 2 ~= 0 then
+    return redis.error_reply('reliable claim: invalid repair scan page')
+  end
+  local entry_limit = math.min(#entries, 256)
+  for index = 1, entry_limit, 2 do
+    local repair_token = entries[index]
+    repair[#repair + 1] = {
+      token = repair_token,
+      envelope = redis.call('HGET', KEYS[2], repair_token),
+      outcome = redis.call('ZSCORE', KEYS[4], repair_token),
+      visibility = redis.call('ZSCORE', KEYS[3], repair_token)
+    }
+  end
+  for index = entry_limit + 1, #entries, 2 do
+    overflow_tokens[#overflow_tokens + 1] = entries[index]
+  end
+end
+for index = 1, #repair do
+  local envelope = repair[index].envelope
+  if envelope and (string.len(envelope) < 11 or string.sub(envelope, 11, 11) ~= ':' or
+     not tonumber(string.sub(envelope, 1, 10))) then
     return redis.error_reply('reliable claim: invalid orphan envelope')
   end
 end
+local entry_count = #repair
 local visible = {}
 local visibility_budget = 128 - entry_count
 if visibility_budget > 0 then
@@ -176,12 +208,23 @@ if outcome_ttl_missing then
   if #newest == 2 then repaired_ttl = math.max(1, tonumber(newest[2]) - now + 3600000) end
   redis.call('PEXPIRE', KEYS[4], repaired_ttl)
 end
-redis.call('SET', KEYS[5], next_cursor, 'PX', outcome_ttl)
-for index = 1, entry_limit, 2 do
-  local orphan_token = entries[index]
-  local envelope = entries[index + 1]
-  local outcome = redis.call('ZSCORE', KEYS[4], orphan_token)
-  local visibility = redis.call('ZSCORE', KEYS[3], orphan_token)
+if not draining_backlog then
+  if #overflow_tokens > 0 then
+    local backlog_add = {}
+    for index = 1, #overflow_tokens do
+      backlog_add[#backlog_add + 1] = 0
+      backlog_add[#backlog_add + 1] = overflow_tokens[index]
+    end
+    redis.call('ZADD', KEYS[6], 'NX', unpack(backlog_add))
+  end
+else
+  redis.call('PEXPIRE', KEYS[5], outcome_ttl)
+end
+for index = 1, #repair do
+  local orphan_token = repair[index].token
+  local envelope = repair[index].envelope
+  local outcome = repair[index].outcome
+  local visibility = repair[index].visibility
   if outcome and tonumber(outcome) > now then
     redis.call('ZREM', KEYS[3], orphan_token)
     redis.call('HDEL', KEYS[2], orphan_token)
@@ -192,6 +235,7 @@ for index = 1, entry_limit, 2 do
     reconciled = true
   end
 end
+if draining_backlog then redis.call('ZREM', KEYS[6], unpack(backlog_tokens)) end
 for index = 1, #visible do
   local visible_token = visible[index]
   if redis.call('HEXISTS', KEYS[2], visible_token) == 0 then
@@ -199,6 +243,8 @@ for index = 1, #visible do
     reconciled = true
   end
 end
+if not draining_backlog then redis.call('SET', KEYS[5], next_cursor, 'PX', outcome_ttl) end
+if redis.call('ZCARD', KEYS[6]) > 0 then redis.call('PEXPIRE', KEYS[6], outcome_ttl) end
 if reconciled then return {3} end
 
 if oldtoken then
@@ -401,7 +447,7 @@ reconcile:
 			}
 			requestStarted := time.Now()
 			result, err := reliableClaimScript.Run(ctx, q.client,
-				[]string{q.keys.ready, q.keys.inflight, q.keys.visibility, q.keys.outcomes, q.keys.repairCursor},
+				[]string{q.keys.ready, q.keys.inflight, q.keys.visibility, q.keys.outcomes, q.keys.repairCursor, q.keys.repairBacklog},
 				token, q.lease.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err != nil {
 				return nil, wrapRedisOperation("claim queued task", err)
