@@ -85,23 +85,39 @@ func normalizeDocLine(doc string) string {
 	return doc
 }
 
+func rpcDocTag(doc string) (name, value string, ok bool) {
+	doc = normalizeDocLine(doc)
+
+	for _, tag := range []struct {
+		prefix string
+		name   string
+	}{
+		{prefix: "@method:", name: "method"},
+		{prefix: "@service:", name: "service"},
+		{prefix: "@router:", name: "router"},
+	} {
+		if strings.HasPrefix(doc, tag.prefix) {
+			value, ok := docTagValue(doc)
+			return tag.name, value, ok
+		}
+	}
+	return "", "", false
+}
+
 func parseDoc(server *Server) {
 	for _, doc := range server.Doc {
 		for _, line := range strings.Split(doc, "\n") {
-			line = normalizeDocLine(line)
-			switch {
-			case strings.HasPrefix(line, "@method:"):
-				if v, ok := docTagValue(line); ok {
-					server.Method = v
-				}
-			case strings.HasPrefix(line, "@service:"):
-				if v, ok := docTagValue(line); ok {
-					server.ServerName = v
-				}
-			case strings.HasPrefix(line, "@router:"):
-				if v, ok := docTagValue(line); ok {
-					server.Router = v
-				}
+			name, value, ok := rpcDocTag(line)
+			if !ok {
+				continue
+			}
+			switch name {
+			case "method":
+				server.Method = value
+			case "service":
+				server.ServerName = value
+			case "router":
+				server.Router = value
 			}
 		}
 	}
