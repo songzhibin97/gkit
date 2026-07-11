@@ -67,32 +67,35 @@ func parseTag(file *File) {
 	}
 }
 
-// docTagValue returns the part after the first colon, or "" if the doc
-// line doesn't actually contain a colon. The previous implementation did
-// `strings.Split(doc, ":")[1]` which panicked on a malformed line; the
-// panic was then swallowed by a recover that printed to stdout, so the
-// affected field was silently left at its zero value and the generated
-// code went out the door with empty Method / ServerName / Router.
+// docTagValue returns the trimmed part after the first colon.
 func docTagValue(doc string) (string, bool) {
 	parts := strings.SplitN(doc, ":", 2)
 	if len(parts) != 2 {
 		return "", false
 	}
-	return parts[1], true
+	return strings.TrimSpace(parts[1]), true
 }
 
 func parseDoc(server *Server) {
 	for _, doc := range server.Doc {
+		doc = strings.TrimSpace(doc)
 		switch {
-		case strings.Contains(doc, "@method"):
+		case strings.HasPrefix(doc, "//"):
+			doc = strings.TrimSpace(strings.TrimPrefix(doc, "//"))
+		case strings.HasPrefix(doc, "/*"):
+			doc = strings.TrimSpace(strings.TrimPrefix(doc, "/*"))
+			doc = strings.TrimSpace(strings.TrimSuffix(doc, "*/"))
+		}
+		switch {
+		case strings.HasPrefix(doc, "@method:"):
 			if v, ok := docTagValue(doc); ok {
 				server.Method = v
 			}
-		case strings.Contains(doc, "@service"):
+		case strings.HasPrefix(doc, "@service:"):
 			if v, ok := docTagValue(doc); ok {
 				server.ServerName = v
 			}
-		case strings.Contains(doc, "@router"):
+		case strings.HasPrefix(doc, "@router:"):
 			if v, ok := docTagValue(doc); ok {
 				server.Router = v
 			}
