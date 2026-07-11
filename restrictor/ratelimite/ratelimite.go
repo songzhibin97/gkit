@@ -20,6 +20,9 @@ const defaultWaitWhenNoDeadline = 100 * time.Millisecond
 
 func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.WaitFunc) {
 	return func(now time.Time, n int) bool {
+			if n < 0 {
+				return false
+			}
 			// TakeMaxDuration(n, 0) returns (0, true) only when n tokens are
 			// immediately available; on false it does NOT consume tokens.
 			// The previous TakeAvailable(n) >= n check consumed up to n
@@ -29,6 +32,9 @@ func NewRateLimit(bucket *ratelimit.Bucket) (restrictor.AllowFunc, restrictor.Wa
 			return ok
 		},
 		func(ctx context.Context, n int) error {
+			if n < 0 {
+				return restrictor.ErrInvalidTokenCount
+			}
 			var maxWait time.Duration
 			if d, ok := ctx.Deadline(); ok {
 				maxWait = time.Until(d)
