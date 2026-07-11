@@ -68,3 +68,30 @@ func TestWait_RespectsCtxCancel(t *testing.T) {
 		t.Fatalf("wait took %v — did not honour ctx.Done", elapsed)
 	}
 }
+
+func TestWait_PreCanceledContextDoesNotConsumeToken(t *testing.T) {
+	b := ratelimit.NewBucket(time.Hour, 1)
+	allow, wait := NewRateLimit(b)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := wait(ctx, 1)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("wait err = %v, want context.Canceled", err)
+	}
+	if !allow(time.Now(), 1) {
+		t.Error("pre-cancelled wait consumed the immediately available token")
+	}
+}
+
+func TestWait_ValidContextConsumesImmediateToken(t *testing.T) {
+	b := ratelimit.NewBucket(time.Hour, 1)
+	allow, wait := NewRateLimit(b)
+
+	if err := wait(context.Background(), 1); err != nil {
+		t.Fatalf("wait err = %v, want nil", err)
+	}
+	if allow(time.Now(), 1) {
+		t.Error("valid wait did not consume the immediately available token")
+	}
+}
