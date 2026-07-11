@@ -40,6 +40,13 @@ type ControllerRedis struct {
 	consumingQueue string
 	// delayedQueue  延迟队列名称
 	delayedQueue string
+
+	deliveryMu            sync.Mutex
+	stopping              bool
+	deliveryLease         time.Duration
+	finalizationTimeout   time.Duration
+	ackConfirmationWindow time.Duration
+	tokenSource           *deliveryTokenGenerator
 }
 
 const consumerRestoreTimeout = 5 * time.Second
@@ -136,7 +143,8 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 	defer cancelAttempt()
 
 	c.helper.Info("[*] Waiting for messages. To exit press CTRL+C")
-	handoff := make(chan []byte)
+	reliableQueue := newReliableQueue(c.client, c.consumingQueue, c.deliveryLease, c.tokenSource)
+	handoff := make(chan *reliableDelivery)
 	processorSlots := make(chan struct{}, concurrency)
 	failures := &consumerAttemptErrors{}
 	reportFailure := func(err error) {
@@ -161,22 +169,22 @@ func (c *ControllerRedis) StartConsuming(concurrency int, handler task.Processor
 	var processorWg sync.WaitGroup
 	for {
 		select {
-		case taskBody := <-handoff:
+		case delivery := <-handoff:
 			if attemptCtx.Err() != nil {
 				<-processorSlots
-				if restoreErr := c.restorePendingTask(c.consumingQueue, taskBody); restoreErr != nil {
-					reportFailure(restoreErr)
+				if releaseErr := c.releaseReliableDelivery(reliableQueue, delivery); releaseErr != nil {
+					reportFailure(releaseErr)
 				}
 				continue
 			}
 			processorWg.Add(1)
-			go func(body []byte) {
+			go func(claimed *reliableDelivery) {
 				defer processorWg.Done()
 				defer func() { <-processorSlots }()
-				if processErr := c.consumeOne(body, c.consumingQueue, handler); processErr != nil {
+				if processErr := c.consumeReliableDelivery(attemptCtx, reliableQueue, claimed, handler); processErr != nil {
 					reportFailure(processErr)
 				}
-			}(taskBody)
+			}(delivery)
 		case <-attemptCtx.Done():
 			cancelAttempt()
 			producerWg.Wait()
@@ -286,10 +294,13 @@ func (c *ControllerRedis) popDelayedTaskWithContext(ctx context.Context, queue s
 func (c *ControllerRedis) produceQueuedTasks(
 	ctx context.Context,
 	queue string,
-	handoff chan<- []byte,
+	handoff chan<- *reliableDelivery,
 	processorSlots chan struct{},
 	reportFailure func(error),
 ) {
+	reliableQueue := newReliableQueue(c.client, queue, c.deliveryLease, c.tokenSource)
+	idleInterval := 25 * time.Millisecond
+	emptyCount := uint64(0)
 	for {
 		select {
 		case processorSlots <- struct{}{}:
@@ -297,30 +308,40 @@ func (c *ControllerRedis) produceQueuedTasks(
 			return
 		}
 
-		taskBody, err := c.popTaskWithContext(ctx, queue, 0)
+		delivery, err := reliableQueue.claim(ctx)
 		if err != nil {
 			<-processorSlots
 			switch {
-			case errors.Is(err, redis.Nil):
-				continue
 			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 				return
 			default:
-				reportFailure(wrapRedisOperation("pop queued task", err))
+				reportFailure(err)
 				return
 			}
 		}
-		if len(taskBody) == 0 {
+		if delivery == nil {
 			<-processorSlots
+			emptyCount++
+			if !waitReliablePoll(ctx, reliableIdleDelay(idleInterval, queue, emptyCount)) {
+				return
+			}
+			if idleInterval < time.Second {
+				idleInterval *= 2
+				if idleInterval > time.Second {
+					idleInterval = time.Second
+				}
+			}
 			continue
 		}
+		emptyCount = 0
+		idleInterval = 25 * time.Millisecond
 
 		select {
-		case handoff <- taskBody:
+		case handoff <- delivery:
 		case <-ctx.Done():
 			<-processorSlots
-			if restoreErr := c.restorePendingTask(queue, taskBody); restoreErr != nil {
-				reportFailure(restoreErr)
+			if releaseErr := c.releaseReliableDelivery(reliableQueue, delivery); releaseErr != nil {
+				reportFailure(releaseErr)
 			}
 			return
 		}
@@ -416,6 +437,9 @@ func (c *ControllerRedis) restoreDelayedTask(queue string, taskBody []byte, scor
 }
 
 func (c *ControllerRedis) StopConsuming() {
+	c.deliveryMu.Lock()
+	c.stopping = true
+	c.deliveryMu.Unlock()
 	c.Broker.StopConsuming()
 	c.consumingWg.Wait()
 }
@@ -473,11 +497,15 @@ func (c *ControllerRedis) GetDelayedTasks() ([]*task.Signature, error) {
 // closing it after every component sharing the client has stopped using it.
 func NewControllerRedis(broker *broker.Broker, client redis.UniversalClient, consumingQueue, delayedQueue string) controller.Controller {
 	return &ControllerRedis{
-		Broker:         broker,
-		client:         client,
-		lock:           redsync.New(goredis.NewPool(client)),
-		helper:         log.NewHelper(log.DefaultLogger),
-		consumingQueue: consumingQueue,
-		delayedQueue:   delayedQueue,
+		Broker:                broker,
+		client:                client,
+		lock:                  redsync.New(goredis.NewPool(client)),
+		helper:                log.NewHelper(log.DefaultLogger),
+		consumingQueue:        consumingQueue,
+		delayedQueue:          delayedQueue,
+		deliveryLease:         defaultDeliveryLease,
+		finalizationTimeout:   consumerRestoreTimeout,
+		ackConfirmationWindow: consumerRestoreTimeout,
+		tokenSource:           newDeliveryTokenGenerator(nil),
 	}
 }
