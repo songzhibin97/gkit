@@ -206,5 +206,8 @@ func NewQueue(options ...options.Option) *Queue {
 	for _, option := range options {
 		option(q.conf)
 	}
+	if q.conf.target <= 0 || q.conf.internal <= 0 {
+		q.conf = defaultConfig()
+	}
 	return q
 }
