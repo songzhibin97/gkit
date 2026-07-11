@@ -48,6 +48,18 @@ func TestDirectSendRejectsInvalidWorkflowWithoutSideEffects(t *testing.T) {
 			_, err := server.SendGroupWithContext(context.Background(), &task.Group{GroupID: "group-id", Tasks: []*task.Signature{nil}}, 1)
 			return err
 		}},
+		{name: "nil group callback", send: func(server *Server) error {
+			_, err := server.SendGroupCallbackWithContext(context.Background(), nil, 1)
+			return err
+		}},
+		{name: "group callback without callback task", send: func(server *Server) error {
+			group, err := task.NewGroup("group-id", "group", &task.Signature{ID: "task"})
+			if err != nil {
+				return err
+			}
+			_, err = server.SendGroupCallbackWithContext(context.Background(), &task.GroupCallback{Group: group}, 1)
+			return err
+		}},
 	}
 
 	for _, tt := range tests {
@@ -65,7 +77,7 @@ func TestDirectSendRejectsInvalidWorkflowWithoutSideEffects(t *testing.T) {
 				err = tt.send(server)
 			}()
 			if !errors.Is(err, task.ErrInvalidWorkflow) {
-				t.Fatalf("error = %v, want task.ErrInvalidWorkflow", err)
+				t.Errorf("error = %v, want task.ErrInvalidWorkflow", err)
 			}
 			if backend.takeovers != 0 || len(backend.pendingIDs) != 0 || controller.publishCount.Load() != 0 {
 				t.Fatalf("invalid workflow caused side effects: takeovers=%d pending=%v publishes=%d", backend.takeovers, backend.pendingIDs, controller.publishCount.Load())

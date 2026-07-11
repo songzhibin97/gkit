@@ -319,6 +319,9 @@ func (s *Server) SendGroup(group *task.Group, concurrency int) ([]*result.AsyncR
 
 // SendGroupCallbackWithContext 发送具有回调任务的任务组
 func (s *Server) SendGroupCallbackWithContext(ctx context.Context, groupCallback *task.GroupCallback, concurrency int) (*result.GroupCallbackAsyncResult, error) {
+	if err := task.ValidateGroupCallback(groupCallback); err != nil {
+		return nil, err
+	}
 	_, err := s.SendGroupWithContext(ctx, groupCallback.Group, concurrency)
 	if err != nil {
 		return nil, err
