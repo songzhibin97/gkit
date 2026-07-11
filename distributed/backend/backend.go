@@ -1,6 +1,14 @@
 package backend
 
-import "github.com/songzhibin97/gkit/distributed/task"
+import (
+	"errors"
+
+	"github.com/songzhibin97/gkit/distributed/task"
+)
+
+// ErrGroupAlreadyExists is returned when a group identifier has already been
+// taken over.
+var ErrGroupAlreadyExists = errors.New("group already exists")
 
 type Backend interface {
 	// GroupTakeOver 组接管任务详情

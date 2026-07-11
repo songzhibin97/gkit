@@ -2,6 +2,7 @@ package backend_db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -34,7 +35,22 @@ func (b *BackendSQLDB) SetResultExpire(expire int64) {
 
 func (b *BackendSQLDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
 	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
-	return b.gClient.Create(group).Error
+	err := b.gClient.Create(group).Error
+	if err == nil {
+		return nil
+	}
+	if isDuplicatedKeyError(b.gClient, err) {
+		return fmt.Errorf("take over group %q: %w", groupID, backend.ErrGroupAlreadyExists)
+	}
+	return err
+}
+
+func isDuplicatedKeyError(db *gorm.DB, err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	translator, ok := db.Dialector.(gorm.ErrorTranslator)
+	return ok && errors.Is(translator.Translate(err), gorm.ErrDuplicatedKey)
 }
 
 func (b *BackendSQLDB) GroupCompleted(groupID string) (bool, error) {
@@ -192,13 +208,12 @@ func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
 
 // autoMigrate creates/updates the schema.
 //
-// NOTE: GORM's AutoMigrate will not convert a pre-existing non-unique index on
-// Status.TaskID into a unique one (it only creates the index when absent). The
-// unique index is therefore given a distinct name so AutoMigrate creates it on
-// older schemas — but that CREATE fails loudly if the `id` column already holds
-// duplicate task IDs. Deployments upgrading from a schema that allowed
-// duplicate task IDs must de-duplicate first; otherwise the upsert
-// (ON CONFLICT id) cannot dedupe.
+// NOTE: GORM's AutoMigrate will not convert pre-existing non-unique indexes on
+// Status.TaskID or GroupMeta.GroupID into unique ones. Their unique indexes use
+// distinct names so AutoMigrate creates them on older schemas. Index creation
+// fails loudly when historical duplicates exist; this package intentionally
+// does not choose and delete a surviving task or group automatically. Operators
+// must reconcile duplicates before retrying migration.
 func (b *BackendSQLDB) autoMigrate() error {
 	return b.gClient.AutoMigrate(
 		task.GroupMeta{},

@@ -1,9 +1,12 @@
 package backend_db
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/glebarez/sqlite"
+	"github.com/songzhibin97/gkit/distributed/backend"
 	"gorm.io/gorm"
 
 	"github.com/songzhibin97/gkit/distributed/task"
@@ -20,6 +23,15 @@ func newSQLiteBackend(t *testing.T) *BackendSQLDB {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	return b
+}
+
+type legacyGroupMeta struct {
+	ID      uint   `gorm:"column:_id;primarykey"`
+	GroupID string `gorm:"column:id;index"`
+}
+
+func (legacyGroupMeta) TableName() string {
+	return "group_meta"
 }
 
 // TestUpsertStatus_DedupsByTaskID is the regression guard for the broken
@@ -101,6 +113,70 @@ func TestResetTask_AllowsReuse(t *testing.T) {
 	}
 	if st.Status != task.StatePending {
 		t.Fatalf("status = %v, want StatePending after reuse", st.Status)
+	}
+}
+
+func TestGroupTakeOverRejectsDuplicateGroupID(t *testing.T) {
+	b := newSQLiteBackend(t)
+	const groupID = "duplicate-group"
+
+	if err := b.GroupTakeOver(groupID, "first", "task-1"); err != nil {
+		t.Fatalf("first GroupTakeOver: %v", err)
+	}
+	triggered, err := b.TriggerCompleted(groupID)
+	if err != nil || !triggered {
+		t.Fatalf("first TriggerCompleted = (%v, %v), want (true, nil)", triggered, err)
+	}
+
+	err = b.GroupTakeOver(groupID, "second", "task-2")
+	if !errors.Is(err, backend.ErrGroupAlreadyExists) {
+		t.Errorf("second GroupTakeOver error = %v, want ErrGroupAlreadyExists", err)
+	} else if !strings.Contains(err.Error(), groupID) {
+		t.Errorf("second GroupTakeOver error = %q, want group ID context", err)
+	}
+
+	var count int64
+	if err := b.gClient.Model(&task.GroupMeta{}).Where("id = ?", groupID).Count(&count).Error; err != nil {
+		t.Fatalf("count groups: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("rows for %q = %d, want 1", groupID, count)
+	}
+
+	triggered, err = b.TriggerCompleted(groupID)
+	if err != nil {
+		t.Fatalf("second TriggerCompleted: %v", err)
+	}
+	if triggered {
+		t.Error("second TriggerCompleted succeeded after duplicate takeover")
+	}
+}
+
+func TestAutoMigrateRejectsHistoricalDuplicateGroupIDsWithoutDeleting(t *testing.T) {
+	gdb, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := gdb.AutoMigrate(&legacyGroupMeta{}); err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+	for index := 0; index < 2; index++ {
+		if err := gdb.Create(&legacyGroupMeta{GroupID: "duplicate-group"}).Error; err != nil {
+			t.Fatalf("insert legacy duplicate %d: %v", index, err)
+		}
+	}
+
+	b := &BackendSQLDB{gClient: gdb}
+	if err := b.autoMigrate(); err == nil {
+		t.Fatal("autoMigrate succeeded with historical duplicate group IDs")
+	}
+
+	var count int64
+	if err := gdb.Table("group_meta").Where("id = ?", "duplicate-group").Count(&count).Error; err != nil {
+		t.Fatalf("count historical groups: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("historical duplicate rows after failed migration = %d, want 2", count)
 	}
 }
 
