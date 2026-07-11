@@ -111,7 +111,7 @@ func (b *BackendSQLDB) getTaskStatus(taskIDs []string) ([]*task.Status, error) {
 		if deleted {
 			continue
 		}
-		if isSQLRecordExpired(status.CreateAt, status.TTL, now) {
+		if b.isStatusExpired(status, now) {
 			current, err := b.GetStatus(status.TaskID)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				continue
@@ -210,7 +210,7 @@ func (b *BackendSQLDB) GetStatus(taskID string) (*task.Status, error) {
 		if deleted {
 			return nil, gorm.ErrRecordNotFound
 		}
-		if !isSQLRecordExpired(status.CreateAt, status.TTL, now) {
+		if !b.isStatusExpired(&status, now) {
 			return &status, nil
 		}
 	}
@@ -262,6 +262,17 @@ func isSQLRecordExpired(createdAt time.Time, ttl int64, now time.Time) bool {
 	return !now.Before(expiresAt)
 }
 
+func (b *BackendSQLDB) isStatusExpired(status *task.Status, now time.Time) bool {
+	ttl := status.TTL
+	if ttl == 0 {
+		// Status rows written before TTL persistence was introduced have zero in
+		// the database. Apply the configured retention on read instead of
+		// silently treating every legacy row as having the one-hour default.
+		ttl = b.configuredResultExpire()
+	}
+	return isSQLRecordExpired(status.CreateAt, ttl, now)
+}
+
 func (b *BackendSQLDB) deleteExpiredStatusByTaskID(taskID string, now time.Time) error {
 	var status task.Status
 	result := b.gClient.Select("_id", "id", "ttl", "create_at").Where("id = ?", taskID).Limit(1).Find(&status)
@@ -276,7 +287,7 @@ func (b *BackendSQLDB) deleteExpiredStatusByTaskID(taskID string, now time.Time)
 }
 
 func (b *BackendSQLDB) deleteExpiredStatusSnapshot(status *task.Status, now time.Time) (bool, error) {
-	if status == nil || !isSQLRecordExpired(status.CreateAt, status.TTL, now) {
+	if status == nil || !b.isStatusExpired(status, now) {
 		return false, nil
 	}
 	result := b.gClient.Unscoped().Where("_id = ? AND id = ?", status.ID, status.TaskID).Delete(&task.Status{})

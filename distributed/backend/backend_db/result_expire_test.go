@@ -152,6 +152,69 @@ func TestSQLResultExpireBoundaryAndModes(t *testing.T) {
 	})
 }
 
+func TestSQLResultExpireLegacyZeroStatusUsesConfiguredNeverExpire(t *testing.T) {
+	base := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	b, clock := newSQLiteExpiryBackend(t, base, -1)
+	legacy := task.Status{
+		TaskID:   "legacy-never-expire",
+		GroupID:  "group",
+		Name:     "task",
+		Status:   task.StatePending,
+		TTL:      0,
+		CreateAt: base,
+	}
+	if err := b.gClient.Create(&legacy).Error; err != nil {
+		t.Fatalf("insert legacy status: %v", err)
+	}
+
+	clock.Set(base.Add(100 * 365 * 24 * time.Hour))
+	status, err := b.GetStatus(legacy.TaskID)
+	if err != nil || status == nil {
+		t.Fatalf("GetStatus for legacy zero-TTL row with never-expire config = (%v, %v), want live row", status, err)
+	}
+	if count := countUnscopedRows(t, b.gClient, &task.Status{}, "_id = ?", legacy.ID); count != 1 {
+		t.Fatalf("physical legacy rows = %d, want 1", count)
+	}
+}
+
+func TestSQLResultExpireLegacyZeroStatusUsesConfiguredPositiveExpiry(t *testing.T) {
+	base := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	b, clock := newSQLiteExpiryBackend(t, base, int64((2*time.Hour)/time.Second))
+	legacy := task.Status{
+		TaskID:   "legacy-positive-expiry",
+		GroupID:  "group",
+		Name:     "task",
+		Status:   task.StatePending,
+		TTL:      0,
+		CreateAt: base,
+	}
+	if err := b.gClient.Create(&legacy).Error; err != nil {
+		t.Fatalf("insert legacy status: %v", err)
+	}
+
+	clock.Set(base.Add(time.Hour))
+	status, err := b.GetStatus(legacy.TaskID)
+	if err != nil || status == nil {
+		t.Fatalf("GetStatus after one hour = (%v, %v), want live legacy row", status, err)
+	}
+	if count := countUnscopedRows(t, b.gClient, &task.Status{}, "_id = ?", legacy.ID); count != 1 {
+		t.Fatalf("physical legacy rows after one hour = %d, want 1", count)
+	}
+
+	clock.Set(base.Add(2*time.Hour - time.Nanosecond))
+	if _, err := b.GetStatus(legacy.TaskID); err != nil {
+		t.Fatalf("GetStatus immediately before configured expiry: %v", err)
+	}
+	clock.Set(base.Add(2 * time.Hour))
+	status, err = b.GetStatus(legacy.TaskID)
+	if !errors.Is(err, gorm.ErrRecordNotFound) || status != nil {
+		t.Fatalf("GetStatus at configured expiry = (%v, %v), want (nil, gorm.ErrRecordNotFound)", status, err)
+	}
+	if count := countUnscopedRows(t, b.gClient, &task.Status{}, "_id = ?", legacy.ID); count != 0 {
+		t.Fatalf("physical legacy rows at configured expiry = %d, want 0", count)
+	}
+}
+
 func TestSQLResultExpireStateTransitionsDoNotRestartRetention(t *testing.T) {
 	base := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
 	b, clock := newSQLiteExpiryBackend(t, base, 10)
