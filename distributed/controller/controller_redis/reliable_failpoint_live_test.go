@@ -154,6 +154,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			{name: "destination ZADD", command: "redis.call('ZADD', KEYS[2], deadline, newtoken)", occurrence: 1},
 			{name: "source ZREM", command: "redis.call('ZREM', KEYS[2], oldtoken)", occurrence: 1},
 			{name: "source HDEL", command: "redis.call('HDEL', KEYS[1], oldtoken)", occurrence: 1},
+			{name: "backlog ZREM", command: "redis.call('ZREM', KEYS[4], oldtoken)", occurrence: 1},
 		}
 		for index, boundary := range boundaries {
 			queue := fmt.Sprintf("gkit:103:production:retry:%d:{live}", index)
@@ -162,7 +163,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			seedReservedPayloadAt(t, client, keys, "old-token", payload, time.Now().Add(time.Minute).UnixMilli())
 			script := injectProductionLuaFailure(t, reliableDeferScriptSource, boundary)
 			_, err := script.Run(context.Background(), client,
-				[]string{keys.inflight, keys.visibility, keys.outcomes},
+				[]string{keys.inflight, keys.visibility, keys.outcomes, keys.repairBacklog},
 				"old-token", "new-token", time.Second.Milliseconds()).Result()
 			if err == nil {
 				t.Fatalf("boundary %q returned nil error", boundary.name)
@@ -177,6 +178,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			{name: "destination RPUSH", command: "redis.call('RPUSH', KEYS[1], payload)", occurrence: 1},
 			{name: "source ZREM", command: "redis.call('ZREM', KEYS[3], token)", occurrence: 1},
 			{name: "source HDEL", command: "redis.call('HDEL', KEYS[2], token)", occurrence: 1},
+			{name: "backlog ZREM", command: "redis.call('ZREM', KEYS[4], token)", occurrence: 1},
 		}
 		for index, boundary := range boundaries {
 			queue := fmt.Sprintf("gkit:103:production:release:%d:{live}", index)
@@ -185,7 +187,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			seedReservedPayloadAt(t, client, keys, "release-token", payload, time.Now().Add(time.Minute).UnixMilli())
 			script := injectProductionLuaFailure(t, reliableReleaseScriptSource, boundary)
 			_, err := script.Run(context.Background(), client,
-				[]string{queue, keys.inflight, keys.visibility}, "release-token").Result()
+				[]string{queue, keys.inflight, keys.visibility, keys.repairBacklog}, "release-token").Result()
 			if err == nil {
 				t.Fatalf("boundary %q returned nil error", boundary.name)
 			}
@@ -200,6 +202,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			{name: "outcome PEXPIRE", command: "redis.call('PEXPIRE', KEYS[3], ttl)", occurrence: 2},
 			{name: "visibility ZREM", command: "redis.call('ZREM', KEYS[2], token)", occurrence: 2},
 			{name: "inflight HDEL", command: "redis.call('HDEL', KEYS[1], token)", occurrence: 2},
+			{name: "backlog ZREM", command: "redis.call('ZREM', KEYS[4], token)", occurrence: 2},
 		}
 		for index, boundary := range boundaries {
 			queue := fmt.Sprintf("gkit:103:production:ack:%d:{live}", index)
@@ -208,7 +211,7 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 			seedReservedPayloadAt(t, client, keys, "ack-token", payload, time.Now().Add(time.Minute).UnixMilli())
 			script := injectProductionLuaFailure(t, reliableAckScriptSource, boundary)
 			_, err := script.Run(context.Background(), client,
-				[]string{keys.inflight, keys.visibility, keys.outcomes}, "ack-token",
+				[]string{keys.inflight, keys.visibility, keys.outcomes, keys.repairBacklog}, "ack-token",
 				ackOutcomeRetention.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err == nil {
 				t.Fatalf("boundary %q returned nil error", boundary.name)

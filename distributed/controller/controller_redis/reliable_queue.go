@@ -225,7 +225,12 @@ for index = 1, #repair do
   local envelope = repair[index].envelope
   local outcome = repair[index].outcome
   local visibility = repair[index].visibility
-  if outcome and tonumber(outcome) > now then
+  if not envelope then
+    if visibility then
+      redis.call('ZREM', KEYS[3], orphan_token)
+      reconciled = true
+    end
+  elseif outcome and tonumber(outcome) > now then
     redis.call('ZREM', KEYS[3], orphan_token)
     redis.call('HDEL', KEYS[2], orphan_token)
     reconciled = true
@@ -322,8 +327,9 @@ end
 local ht = typename(KEYS[1])
 local vt = typename(KEYS[2])
 local ot = typename(KEYS[3])
+local bt = typename(KEYS[4])
 if (ht ~= 'none' and ht ~= 'hash') or (vt ~= 'none' and vt ~= 'zset') or
-   (ot ~= 'none' and ot ~= 'zset') then
+   (ot ~= 'none' and ot ~= 'zset') or (bt ~= 'none' and bt ~= 'zset') then
   return redis.error_reply('reliable ack: invalid key type')
 end
 local token = ARGV[1]
@@ -341,6 +347,7 @@ if prior and tonumber(prior) > now then
   redis.call('ZREM', KEYS[2], token)
   redis.call('HDEL', KEYS[1], token)
   redis.call('PEXPIRE', KEYS[3], ttl)
+  redis.call('ZREM', KEYS[4], token)
   return {1, 1, tostring(now), tostring(prior)}
 end
 if not envelope or not score or tonumber(score) <= now then return {0, 0, tostring(now)} end
@@ -350,6 +357,7 @@ redis.call('ZADD', KEYS[3], outcome, token)
 redis.call('PEXPIRE', KEYS[3], ttl)
 redis.call('ZREM', KEYS[2], token)
 redis.call('HDEL', KEYS[1], token)
+redis.call('ZREM', KEYS[4], token)
 return {1, 0, tostring(now), tostring(outcome)}
 `
 
@@ -368,8 +376,9 @@ end
 local rt = typename(KEYS[1])
 local ht = typename(KEYS[2])
 local vt = typename(KEYS[3])
+local bt = typename(KEYS[4])
 if (rt ~= 'none' and rt ~= 'list') or (ht ~= 'none' and ht ~= 'hash') or
-   (vt ~= 'none' and vt ~= 'zset') then
+   (vt ~= 'none' and vt ~= 'zset') or (bt ~= 'none' and bt ~= 'zset') then
   return redis.error_reply('reliable release: invalid key type')
 end
 local token = ARGV[1]
@@ -386,6 +395,7 @@ local payload = string.sub(envelope, 12)
 redis.call('RPUSH', KEYS[1], payload)
 redis.call('ZREM', KEYS[3], token)
 redis.call('HDEL', KEYS[2], token)
+redis.call('ZREM', KEYS[4], token)
 return {1, tostring(now)}
 `
 
@@ -404,8 +414,9 @@ end
 local ht = typename(KEYS[1])
 local vt = typename(KEYS[2])
 local ot = typename(KEYS[3])
+local bt = typename(KEYS[4])
 if (ht ~= 'none' and ht ~= 'hash') or (vt ~= 'none' and vt ~= 'zset') or
-   (ot ~= 'none' and ot ~= 'zset') then
+   (ot ~= 'none' and ot ~= 'zset') or (bt ~= 'none' and bt ~= 'zset') then
   return redis.error_reply('reliable retry: invalid key type')
 end
 local oldtoken = ARGV[1]
@@ -414,7 +425,7 @@ local delay = tonumber(ARGV[3])
 if not oldtoken or oldtoken == '' or not newtoken or newtoken == '' or
    not delay or delay < 0 then return redis.error_reply('reliable retry: invalid argument') end
 if redis.call('HEXISTS', KEYS[1], newtoken) == 1 or redis.call('ZSCORE', KEYS[2], newtoken) or
-   redis.call('ZSCORE', KEYS[3], newtoken) then return {2} end
+   redis.call('ZSCORE', KEYS[3], newtoken) or redis.call('ZSCORE', KEYS[4], newtoken) then return {2} end
 local now = nowms()
 local envelope = redis.call('HGET', KEYS[1], oldtoken)
 local score = redis.call('ZSCORE', KEYS[2], oldtoken)
@@ -432,6 +443,7 @@ redis.call('HSET', KEYS[1], newtoken, newenvelope)
 redis.call('ZADD', KEYS[2], deadline, newtoken)
 redis.call('ZREM', KEYS[2], oldtoken)
 redis.call('HDEL', KEYS[1], oldtoken)
+redis.call('ZREM', KEYS[4], oldtoken)
 return {1, newtoken, newenvelope, tostring(now), tostring(deadline)}
 `
 
@@ -534,7 +546,7 @@ func (q *reliableQueue) renew(ctx context.Context, delivery *reliableDelivery) e
 
 func (q *reliableQueue) acknowledge(ctx context.Context, delivery *reliableDelivery) error {
 	result, err := reliableAckScript.Run(ctx, q.client,
-		[]string{q.keys.inflight, q.keys.visibility, q.keys.outcomes}, delivery.token,
+		[]string{q.keys.inflight, q.keys.visibility, q.keys.outcomes, q.keys.repairBacklog}, delivery.token,
 		ackOutcomeRetention.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 	if err != nil {
 		return wrapRedisOperation("acknowledge queued task", err)
@@ -555,7 +567,7 @@ func (q *reliableQueue) acknowledge(ctx context.Context, delivery *reliableDeliv
 
 func (q *reliableQueue) release(ctx context.Context, delivery *reliableDelivery) error {
 	result, err := reliableReleaseScript.Run(ctx, q.client,
-		[]string{q.keys.ready, q.keys.inflight, q.keys.visibility}, delivery.token).Result()
+		[]string{q.keys.ready, q.keys.inflight, q.keys.visibility, q.keys.repairBacklog}, delivery.token).Result()
 	if err != nil {
 		return wrapRedisOperation("release queued task", err)
 	}
@@ -582,7 +594,7 @@ func (q *reliableQueue) deferRetry(ctx context.Context, delivery *reliableDelive
 		}
 		requestStarted := time.Now()
 		result, err := reliableDeferScript.Run(ctx, q.client,
-			[]string{q.keys.inflight, q.keys.visibility, q.keys.outcomes},
+			[]string{q.keys.inflight, q.keys.visibility, q.keys.outcomes, q.keys.repairBacklog},
 			delivery.token, newToken, delay.Milliseconds()).Result()
 		if err != nil {
 			return nil, wrapRedisOperation("defer queued task", err)

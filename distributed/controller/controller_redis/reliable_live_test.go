@@ -218,6 +218,167 @@ func TestReliableLuaRedis7RepairCallIsBounded(t *testing.T) {
 	}
 }
 
+func TestReliableLuaRedis7StaleBacklogAfterFinalization(t *testing.T) {
+	client := newLiveReliableClient(t)
+	ctx := context.Background()
+
+	t.Run("release", func(t *testing.T) {
+		q, delivery := seedListpackBacklogDelivery(t, client, "release")
+		defer cleanupReliableQueue(t, client, q.keys.ready)
+		if err := q.release(ctx, delivery); err != nil {
+			t.Fatalf("production release: %v", err)
+		}
+		assertBacklogTokenRemoved(t, client, q, delivery.token)
+		seedStaleBacklogHint(t, client, q, delivery.token, false)
+		recovered, err := q.claim(ctx)
+		if err != nil || recovered == nil || string(recovered.payload) != string(delivery.payload) {
+			t.Fatalf("claim released payload = (%v, %v), want %q", recovered, err, delivery.payload)
+		}
+		assertBacklogTokenRemoved(t, client, q, delivery.token)
+	})
+
+	t.Run("defer", func(t *testing.T) {
+		q, delivery := seedListpackBacklogDelivery(t, client, "defer")
+		defer cleanupReliableQueue(t, client, q.keys.ready)
+		delivery.failures = 10
+		next, err := q.deferRetry(ctx, delivery)
+		if err != nil {
+			t.Fatalf("production defer: %v", err)
+		}
+		assertBacklogTokenRemoved(t, client, q, delivery.token)
+		if envelope := client.HGet(ctx, q.keys.inflight, next.token).Val(); envelope == "" {
+			t.Fatal("deferred reservation missing new-token envelope")
+		}
+		seedStaleBacklogHint(t, client, q, delivery.token, true)
+		if _, err := q.claim(ctx); err != nil {
+			t.Fatalf("claim after defer stale hint: %v", err)
+		}
+		assertBacklogTokenRemoved(t, client, q, delivery.token)
+		if envelope := client.HGet(ctx, q.keys.inflight, next.token).Val(); envelope == "" {
+			t.Fatal("stale old-token cleanup removed deferred new token")
+		}
+	})
+
+	t.Run("ack", func(t *testing.T) {
+		q, delivery := seedListpackBacklogDelivery(t, client, "ack")
+		defer cleanupReliableQueue(t, client, q.keys.ready)
+		if err := q.acknowledge(ctx, delivery); err != nil {
+			t.Fatalf("production ack: %v", err)
+		}
+		assertBacklogTokenRemoved(t, client, q, delivery.token)
+		if score := client.ZScore(ctx, q.keys.outcomes, delivery.token).Val(); score == 0 {
+			t.Fatal("ack outcome missing")
+		}
+		seedStaleBacklogHint(t, client, q, delivery.token, true)
+		recovered, err := q.claim(ctx)
+		if err != nil || recovered != nil {
+			t.Fatalf("claim after acknowledged stale hint = (%v, %v), want nil", recovered, err)
+		}
+		assertBacklogTokenRemoved(t, client, q, delivery.token)
+		if ready := client.LLen(ctx, q.keys.ready).Val(); ready != 0 {
+			t.Fatalf("acknowledged payload was requeued: ready length %d", ready)
+		}
+	})
+}
+
+func TestReliableLuaRedis7FinalizationBacklogPrevalidation(t *testing.T) {
+	client := newLiveReliableClient(t)
+	ctx := context.Background()
+	for _, name := range []string{"release", "defer", "ack"} {
+		t.Run(name, func(t *testing.T) {
+			queue := fmt.Sprintf("gkit:103:finalize-type:%s:{live-%d}", name, time.Now().UnixNano())
+			defer cleanupReliableQueue(t, client, queue)
+			q := newReliableQueue(client, queue, time.Minute, newDeliveryTokenGenerator(nil))
+			delivery := &reliableDelivery{token: "finalize-token", payload: []byte("finalize-payload"), failures: 10}
+			seedReservedPayloadAt(t, client, q.keys, delivery.token, delivery.payload, time.Now().Add(time.Minute).UnixMilli())
+			if err := client.HSet(ctx, q.keys.repairBacklog, "wrong", "type").Err(); err != nil {
+				t.Fatalf("seed wrong-type backlog: %v", err)
+			}
+			var err error
+			switch name {
+			case "release":
+				err = q.release(ctx, delivery)
+			case "defer":
+				_, err = q.deferRetry(ctx, delivery)
+			case "ack":
+				err = q.acknowledge(ctx, delivery)
+			}
+			if err == nil {
+				t.Fatal("wrong-type repair backlog returned nil error")
+			}
+			if envelope := client.HGet(ctx, q.keys.inflight, delivery.token).Val(); envelope == "" {
+				t.Fatal("prevalidation failure removed inflight payload")
+			}
+			if score := client.ZScore(ctx, q.keys.visibility, delivery.token).Val(); score == 0 {
+				t.Fatal("prevalidation failure removed visibility")
+			}
+		})
+	}
+}
+
+func seedListpackBacklogDelivery(t *testing.T, client redis.UniversalClient, suffix string) (*reliableQueue, *reliableDelivery) {
+	t.Helper()
+	queue := fmt.Sprintf("gkit:103:stale-%s:{live-%d}", suffix, time.Now().UnixNano())
+	q := newReliableQueue(client, queue, time.Minute, newDeliveryTokenGenerator(nil))
+	const entries = 400
+	deadline := float64(time.Now().Add(time.Hour).UnixMilli())
+	ctx := context.Background()
+	_, err := client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for index := 0; index < entries; index++ {
+			token := fmt.Sprintf("stale-token-%03d", index)
+			pipe.HSet(ctx, q.keys.inflight, token, fmt.Sprintf("0000000000:stale-payload-%03d", index))
+			pipe.ZAdd(ctx, q.keys.visibility, &redis.Z{Score: deadline, Member: token})
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("seed stale-token listpack: %v", err)
+	}
+	if encoding := client.Do(ctx, "OBJECT", "ENCODING", q.keys.inflight).Val(); encoding != "listpack" {
+		t.Fatalf("stale-token inflight encoding = %v, want listpack", encoding)
+	}
+	page, next, err := client.HScan(ctx, q.keys.inflight, 0, "*", 128).Result()
+	if err != nil || next != 0 || len(page)/2 != entries {
+		t.Fatalf("inspect stale-token listpack = %d pairs, cursor %d, %v", len(page)/2, next, err)
+	}
+	token := page[2*128]
+	failures, payload, err := decodeReliableEnvelope([]byte(page[2*128+1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delivery, err := q.claim(ctx); err != nil || delivery != nil {
+		t.Fatalf("generate repair backlog = (%v, %v)", delivery, err)
+	}
+	if _, err := client.ZScore(ctx, q.keys.repairBacklog, token).Result(); err != nil {
+		t.Fatalf("overflow token missing from backlog: %v", err)
+	}
+	return q, &reliableDelivery{token: token, payload: payload, failures: failures}
+}
+
+func seedStaleBacklogHint(t *testing.T, client redis.UniversalClient, q *reliableQueue, token string, residualVisibility bool) {
+	t.Helper()
+	ctx := context.Background()
+	if err := client.ZAdd(ctx, q.keys.repairBacklog, &redis.Z{Score: 0, Member: token}).Err(); err != nil {
+		t.Fatalf("restore stale backlog hint: %v", err)
+	}
+	if residualVisibility {
+		if err := client.ZAdd(ctx, q.keys.visibility, &redis.Z{Score: float64(time.Now().Add(time.Hour).UnixMilli()), Member: token}).Err(); err != nil {
+			t.Fatalf("restore stale visibility hint: %v", err)
+		}
+	}
+}
+
+func assertBacklogTokenRemoved(t *testing.T, client redis.UniversalClient, q *reliableQueue, token string) {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := client.ZScore(ctx, q.keys.repairBacklog, token).Result(); !errors.Is(err, redis.Nil) {
+		t.Fatalf("backlog token %q still present: %v", token, err)
+	}
+	if _, err := client.ZScore(ctx, q.keys.visibility, token).Result(); !errors.Is(err, redis.Nil) {
+		t.Fatalf("stale visibility token %q still present: %v", token, err)
+	}
+}
+
 func TestReliableLuaRedis7PersistentOrphanTraversal(t *testing.T) {
 	client := newLiveReliableClient(t)
 	queue := fmt.Sprintf("gkit:103:cursor:{live-%d}", time.Now().UnixNano())
