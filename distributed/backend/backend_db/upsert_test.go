@@ -27,7 +27,7 @@ func newSQLiteBackend(t *testing.T) *BackendSQLDB {
 
 type legacyGroupMeta struct {
 	ID      uint   `gorm:"column:_id;primarykey"`
-	GroupID string `gorm:"column:id;index"`
+	GroupID string `gorm:"column:id;size:191;index"`
 }
 
 func (legacyGroupMeta) TableName() string {

@@ -214,6 +214,9 @@ func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
 // fails loudly when historical duplicates exist; this package intentionally
 // does not choose and delete a surviving task or group automatically. Operators
 // must reconcile duplicates before retrying migration.
+// Both indexed identifiers are bounded to 191 characters so MySQL can create
+// their indexes under utf8mb4; without a size GORM maps strings to LONGTEXT,
+// which MySQL rejects as an index key without an explicit prefix length.
 func (b *BackendSQLDB) autoMigrate() error {
 	return b.gClient.AutoMigrate(
 		task.GroupMeta{},
