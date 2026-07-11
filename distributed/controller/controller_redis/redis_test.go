@@ -33,6 +33,7 @@ func initLiveController(t *testing.T) controller.Controller {
 	}
 	queue := fmt.Sprintf("gkit:test:controller:%d", time.Now().UnixNano())
 	delayedQueue := queue + ":delayed"
+	reliableKeys := deriveReliableQueueKeys(queue)
 	producerCtx, cancelProducer := context.WithCancel(context.Background())
 	producerDone := make(chan struct{})
 	t.Cleanup(func() {
@@ -41,7 +42,8 @@ func initLiveController(t *testing.T) controller.Controller {
 
 		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), time.Second)
 		defer cancelCleanup()
-		if err := client.Del(cleanupCtx, queue, delayedQueue).Err(); err != nil {
+		if err := client.Del(cleanupCtx, queue, delayedQueue, reliableKeys.inflight,
+			reliableKeys.visibility, reliableKeys.outcomes, reliableKeys.repairCursor).Err(); err != nil {
 			t.Errorf("clean live Redis queues: %v", err)
 		}
 		if err := client.Close(); err != nil {

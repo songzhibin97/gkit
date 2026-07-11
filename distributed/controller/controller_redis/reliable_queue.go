@@ -94,7 +94,7 @@ func newReliableQueue(client redis.UniversalClient, queue string, lease time.Dur
 	}
 }
 
-var reliableClaimScript = redis.NewScript(`
+const reliableClaimScriptSource = `
 local function typename(key)
   local value = redis.call('TYPE', key)
   if type(value) == 'table' then return value['ok'] end
@@ -109,7 +109,8 @@ local function nowms()
   return tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000)
 end
 if not requiretype(KEYS[1], 'list') or not requiretype(KEYS[2], 'hash') or
-   not requiretype(KEYS[3], 'zset') or not requiretype(KEYS[4], 'zset') then
+   not requiretype(KEYS[3], 'zset') or not requiretype(KEYS[4], 'zset') or
+   not requiretype(KEYS[5], 'string') then
   return redis.error_reply('reliable claim: invalid key type')
 end
 local token = ARGV[1]
@@ -123,13 +124,19 @@ if redis.call('HEXISTS', KEYS[2], token) == 1 or redis.call('ZSCORE', KEYS[3], t
   return {2}
 end
 local now = nowms()
+local repair_cursor = redis.call('GET', KEYS[5]) or '0'
+if not string.match(repair_cursor, '^%d+$') then
+  return redis.error_reply('reliable claim: invalid repair cursor')
+end
 local expired = redis.call('ZRANGEBYSCORE', KEYS[4], '-inf', now, 'LIMIT', 0, 128)
 local outcome_count = redis.call('ZCARD', KEYS[4])
 local outcome_ttl_missing = outcome_count > 0 and redis.call('PTTL', KEYS[4]) < 0
 local newest = redis.call('ZREVRANGE', KEYS[4], 0, 0, 'WITHSCORES')
-local scan = redis.call('HSCAN', KEYS[2], 0, 'COUNT', 128)
+local scan = redis.call('HSCAN', KEYS[2], repair_cursor, 'COUNT', 128)
 local entries = scan[2]
+local next_cursor = scan[1]
 local entry_limit = math.min(#entries, 256)
+local entry_count = math.floor(entry_limit / 2)
 for index = 1, entry_limit, 2 do
   local envelope = entries[index + 1]
   if string.len(envelope) < 11 or string.sub(envelope, 11, 11) ~= ':' or
@@ -137,7 +144,11 @@ for index = 1, entry_limit, 2 do
     return redis.error_reply('reliable claim: invalid orphan envelope')
   end
 end
-local visible = redis.call('ZRANGE', KEYS[3], 0, 127)
+local visible = {}
+local visibility_budget = 128 - entry_count
+if visibility_budget > 0 then
+  visible = redis.call('ZRANGE', KEYS[3], 0, visibility_budget - 1)
+end
 local due = redis.call('ZRANGEBYSCORE', KEYS[3], '-inf', now, 'LIMIT', 0, 1)
 local oldtoken = nil
 local oldoutcome = nil
@@ -165,6 +176,7 @@ if outcome_ttl_missing then
   if #newest == 2 then repaired_ttl = math.max(1, tonumber(newest[2]) - now + 3600000) end
   redis.call('PEXPIRE', KEYS[4], repaired_ttl)
 end
+redis.call('SET', KEYS[5], next_cursor, 'PX', outcome_ttl)
 for index = 1, entry_limit, 2 do
   local orphan_token = entries[index]
   local envelope = entries[index + 1]
@@ -216,9 +228,11 @@ if not removed or removed ~= payload then
   return redis.error_reply('reliable claim: ready payload changed')
 end
 return {1, token, envelope, tostring(now), tostring(deadline)}
-`)
+`
 
-var reliableRenewScript = redis.NewScript(`
+var reliableClaimScript = redis.NewScript(reliableClaimScriptSource)
+
+const reliableRenewScriptSource = `
 local function typename(key)
   local value = redis.call('TYPE', key)
   if type(value) == 'table' then return value['ok'] end
@@ -245,9 +259,11 @@ if not envelope or not score or tonumber(score) <= now then return {0, tostring(
 local deadline = now + lease
 redis.call('ZADD', KEYS[2], deadline, token)
 return {1, tostring(now), tostring(deadline)}
-`)
+`
 
-var reliableAckScript = redis.NewScript(`
+var reliableRenewScript = redis.NewScript(reliableRenewScriptSource)
+
+const reliableAckScriptSource = `
 local function typename(key)
   local value = redis.call('TYPE', key)
   if type(value) == 'table' then return value['ok'] end
@@ -289,9 +305,11 @@ redis.call('PEXPIRE', KEYS[3], ttl)
 redis.call('ZREM', KEYS[2], token)
 redis.call('HDEL', KEYS[1], token)
 return {1, 0, tostring(now), tostring(outcome)}
-`)
+`
 
-var reliableReleaseScript = redis.NewScript(`
+var reliableAckScript = redis.NewScript(reliableAckScriptSource)
+
+const reliableReleaseScriptSource = `
 local function typename(key)
   local value = redis.call('TYPE', key)
   if type(value) == 'table' then return value['ok'] end
@@ -323,9 +341,11 @@ redis.call('RPUSH', KEYS[1], payload)
 redis.call('ZREM', KEYS[3], token)
 redis.call('HDEL', KEYS[2], token)
 return {1, tostring(now)}
-`)
+`
 
-var reliableDeferScript = redis.NewScript(`
+var reliableReleaseScript = redis.NewScript(reliableReleaseScriptSource)
+
+const reliableDeferScriptSource = `
 local function typename(key)
   local value = redis.call('TYPE', key)
   if type(value) == 'table' then return value['ok'] end
@@ -367,7 +387,9 @@ redis.call('ZADD', KEYS[2], deadline, newtoken)
 redis.call('ZREM', KEYS[2], oldtoken)
 redis.call('HDEL', KEYS[1], oldtoken)
 return {1, newtoken, newenvelope, tostring(now), tostring(deadline)}
-`)
+`
+
+var reliableDeferScript = redis.NewScript(reliableDeferScriptSource)
 
 func (q *reliableQueue) claim(ctx context.Context) (*reliableDelivery, error) {
 reconcile:
@@ -379,7 +401,7 @@ reconcile:
 			}
 			requestStarted := time.Now()
 			result, err := reliableClaimScript.Run(ctx, q.client,
-				[]string{q.keys.ready, q.keys.inflight, q.keys.visibility, q.keys.outcomes},
+				[]string{q.keys.ready, q.keys.inflight, q.keys.visibility, q.keys.outcomes, q.keys.repairCursor},
 				token, q.lease.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err != nil {
 				return nil, wrapRedisOperation("claim queued task", err)

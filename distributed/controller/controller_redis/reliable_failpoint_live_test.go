@@ -4,117 +4,136 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 )
 
-// These scripts are test-only copies of the write ordering in the production
-// transitions. Production scripts contain no failpoint branches.
-var claimFailpointScript = redis.NewScript(`
-local payload = redis.call('LINDEX', KEYS[1], 0)
-if not payload then return redis.error_reply('missing payload') end
-local envelope = '0000000000:' .. payload
-redis.call('HSET', KEYS[2], ARGV[1], envelope)
-if tonumber(ARGV[3]) == 1 then return redis.error_reply('injected after HSET') end
-redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
-if tonumber(ARGV[3]) == 2 then return redis.error_reply('injected after ZADD') end
-redis.call('LPOP', KEYS[1])
-if tonumber(ARGV[3]) == 3 then return redis.error_reply('injected after LPOP') end
-return 1
-`)
+type productionLuaBoundary struct {
+	name       string
+	command    string
+	occurrence int
+}
 
-var moveFailpointScript = redis.NewScript(`
-local envelope = redis.call('HGET', KEYS[1], ARGV[1])
-if not envelope then return redis.error_reply('missing envelope') end
-redis.call('HSET', KEYS[1], ARGV[2], envelope)
-if tonumber(ARGV[4]) == 1 then return redis.error_reply('injected after destination HSET') end
-redis.call('ZADD', KEYS[2], ARGV[3], ARGV[2])
-if tonumber(ARGV[4]) == 2 then return redis.error_reply('injected after destination ZADD') end
-redis.call('ZREM', KEYS[2], ARGV[1])
-if tonumber(ARGV[4]) == 3 then return redis.error_reply('injected after source ZREM') end
-redis.call('HDEL', KEYS[1], ARGV[1])
-if tonumber(ARGV[4]) == 4 then return redis.error_reply('injected after source HDEL') end
-return 1
-`)
-
-var releaseFailpointScript = redis.NewScript(`
-local envelope = redis.call('HGET', KEYS[2], ARGV[1])
-if not envelope then return redis.error_reply('missing envelope') end
-local payload = string.sub(envelope, 12)
-redis.call('RPUSH', KEYS[1], payload)
-if tonumber(ARGV[2]) == 1 then return redis.error_reply('injected after RPUSH') end
-redis.call('ZREM', KEYS[3], ARGV[1])
-if tonumber(ARGV[2]) == 2 then return redis.error_reply('injected after ZREM') end
-redis.call('HDEL', KEYS[2], ARGV[1])
-if tonumber(ARGV[2]) == 3 then return redis.error_reply('injected after HDEL') end
-return 1
-`)
-
-var ackFailpointScript = redis.NewScript(`
-redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
-if tonumber(ARGV[4]) == 1 then return redis.error_reply('injected after outcome ZADD') end
-redis.call('PEXPIRE', KEYS[3], ARGV[3])
-if tonumber(ARGV[4]) == 2 then return redis.error_reply('injected after outcome PEXPIRE') end
-redis.call('ZREM', KEYS[2], ARGV[1])
-if tonumber(ARGV[4]) == 3 then return redis.error_reply('injected after visibility ZREM') end
-redis.call('HDEL', KEYS[1], ARGV[1])
-if tonumber(ARGV[4]) == 4 then return redis.error_reply('injected after inflight HDEL') end
-return 1
-`)
+func injectProductionLuaFailure(t *testing.T, source string, boundary productionLuaBoundary) *redis.Script {
+	t.Helper()
+	if boundary.occurrence < 1 {
+		t.Fatalf("boundary %q occurrence = %d", boundary.name, boundary.occurrence)
+	}
+	searchFrom := 0
+	commandStart := -1
+	for occurrence := 0; occurrence < boundary.occurrence; occurrence++ {
+		relative := strings.Index(source[searchFrom:], boundary.command)
+		if relative < 0 {
+			t.Fatalf("production boundary %q occurrence %d not found", boundary.name, boundary.occurrence)
+		}
+		commandStart = searchFrom + relative
+		searchFrom = commandStart + len(boundary.command)
+	}
+	commandEnd := commandStart + len(boundary.command)
+	injected := source[:commandEnd] +
+		"\nif true then return redis.error_reply('injected production boundary: " + boundary.name + "') end" +
+		source[commandEnd:]
+	return redis.NewScript(injected)
+}
 
 func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 	client := newLiveReliableClient(t)
 	payload := []byte{0, 1, 2, 255, 't', 'a', 's', 'k'}
 
 	t.Run("claim", func(t *testing.T) {
-		for failpoint := 1; failpoint <= 3; failpoint++ {
-			queue := fmt.Sprintf("gkit:103:failpoint:claim:%d:{live}", failpoint)
+		boundaries := []productionLuaBoundary{
+			{name: "repair cursor SET", command: "redis.call('SET', KEYS[5], next_cursor, 'PX', outcome_ttl)", occurrence: 1},
+			{name: "destination HSET", command: "redis.call('HSET', KEYS[2], token, envelope)", occurrence: 1},
+			{name: "destination ZADD", command: "redis.call('ZADD', KEYS[3], deadline, token)", occurrence: 2},
+			{name: "source LPOP", command: "redis.call('LPOP', KEYS[1])", occurrence: 1},
+		}
+		for index, boundary := range boundaries {
+			queue := fmt.Sprintf("gkit:103:production:claim:%d:{live}", index)
 			keys := deriveReliableQueueKeys(queue)
 			cleanupReliableQueue(t, client, queue)
 			if err := client.RPush(context.Background(), queue, payload).Err(); err != nil {
-				t.Fatalf("seed failpoint %d: %v", failpoint, err)
+				t.Fatalf("seed %s: %v", boundary.name, err)
 			}
-			_, err := claimFailpointScript.Run(context.Background(), client,
-				[]string{queue, keys.inflight, keys.visibility}, "claim-token", time.Now().Add(time.Minute).UnixMilli(), failpoint).Result()
+			script := injectProductionLuaFailure(t, reliableClaimScriptSource, boundary)
+			_, err := script.Run(context.Background(), client,
+				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor},
+				"claim-token", time.Minute.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err == nil {
-				t.Fatalf("failpoint %d returned nil error", failpoint)
+				t.Fatalf("boundary %q returned nil error", boundary.name)
 			}
 			assertRecoverablePayload(t, client, keys, payload)
 			cleanupReliableQueue(t, client, queue)
 		}
 	})
 
-	for _, transition := range []string{"reclaim", "retry"} {
-		t.Run(transition, func(t *testing.T) {
-			for failpoint := 1; failpoint <= 4; failpoint++ {
-				queue := fmt.Sprintf("gkit:103:failpoint:%s:%d:{live}", transition, failpoint)
-				keys := deriveReliableQueueKeys(queue)
-				cleanupReliableQueue(t, client, queue)
-				seedReservedPayload(t, client, keys, "old-token", payload)
-				_, err := moveFailpointScript.Run(context.Background(), client,
-					[]string{keys.inflight, keys.visibility}, "old-token", "new-token",
-					time.Now().Add(time.Minute).UnixMilli(), failpoint).Result()
-				if err == nil {
-					t.Fatalf("failpoint %d returned nil error", failpoint)
-				}
-				assertRecoverablePayload(t, client, keys, payload)
-				cleanupReliableQueue(t, client, queue)
-			}
-		})
-	}
-
-	t.Run("release", func(t *testing.T) {
-		for failpoint := 1; failpoint <= 3; failpoint++ {
-			queue := fmt.Sprintf("gkit:103:failpoint:release:%d:{live}", failpoint)
+	t.Run("reclaim", func(t *testing.T) {
+		boundaries := []productionLuaBoundary{
+			{name: "repair cursor SET", command: "redis.call('SET', KEYS[5], next_cursor, 'PX', outcome_ttl)", occurrence: 1},
+			{name: "destination HSET", command: "redis.call('HSET', KEYS[2], token, oldenvelope)", occurrence: 1},
+			{name: "destination ZADD", command: "redis.call('ZADD', KEYS[3], deadline, token)", occurrence: 1},
+			{name: "source ZREM", command: "redis.call('ZREM', KEYS[3], oldtoken)", occurrence: 3},
+			{name: "source HDEL", command: "redis.call('HDEL', KEYS[2], oldtoken)", occurrence: 2},
+		}
+		for index, boundary := range boundaries {
+			queue := fmt.Sprintf("gkit:103:production:reclaim:%d:{live}", index)
 			keys := deriveReliableQueueKeys(queue)
 			cleanupReliableQueue(t, client, queue)
-			seedReservedPayload(t, client, keys, "release-token", payload)
-			_, err := releaseFailpointScript.Run(context.Background(), client,
-				[]string{queue, keys.inflight, keys.visibility}, "release-token", failpoint).Result()
+			seedReservedPayloadAt(t, client, keys, "old-token", payload, 0)
+			script := injectProductionLuaFailure(t, reliableClaimScriptSource, boundary)
+			_, err := script.Run(context.Background(), client,
+				[]string{queue, keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor},
+				"new-token", time.Minute.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err == nil {
-				t.Fatalf("failpoint %d returned nil error", failpoint)
+				t.Fatalf("boundary %q returned nil error", boundary.name)
+			}
+			assertRecoverablePayload(t, client, keys, payload)
+			cleanupReliableQueue(t, client, queue)
+		}
+	})
+
+	t.Run("deferred retry", func(t *testing.T) {
+		boundaries := []productionLuaBoundary{
+			{name: "destination HSET", command: "redis.call('HSET', KEYS[1], newtoken, newenvelope)", occurrence: 1},
+			{name: "destination ZADD", command: "redis.call('ZADD', KEYS[2], deadline, newtoken)", occurrence: 1},
+			{name: "source ZREM", command: "redis.call('ZREM', KEYS[2], oldtoken)", occurrence: 1},
+			{name: "source HDEL", command: "redis.call('HDEL', KEYS[1], oldtoken)", occurrence: 1},
+		}
+		for index, boundary := range boundaries {
+			queue := fmt.Sprintf("gkit:103:production:retry:%d:{live}", index)
+			keys := deriveReliableQueueKeys(queue)
+			cleanupReliableQueue(t, client, queue)
+			seedReservedPayloadAt(t, client, keys, "old-token", payload, time.Now().Add(time.Minute).UnixMilli())
+			script := injectProductionLuaFailure(t, reliableDeferScriptSource, boundary)
+			_, err := script.Run(context.Background(), client,
+				[]string{keys.inflight, keys.visibility, keys.outcomes},
+				"old-token", "new-token", time.Second.Milliseconds()).Result()
+			if err == nil {
+				t.Fatalf("boundary %q returned nil error", boundary.name)
+			}
+			assertRecoverablePayload(t, client, keys, payload)
+			cleanupReliableQueue(t, client, queue)
+		}
+	})
+
+	t.Run("release", func(t *testing.T) {
+		boundaries := []productionLuaBoundary{
+			{name: "destination RPUSH", command: "redis.call('RPUSH', KEYS[1], payload)", occurrence: 1},
+			{name: "source ZREM", command: "redis.call('ZREM', KEYS[3], token)", occurrence: 1},
+			{name: "source HDEL", command: "redis.call('HDEL', KEYS[2], token)", occurrence: 1},
+		}
+		for index, boundary := range boundaries {
+			queue := fmt.Sprintf("gkit:103:production:release:%d:{live}", index)
+			keys := deriveReliableQueueKeys(queue)
+			cleanupReliableQueue(t, client, queue)
+			seedReservedPayloadAt(t, client, keys, "release-token", payload, time.Now().Add(time.Minute).UnixMilli())
+			script := injectProductionLuaFailure(t, reliableReleaseScriptSource, boundary)
+			_, err := script.Run(context.Background(), client,
+				[]string{queue, keys.inflight, keys.visibility}, "release-token").Result()
+			if err == nil {
+				t.Fatalf("boundary %q returned nil error", boundary.name)
 			}
 			assertRecoverablePayload(t, client, keys, payload)
 			cleanupReliableQueue(t, client, queue)
@@ -122,39 +141,51 @@ func TestLuaFailureBoundariesRetainRecoverableCopyOrAck(t *testing.T) {
 	})
 
 	t.Run("ack", func(t *testing.T) {
-		for failpoint := 1; failpoint <= 4; failpoint++ {
-			queue := fmt.Sprintf("gkit:103:failpoint:ack:%d:{live}", failpoint)
+		boundaries := []productionLuaBoundary{
+			{name: "outcome ZADD", command: "redis.call('ZADD', KEYS[3], outcome, token)", occurrence: 1},
+			{name: "outcome PEXPIRE", command: "redis.call('PEXPIRE', KEYS[3], ttl)", occurrence: 2},
+			{name: "visibility ZREM", command: "redis.call('ZREM', KEYS[2], token)", occurrence: 2},
+			{name: "inflight HDEL", command: "redis.call('HDEL', KEYS[1], token)", occurrence: 2},
+		}
+		for index, boundary := range boundaries {
+			queue := fmt.Sprintf("gkit:103:production:ack:%d:{live}", index)
 			keys := deriveReliableQueueKeys(queue)
 			cleanupReliableQueue(t, client, queue)
-			seedReservedPayload(t, client, keys, "ack-token", payload)
-			outcome := time.Now().Add(ackOutcomeRetention).UnixMilli()
-			_, err := ackFailpointScript.Run(context.Background(), client,
-				[]string{keys.inflight, keys.visibility, keys.outcomes}, "ack-token", outcome,
-				ackOutcomeKeyTTL.Milliseconds(), failpoint).Result()
+			seedReservedPayloadAt(t, client, keys, "ack-token", payload, time.Now().Add(time.Minute).UnixMilli())
+			script := injectProductionLuaFailure(t, reliableAckScriptSource, boundary)
+			_, err := script.Run(context.Background(), client,
+				[]string{keys.inflight, keys.visibility, keys.outcomes}, "ack-token",
+				ackOutcomeRetention.Milliseconds(), ackOutcomeKeyTTL.Milliseconds()).Result()
 			if err == nil {
-				t.Fatalf("failpoint %d returned nil error", failpoint)
+				t.Fatalf("boundary %q returned nil error", boundary.name)
 			}
 			if score := client.ZScore(context.Background(), keys.outcomes, "ack-token").Val(); score == 0 {
-				t.Fatalf("failpoint %d left no ACK outcome", failpoint)
+				t.Fatalf("boundary %q left no ACK outcome", boundary.name)
 			}
 			q := newReliableQueue(client, queue, time.Minute, newDeliveryTokenGenerator(nil))
-			delivery := &reliableDelivery{token: "ack-token", payload: payload}
-			if err := q.acknowledge(context.Background(), delivery); err != nil {
-				t.Fatalf("failpoint %d same-token confirmation: %v", failpoint, err)
+			if err := q.acknowledge(context.Background(), &reliableDelivery{token: "ack-token", payload: payload}); err != nil {
+				t.Fatalf("boundary %q same-token confirmation: %v", boundary.name, err)
 			}
 			cleanupReliableQueue(t, client, queue)
 		}
 	})
 }
 
-func seedReservedPayload(t *testing.T, client redis.UniversalClient, keys reliableQueueKeys, token string, payload []byte) {
+func seedReservedPayloadAt(
+	t *testing.T,
+	client redis.UniversalClient,
+	keys reliableQueueKeys,
+	token string,
+	payload []byte,
+	deadlineMillis int64,
+) {
 	t.Helper()
 	envelope := append([]byte("0000000000:"), payload...)
 	if err := client.HSet(context.Background(), keys.inflight, token, envelope).Err(); err != nil {
 		t.Fatalf("seed inflight: %v", err)
 	}
 	if err := client.ZAdd(context.Background(), keys.visibility, &redis.Z{
-		Score:  float64(time.Now().Add(time.Minute).UnixMilli()),
+		Score:  float64(deadlineMillis),
 		Member: token,
 	}).Err(); err != nil {
 		t.Fatalf("seed visibility: %v", err)

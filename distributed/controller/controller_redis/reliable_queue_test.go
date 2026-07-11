@@ -343,16 +343,49 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 }
 
 func TestLegacyQueueAndClusterKeyCompatibility(t *testing.T) {
-	for slot := 0; slot < 16384; slot++ {
-		tag := reliableTagForSlot(slot)
+	var firstTags [16384]string
+	remaining := len(firstTags)
+	maxCandidate := -1
+	for candidate := 0; candidate <= 131071 && remaining > 0; candidate++ {
+		tag := fmt.Sprintf("gkit-%x", candidate)
+		slot := int(redisCRC16([]byte(tag)) % 16384)
+		if firstTags[slot] == "" {
+			firstTags[slot] = tag
+			remaining--
+			maxCandidate = candidate
+		}
+	}
+	if remaining != 0 || maxCandidate > 131071 {
+		t.Fatalf("offline candidate traversal left %d slots, max candidate %d", remaining, maxCandidate)
+	}
+	for slot, tag := range firstTags {
 		if got := redisClusterSlot("{" + tag + "}"); got != slot {
 			t.Fatalf("slot %d candidate %q hashes to %d", slot, tag, got)
 		}
 	}
+
+	reliableSlotTags.Lock()
+	reliableSlotTags.tags = make(map[int]string)
+	reliableSlotTags.Unlock()
+	for _, slot := range []int{0, 1, 8192, 16383} {
+		if tag := reliableTagForSlot(slot); tag != firstTags[slot] {
+			t.Fatalf("slot %d lazy candidate = %q, want first %q", slot, tag, firstTags[slot])
+		}
+		if again := reliableTagForSlot(slot); again != firstTags[slot] {
+			t.Fatalf("slot %d cached candidate = %q, want %q", slot, again, firstTags[slot])
+		}
+	}
+	reliableSlotTags.RLock()
+	if cached := len(reliableSlotTags.tags); cached != 4 {
+		reliableSlotTags.RUnlock()
+		t.Fatalf("lazy slot cache entries = %d, want 4", cached)
+	}
+	reliableSlotTags.RUnlock()
+
 	for _, queue := range []string{"legacy-queue", "queue:{tagged}", "queue:{broken"} {
 		keys := deriveReliableQueueKeys(queue)
 		wantSlot := redisClusterSlot(queue)
-		for _, key := range []string{keys.inflight, keys.visibility, keys.outcomes} {
+		for _, key := range []string{keys.inflight, keys.visibility, keys.outcomes, keys.repairCursor} {
 			if got := redisClusterSlot(key); got != wantSlot {
 				t.Fatalf("queue %q internal key %q slot = %d, want %d", queue, key, got, wantSlot)
 			}
@@ -363,4 +396,10 @@ func TestLegacyQueueAndClusterKeyCompatibility(t *testing.T) {
 	if first.prefix == second.prefix {
 		t.Fatal("queue digest did not distinguish same-slot queue names")
 	}
+	reliableSlotTags.RLock()
+	if cached := len(reliableSlotTags.tags); cached >= 16384 {
+		reliableSlotTags.RUnlock()
+		t.Fatalf("key derivation eagerly populated %d slot tags", cached)
+	}
+	reliableSlotTags.RUnlock()
 }

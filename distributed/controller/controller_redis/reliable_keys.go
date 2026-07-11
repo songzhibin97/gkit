@@ -8,17 +8,18 @@ import (
 )
 
 type reliableQueueKeys struct {
-	ready      string
-	inflight   string
-	visibility string
-	outcomes   string
-	prefix     string
+	ready        string
+	inflight     string
+	visibility   string
+	outcomes     string
+	repairCursor string
+	prefix       string
 }
 
-var reliableSlotTags struct {
-	sync.Once
-	tags [16384]string
-}
+var reliableSlotTags = struct {
+	sync.RWMutex
+	tags map[int]string
+}{tags: make(map[int]string)}
 
 func deriveReliableQueueKeys(queue string) reliableQueueKeys {
 	tag, ok := redisHashTag(queue)
@@ -28,11 +29,12 @@ func deriveReliableQueueKeys(queue string) reliableQueueKeys {
 	digest := sha256.Sum256([]byte(queue))
 	prefix := fmt.Sprintf("{%s}:gkit:%x", tag, digest)
 	return reliableQueueKeys{
-		ready:      queue,
-		inflight:   prefix + ":inflight",
-		visibility: prefix + ":visibility",
-		outcomes:   prefix + ":ack-outcomes",
-		prefix:     prefix,
+		ready:        queue,
+		inflight:     prefix + ":inflight",
+		visibility:   prefix + ":visibility",
+		outcomes:     prefix + ":ack-outcomes",
+		repairCursor: prefix + ":repair-cursor",
+		prefix:       prefix,
 	}
 }
 
@@ -56,24 +58,37 @@ func redisClusterSlot(key string) int {
 }
 
 func reliableTagForSlot(slot int) string {
-	reliableSlotTags.Do(func() {
-		remaining := len(reliableSlotTags.tags)
-		for candidate := 0; candidate <= 131071 && remaining > 0; candidate++ {
-			tag := fmt.Sprintf("gkit-%x", candidate)
-			candidateSlot := int(redisCRC16([]byte(tag)) % 16384)
-			if reliableSlotTags.tags[candidateSlot] == "" {
-				reliableSlotTags.tags[candidateSlot] = tag
-				remaining--
-			}
-		}
-		if remaining != 0 {
-			panic("controller_redis: reliable queue tag search exhausted")
-		}
-	})
-	if slot < 0 || slot >= len(reliableSlotTags.tags) {
+	if slot < 0 || slot >= 16384 {
 		panic("controller_redis: invalid Redis Cluster slot")
 	}
-	return reliableSlotTags.tags[slot]
+	reliableSlotTags.RLock()
+	tag := reliableSlotTags.tags[slot]
+	reliableSlotTags.RUnlock()
+	if tag != "" {
+		return tag
+	}
+
+	tag = findReliableTagForSlot(slot)
+	reliableSlotTags.Lock()
+	defer reliableSlotTags.Unlock()
+	if cached := reliableSlotTags.tags[slot]; cached != "" {
+		return cached
+	}
+	if len(reliableSlotTags.tags) >= 16384 {
+		panic("controller_redis: reliable queue tag cache exhausted")
+	}
+	reliableSlotTags.tags[slot] = tag
+	return tag
+}
+
+func findReliableTagForSlot(slot int) string {
+	for candidate := 0; candidate <= 131071; candidate++ {
+		tag := fmt.Sprintf("gkit-%x", candidate)
+		if int(redisCRC16([]byte(tag))%16384) == slot {
+			return tag
+		}
+	}
+	panic("controller_redis: reliable queue tag search exhausted")
 }
 
 // redisCRC16 implements the CRC-16/XMODEM variant used by Redis Cluster.
