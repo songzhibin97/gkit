@@ -717,6 +717,9 @@ func unlockFloat32(preds [maxLevel]*float32Node, highestLevel int) {
 //
 // If the value is in the skip set but not fully linked, this process will wait until it is.
 func (s *Float32Set) Add(value float32) bool {
+	if value != value {
+		return false // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomLevel()
 	var preds, succs [maxLevel]*float32Node
 	for {
@@ -1006,6 +1009,9 @@ func unlockFloat32Desc(preds [maxLevel]*float32NodeDesc, highestLevel int) {
 //
 // If the value is in the skip set but not fully linked, this process will wait until it is.
 func (s *Float32SetDesc) Add(value float32) bool {
+	if value != value {
+		return false // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomLevel()
 	var preds, succs [maxLevel]*float32NodeDesc
 	for {
@@ -1295,6 +1301,9 @@ func unlockFloat64(preds [maxLevel]*float64Node, highestLevel int) {
 //
 // If the value is in the skip set but not fully linked, this process will wait until it is.
 func (s *Float64Set) Add(value float64) bool {
+	if value != value {
+		return false // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomLevel()
 	var preds, succs [maxLevel]*float64Node
 	for {
@@ -1584,6 +1593,9 @@ func unlockFloat64Desc(preds [maxLevel]*float64NodeDesc, highestLevel int) {
 //
 // If the value is in the skip set but not fully linked, this process will wait until it is.
 func (s *Float64SetDesc) Add(value float64) bool {
+	if value != value {
+		return false // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomLevel()
 	var preds, succs [maxLevel]*float64NodeDesc
 	for {

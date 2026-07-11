@@ -1512,6 +1512,7 @@ func main() {
 ```
 其他(目前，GORM还有一个受支持的相关类型.)
 > timeout.DbJSON // provides some functionality in db json format
+> 使用 timeout.DBJSONFromObjectE 从 Go 值创建 DbJSON 并处理 JSON 编码错误。已弃用的 DBJSONFromObject 在编码失败时保留原有的 nil 回退行为。
 > timeout.DTime // provides some functionality in db 15:04:05 format
 > DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
 > Date // provides some functionality in db 2006-01-02 format

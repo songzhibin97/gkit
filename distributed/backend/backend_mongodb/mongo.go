@@ -80,23 +80,43 @@ func (b *BackendMongoDB) getGroup(groupID string) (*task.GroupMeta, error) {
 }
 
 func (b *BackendMongoDB) getTaskStatus(taskIDs []string) ([]*task.Status, error) {
-	statusList := make([]*task.Status, 0, len(taskIDs))
+	ctx := context.Background()
 	taskQuery := bson.M{
 		"_id": bson.M{
 			"$in": taskIDs,
 		},
 	}
-	result, err := b.taskTable.Find(context.Background(), taskQuery)
+	result, err := b.taskTable.Find(ctx, taskQuery)
 	if err != nil {
 		return nil, err
 	}
-	defer result.Close(context.Background())
-	for result.Next(context.Background()) {
+	return collectTaskStatuses(ctx, result, len(taskIDs))
+}
+
+type taskStatusCursor interface {
+	Next(context.Context) bool
+	Decode(interface{}) error
+	Err() error
+	Close(context.Context) error
+}
+
+func collectTaskStatuses(ctx context.Context, cursor taskStatusCursor, capacity int) (statuses []*task.Status, retErr error) {
+	defer func() {
+		if err := cursor.Close(ctx); err != nil {
+			statuses = nil
+			retErr = errors.Join(retErr, fmt.Errorf("backend_mongodb: close task status cursor: %w", err))
+		}
+	}()
+	statusList := make([]*task.Status, 0, capacity)
+	for cursor.Next(ctx) {
 		var status task.Status
-		if err = result.Decode(&status); err != nil {
-			return nil, err
+		if err := cursor.Decode(&status); err != nil {
+			return nil, fmt.Errorf("backend_mongodb: decode task status: %w", err)
 		}
 		statusList = append(statusList, &status)
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("backend_mongodb: iterate task statuses: %w", err)
 	}
 	return statusList, nil
 }
@@ -131,11 +151,10 @@ func (b *BackendMongoDB) TriggerCompleted(groupID string) (bool, error) {
 
 func (b *BackendMongoDB) SetStatePending(signature *task.Signature) error {
 	update := bson.M{
-		"_id":       signature.ID,
-		"status":    task.StatePending,
-		"group_id":  signature.GroupID,
-		"name":      signature.Name,
-		"create_at": time.Now().Local(),
+		"_id":      signature.ID,
+		"status":   task.StatePending,
+		"group_id": signature.GroupID,
+		"name":     signature.Name,
 	}
 	return b.updateStatus(signature, update)
 }
@@ -211,10 +230,19 @@ func (b *BackendMongoDB) ResetGroup(groupIDs ...string) error {
 
 // updateStatus 更新状态
 func (b *BackendMongoDB) updateStatus(signature *task.Signature, update bson.M) error {
-	update = bson.M{"$set": update}
+	update = buildTaskStatusUpdate(update, time.Now().Local())
 	query := bson.M{"_id": signature.ID}
 	_, err := b.taskTable.UpdateOne(context.Background(), query, update, moption.Update().SetUpsert(true))
 	return err
+}
+
+func buildTaskStatusUpdate(fields bson.M, createAt time.Time) bson.M {
+	return bson.M{
+		"$set": fields,
+		"$setOnInsert": bson.M{
+			"create_at": createAt,
+		},
+	}
 }
 
 func normalizeResultExpire(expire int64) int64 {

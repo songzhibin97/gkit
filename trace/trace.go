@@ -20,7 +20,9 @@ type Tracer struct {
 	opt    *config
 }
 
-// NewTracer 创建追踪器
+// NewTracer creates a tracer. A provider supplied with WithTracerProvider is
+// scoped to the returned Tracer and does not replace OpenTelemetry's global
+// provider.
 func NewTracer(kind trace.SpanKind, opts ...options.Option) *Tracer {
 	cfg := config{
 		propagator: propagation.NewCompositeTextMapPropagator(Metadata{}, propagation.Baggage{}, propagation.TraceContext{}),
@@ -28,15 +30,16 @@ func NewTracer(kind trace.SpanKind, opts ...options.Option) *Tracer {
 	for _, o := range opts {
 		o(&cfg)
 	}
-	if cfg.tracerProvider != nil {
-		otel.SetTracerProvider(cfg.tracerProvider)
+	provider := cfg.tracerProvider
+	if provider == nil {
+		provider = otel.GetTracerProvider()
 	}
 
 	switch kind {
 	case trace.SpanKindClient:
-		return &Tracer{tracer: otel.Tracer("gkit"), kind: kind, opt: &cfg}
+		return &Tracer{tracer: provider.Tracer("gkit"), kind: kind, opt: &cfg}
 	case trace.SpanKindServer:
-		return &Tracer{tracer: otel.Tracer("gkit"), kind: kind, opt: &cfg}
+		return &Tracer{tracer: provider.Tracer("gkit"), kind: kind, opt: &cfg}
 	default:
 		panic(fmt.Sprintf("unsupported span kind: %v", kind))
 	}

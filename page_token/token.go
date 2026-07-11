@@ -123,20 +123,17 @@ func (t *token) ProcessPageTokens(numElements int, pageSize int, pageToken strin
 	if pageSize == 0 {
 		pageSize = numElements
 	}
-	end = min(start+pageSize, numElements)
+	if pageSize > numElements-start {
+		end = numElements
+	} else {
+		end = start + pageSize
+	}
 
 	if end < numElements {
 		nextToken = t.ForIndex(int(end))
 	}
 
 	return start, end, nextToken, nil
-}
-
-func min(a, b int) int {
-	if a > b {
-		return b
-	}
-	return a
 }
 
 // NewTokenGenerate constructs a PageToken using the package's hard-coded

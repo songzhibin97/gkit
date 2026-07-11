@@ -83,28 +83,63 @@ func TestTaskFn(t *testing.T) {
 }
 
 func TestTaskWhile(t *testing.T) {
-	c := Stream(context.Background(), generateStreamNumber(10)...)
-	taskWhile := TaskWhile(context.Background(), c, func(v interface{}) bool {
-		return v.(int) == 5
-	})
-	var ret []int
-	for v := range taskWhile {
-		ret = append(ret, v.(int))
-	}
-	assert.Equal(t, []int{5}, ret)
+	t.Run("matching prefix", func(t *testing.T) {
+		input := make(chan interface{}, 5)
+		for value := 0; value < 5; value++ {
+			input <- value
+		}
+		close(input)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	c = Stream(context.Background(), generateStreamNumber(10)...)
-	taskWhile = TaskWhile(ctx, c, func(v interface{}) bool {
-		return v.(int) == 5
+		var got []int
+		for value := range TaskWhile(context.Background(), input, func(v interface{}) bool {
+			return v.(int) < 3
+		}) {
+			got = append(got, value.(int))
+		}
+		assert.Equal(t, []int{0, 1, 2}, got)
 	})
-	ret = nil
-	for v := range taskWhile {
-		ret = append(ret, v.(int))
-		time.Sleep(time.Second)
-	}
-	assert.Equal(t, []int{5}, ret)
+
+	t.Run("first value does not match", func(t *testing.T) {
+		input := make(chan interface{}, 3)
+		input <- 3
+		input <- 1
+		input <- 2
+		close(input)
+
+		var got []int
+		for value := range TaskWhile(context.Background(), input, func(v interface{}) bool {
+			return v.(int) < 3
+		}) {
+			got = append(got, value.(int))
+		}
+		assert.Empty(t, got)
+	})
+
+	t.Run("cancellation closes blocked output", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		input := make(chan interface{}, 1)
+		input <- 1
+		close(input)
+		predicateCalled := make(chan struct{})
+		output := TaskWhile(ctx, input, func(interface{}) bool {
+			close(predicateCalled)
+			return true
+		})
+		<-predicateCalled
+		cancel()
+
+		deadline := time.After(time.Second)
+		for {
+			select {
+			case _, ok := <-output:
+				if !ok {
+					return
+				}
+			case <-deadline:
+				t.Fatal("TaskWhile goroutine did not exit after cancellation")
+			}
+		}
+	})
 }
 
 func TestSkipN(t *testing.T) {
