@@ -28,6 +28,8 @@ Acknowledgement outcomes score at Redis `TIME + 24h`. One acknowledgement remove
 
 Processing and decode failures move the envelope to a fresh reservation. The retained failure count increments and selects deterministic SHA-256 jitter over an exponentially increasing base, saturated at 60 seconds. Pre-processing cancellation uses immediate release instead.
 
+Queued payload validation decodes exactly one `Signature`, then requires a second decoder call to return `io.EOF`. Trailing JSON whitespace is accepted; trailing invalid bytes or another JSON value use the same decode-failure deferral path without invoking the processor or acknowledging the delivery.
+
 Tokens contain 128 random bits. Claim, reclaim, and deferred retry make at most four generation attempts. Every moving transition verifies the candidate is absent from inflight, visibility, acknowledgement-outcome, and repair-backlog state before writing; exhaustion leaves the original ready item or reservation byte-for-byte intact.
 
 ### Shutdown and idle polling
@@ -53,11 +55,11 @@ Each PRODUCT behavior has one primary regression test:
 | 9 | `TestStopJoinsHeartbeatAndOwnedDeliveries` | Skip the renewal join and begin ACK/return while the renew hook is blocked. |
 | 10 | `TestReliableLuaRedis7AckOutcomeUsesRedisTimeAndBoundedCleanup` | Use a non-24-hour score, client time, or unbounded/absent expired-outcome cleanup. |
 | 11 | `TestLegacyQueueAndClusterKeyCompatibility` | Change queue names, derive another slot, or key the bounded cache by full queue name. |
-| 12 | `TestMalformedPayloadRemainsRecoverable` | Acknowledge or delete bytes after decode failure. |
+| 12 | `TestQueuedPayloadValidationPreservesMalformedBytes` | Skip the required EOF check, or acknowledge/delete bytes after an initial or trailing decode failure. |
 | 13 | `TestLuaFailureBoundariesRetainRecoverableCopyOrAck` | Move a destructive write before its destination copy or remove ACK evidence. |
 | 14 | `TestPermanentFailuresUseBoundedBackoff` | Return a fixed one-second delay, reset the persisted count, or remove saturation. |
 | 15 | `TestIdleClaimRequestsAreBounded` | Keep a fixed tight poll interval, omit the cap/reset, or exceed the 1.2-second discovery bound. |
-| 16 | `TestDeliveryTokenGenerationIsBounded` | Remove claim/defer collision prevalidation, retry forever, or overwrite a reservation. |
+| 16 | `TestDeliveryTokenGenerationIsBounded` | Remove any claim/defer inflight, visibility, outcome, or repair-backlog collision guard; retry forever; or mutate ready/reserved state on exhaustion. |
 
 Behavior 15 is measured by Redis command-hook timestamps and real wall-clock deadlines in the test; it is not a fake-clock proof. The remaining unit tests use miniredis, deterministic token readers, and command hooks. Lua semantics, acknowledgement retention/cleanup, failpoint boundaries, stale-backlog repair, and Redis server time run against Redis 7. Cluster compatibility runs against three Redis 7 masters.
 

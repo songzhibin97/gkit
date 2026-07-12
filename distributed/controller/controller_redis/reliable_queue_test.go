@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -25,19 +26,6 @@ func newReliableTestQueue(t *testing.T, queue string, lease time.Duration, sourc
 type failingTokenReader struct{ err error }
 
 func (r failingTokenReader) Read([]byte) (int, error) { return 0, r.err }
-
-type fixedTokenReader struct {
-	token [16]byte
-	reads atomic.Int32
-}
-
-func (r *fixedTokenReader) Read(p []byte) (int, error) {
-	r.reads.Add(1)
-	for index := range p {
-		p[index] = r.token[index%len(r.token)]
-	}
-	return len(p), nil
-}
 
 type loseScriptResponseHook struct {
 	hash  string
@@ -388,6 +376,90 @@ func TestPermanentFailuresUseBoundedBackoff(t *testing.T) {
 	}
 }
 
+type reliableQueueState struct {
+	ready               []string
+	inflight            map[string]string
+	visibility          []redis.Z
+	outcomes            []redis.Z
+	repairCursor        string
+	repairCursorPresent bool
+	repairBacklog       []redis.Z
+}
+
+func snapshotReliableQueueState(t *testing.T, client redis.UniversalClient, keys reliableQueueKeys) reliableQueueState {
+	t.Helper()
+	ctx := context.Background()
+	ready, err := client.LRange(ctx, keys.ready, 0, -1).Result()
+	if err != nil {
+		t.Fatalf("snapshot ready queue: %v", err)
+	}
+	inflight, err := client.HGetAll(ctx, keys.inflight).Result()
+	if err != nil {
+		t.Fatalf("snapshot inflight reservations: %v", err)
+	}
+	visibility, err := client.ZRangeWithScores(ctx, keys.visibility, 0, -1).Result()
+	if err != nil {
+		t.Fatalf("snapshot visibility: %v", err)
+	}
+	outcomes, err := client.ZRangeWithScores(ctx, keys.outcomes, 0, -1).Result()
+	if err != nil {
+		t.Fatalf("snapshot acknowledgement outcomes: %v", err)
+	}
+	repairCursor, err := client.Get(ctx, keys.repairCursor).Result()
+	repairCursorPresent := true
+	if errors.Is(err, redis.Nil) {
+		repairCursor = ""
+		repairCursorPresent = false
+	} else if err != nil {
+		t.Fatalf("snapshot repair cursor: %v", err)
+	}
+	repairBacklog, err := client.ZRangeWithScores(ctx, keys.repairBacklog, 0, -1).Result()
+	if err != nil {
+		t.Fatalf("snapshot repair backlog: %v", err)
+	}
+	return reliableQueueState{
+		ready:               ready,
+		inflight:            inflight,
+		visibility:          visibility,
+		outcomes:            outcomes,
+		repairCursor:        repairCursor,
+		repairCursorPresent: repairCursorPresent,
+		repairBacklog:       repairBacklog,
+	}
+}
+
+func reliableCollisionCandidates() ([]byte, []string) {
+	entropy := make([]byte, 0, maxDeliveryTokenAttempts*16)
+	tokens := make([]string, 0, maxDeliveryTokenAttempts)
+	for value := byte(1); value <= maxDeliveryTokenAttempts; value++ {
+		candidate := bytes.Repeat([]byte{value}, 16)
+		entropy = append(entropy, candidate...)
+		tokens = append(tokens, fmt.Sprintf("%x", candidate))
+	}
+	return entropy, tokens
+}
+
+func seedReliableCollisionCandidates(t *testing.T, client redis.UniversalClient, keys reliableQueueKeys, tokens []string) {
+	t.Helper()
+	if len(tokens) != maxDeliveryTokenAttempts {
+		t.Fatalf("collision token count = %d, want %d", len(tokens), maxDeliveryTokenAttempts)
+	}
+	ctx := context.Background()
+	future := float64(time.Now().Add(time.Hour).UnixMilli())
+	if err := client.HSet(ctx, keys.inflight, tokens[0], "0000000000:collision-reservation").Err(); err != nil {
+		t.Fatalf("seed inflight collision: %v", err)
+	}
+	if err := client.ZAdd(ctx, keys.visibility, &redis.Z{Score: future, Member: tokens[1]}).Err(); err != nil {
+		t.Fatalf("seed visibility-only collision: %v", err)
+	}
+	if err := client.ZAdd(ctx, keys.outcomes, &redis.Z{Score: future, Member: tokens[2]}).Err(); err != nil {
+		t.Fatalf("seed unexpired outcome collision: %v", err)
+	}
+	if err := client.ZAdd(ctx, keys.repairBacklog, &redis.Z{Score: 0, Member: tokens[3]}).Err(); err != nil {
+		t.Fatalf("seed repair-backlog collision: %v", err)
+	}
+}
+
 func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 	t.Run("entropy failure", func(t *testing.T) {
 		queue := "queue:{entropy}"
@@ -396,68 +468,54 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 		if err := client.RPush(context.Background(), queue, "task").Err(); err != nil {
 			t.Fatalf("enqueue: %v", err)
 		}
+		before := snapshotReliableQueueState(t, client, q.keys)
 		if _, err := q.claim(context.Background()); !errors.Is(err, ErrDeliveryTokenUnavailable) || !errors.Is(err, wantErr) {
 			t.Fatalf("claim error = %v, want token and source errors", err)
 		}
-		if client.LLen(context.Background(), queue).Val() != 1 || client.HLen(context.Background(), q.keys.inflight).Val() != 0 {
-			t.Fatal("entropy failure mutated task")
+		if after := snapshotReliableQueueState(t, client, q.keys); !reflect.DeepEqual(after, before) {
+			t.Fatalf("entropy failure mutated queue state\nbefore: %#v\nafter:  %#v", before, after)
 		}
 	})
 
-	t.Run("collision exhaustion", func(t *testing.T) {
-		queue := "queue:{collision}"
-		reader := &fixedTokenReader{}
+	t.Run("claim collisions across all reservation indexes", func(t *testing.T) {
+		queue := "queue:{claim-collision-indexes}"
+		entropy, tokens := reliableCollisionCandidates()
+		reader := bytes.NewReader(entropy)
 		q, client := newReliableTestQueue(t, queue, time.Second, reader)
-		if err := client.RPush(context.Background(), queue, "first").Err(); err != nil {
-			t.Fatalf("enqueue first: %v", err)
+		if err := client.RPush(context.Background(), queue, "claim-ready-task").Err(); err != nil {
+			t.Fatalf("enqueue ready task: %v", err)
 		}
-		first, err := q.claim(context.Background())
-		if err != nil || first == nil {
-			t.Fatalf("first claim = (%v, %v)", first, err)
-		}
-		if err := client.RPush(context.Background(), queue, "second").Err(); err != nil {
-			t.Fatalf("enqueue second: %v", err)
-		}
+		seedReliableCollisionCandidates(t, client, q.keys, tokens)
+		before := snapshotReliableQueueState(t, client, q.keys)
 		if _, err := q.claim(context.Background()); !errors.Is(err, ErrDeliveryTokenCollision) {
 			t.Fatalf("collision claim error = %v, want ErrDeliveryTokenCollision", err)
 		}
-		if got := reader.reads.Load(); got != 5 {
-			t.Fatalf("token reads = %d, want initial claim + 4 bounded collision attempts", got)
+		if remaining := reader.Len(); remaining != 0 {
+			t.Fatalf("unused token entropy bytes = %d, want 0 after four bounded attempts", remaining)
 		}
-		if got := client.LIndex(context.Background(), queue, 0).Val(); got != "second" {
-			t.Fatalf("collision changed ready task to %q", got)
-		}
-		if got := client.HGet(context.Background(), q.keys.inflight, first.token).Val(); got == "" {
-			t.Fatal("collision overwrote existing reservation")
+		if after := snapshotReliableQueueState(t, client, q.keys); !reflect.DeepEqual(after, before) {
+			t.Fatalf("claim collision exhaustion mutated queue state\nbefore: %#v\nafter:  %#v", before, after)
 		}
 	})
 
-	t.Run("deferred retry collision preserves reservation", func(t *testing.T) {
-		queue := "queue:{defer-collision}"
-		reader := &fixedTokenReader{}
+	t.Run("defer collisions across all reservation indexes", func(t *testing.T) {
+		queue := "queue:{defer-collision-indexes}"
+		entropy, tokens := reliableCollisionCandidates()
+		reader := bytes.NewReader(entropy)
 		q, client := newReliableTestQueue(t, queue, time.Second, reader)
-		if err := client.RPush(context.Background(), queue, "deferred-task").Err(); err != nil {
-			t.Fatalf("enqueue: %v", err)
-		}
-		delivery, err := q.claim(context.Background())
-		if err != nil || delivery == nil {
-			t.Fatalf("claim = (%v, %v)", delivery, err)
-		}
-		envelopeBefore := client.HGet(context.Background(), q.keys.inflight, delivery.token).Val()
-		scoreBefore := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val()
-
+		delivery := &reliableDelivery{token: "original-delivery", payload: []byte("deferred-task")}
+		seedReservedPayloadAt(t, client, q.keys, delivery.token, delivery.payload, time.Now().Add(time.Hour).UnixMilli())
+		seedReliableCollisionCandidates(t, client, q.keys, tokens)
+		before := snapshotReliableQueueState(t, client, q.keys)
 		next, err := q.deferRetry(context.Background(), delivery)
 		if !errors.Is(err, ErrDeliveryTokenCollision) || next != nil {
 			t.Fatalf("defer collision = (%v, %v), want (nil, ErrDeliveryTokenCollision)", next, err)
 		}
-		if got := reader.reads.Load(); got != 5 {
-			t.Fatalf("token reads = %d, want initial claim + 4 bounded defer attempts", got)
+		if remaining := reader.Len(); remaining != 0 {
+			t.Fatalf("unused token entropy bytes = %d, want 0 after four bounded attempts", remaining)
 		}
-		if envelopeAfter := client.HGet(context.Background(), q.keys.inflight, delivery.token).Val(); envelopeAfter != envelopeBefore {
-			t.Fatalf("defer collision changed reservation envelope from %q to %q", envelopeBefore, envelopeAfter)
-		}
-		if scoreAfter := client.ZScore(context.Background(), q.keys.visibility, delivery.token).Val(); scoreAfter != scoreBefore {
-			t.Fatalf("defer collision changed visibility score from %v to %v", scoreBefore, scoreAfter)
+		if after := snapshotReliableQueueState(t, client, q.keys); !reflect.DeepEqual(after, before) {
+			t.Fatalf("defer collision exhaustion mutated queue state\nbefore: %#v\nafter:  %#v", before, after)
 		}
 	})
 }
