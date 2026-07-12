@@ -1,12 +1,14 @@
 package controller_redis
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,9 +26,11 @@ type reliableTestProcessor struct {
 	returned chan struct{}
 	err      error
 	once     sync.Once
+	calls    atomic.Int32
 }
 
 func (p *reliableTestProcessor) Process(*task.Signature) error {
+	p.calls.Add(1)
 	p.once.Do(func() { close(p.started) })
 	if p.release != nil {
 		<-p.release
@@ -468,21 +472,138 @@ func TestProcessorErrorDefersDelivery(t *testing.T) {
 	}
 }
 
-func TestMalformedPayloadRemainsRecoverable(t *testing.T) {
-	const queue = "queue:{reliable}"
-	c, client := newReliableTestController(t, queue)
-	body := []byte("{not-json")
-	if err := client.RPush(context.Background(), queue, body).Err(); err != nil {
-		t.Fatalf("enqueue malformed task: %v", err)
+func TestQueuedPayloadValidationPreservesMalformedBytes(t *testing.T) {
+	valid := reliableTaskBody(t, "payload-validation")
+	tests := []struct {
+		name      string
+		body      []byte
+		malformed bool
+	}{
+		{name: "invalid first byte", body: append([]byte("!"), valid...), malformed: true},
+		{name: "invalid trailing byte", body: append(append([]byte(nil), valid...), '!'), malformed: true},
+		{name: "second JSON value", body: append(append([]byte(nil), valid...), valid...), malformed: true},
+		{name: "trailing whitespace", body: append(append([]byte(nil), valid...), []byte(" \n\t\r  ")...)},
 	}
-	processor := &reliableTestProcessor{started: make(chan struct{})}
-	_, err := c.StartConsuming(1, processor)
-	if err == nil {
-		t.Fatal("StartConsuming error = nil, want decode failure")
-	}
-	prefix := reliableTaggedPrefix(queue, "reliable")
-	durable := client.LLen(context.Background(), queue).Val() + client.HLen(context.Background(), prefix+":inflight").Val()
-	if durable != 1 {
-		t.Fatalf("durable copies after decode failure = %d, want 1", durable)
+
+	for index, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queue := fmt.Sprintf("queue:{payload-validation-%d}", index)
+			c, client := newReliableTestController(t, queue)
+			if err := client.RPush(context.Background(), queue, tt.body).Err(); err != nil {
+				t.Fatalf("enqueue payload: %v", err)
+			}
+			processor := &reliableTestProcessor{started: make(chan struct{})}
+			result := make(chan reliableConsumeResult, 1)
+			go func() {
+				retry, err := c.StartConsuming(1, processor)
+				result <- reliableConsumeResult{retry: retry, err: err}
+			}()
+
+			keys := deriveReliableQueueKeys(queue)
+			if tt.malformed {
+				select {
+				case outcome := <-result:
+					if outcome.err == nil || !strings.Contains(outcome.err.Error(), "decode queued task") {
+						t.Fatalf("StartConsuming error = %v, want contextual decode failure", outcome.err)
+					}
+				case <-processor.started:
+					c.StopConsuming()
+					<-result
+					t.Fatal("processor ran for malformed queued payload")
+				case <-time.After(3 * time.Second):
+					c.StopConsuming()
+					t.Fatal("malformed queued payload did not stop the consume attempt")
+				}
+				if got := processor.calls.Load(); got != 0 {
+					t.Fatalf("processor calls = %d, want 0", got)
+				}
+				if got := client.ZCard(context.Background(), keys.outcomes).Val(); got != 0 {
+					t.Fatalf("ack outcomes = %d, want 0", got)
+				}
+				ready, err := client.LRange(context.Background(), queue, 0, -1).Result()
+				if err != nil {
+					t.Fatalf("read ready queue: %v", err)
+				}
+				if len(ready) != 0 {
+					t.Fatalf("ready tasks after malformed deferral = %d, want 0", len(ready))
+				}
+				inflight, err := client.HGetAll(context.Background(), keys.inflight).Result()
+				if err != nil {
+					t.Fatalf("read inflight reservations: %v", err)
+				}
+				if len(inflight) != 1 {
+					t.Fatalf("inflight reservations after malformed deferral = %d, want 1", len(inflight))
+				}
+				var deferredToken string
+				for token, envelope := range inflight {
+					failures, payload, err := decodeReliableEnvelope([]byte(envelope))
+					if err != nil {
+						t.Fatalf("decode retained envelope: %v", err)
+					}
+					if failures != 1 {
+						t.Fatalf("deferred failure count = %d, want 1", failures)
+					}
+					if !bytes.Equal(payload, tt.body) {
+						t.Fatalf("retained payload = %q, want exact bytes %q", payload, tt.body)
+					}
+					deferredToken = token
+				}
+				visibility, err := client.ZRangeWithScores(context.Background(), keys.visibility, 0, -1).Result()
+				if err != nil {
+					t.Fatalf("read deferred visibility: %v", err)
+				}
+				if len(visibility) != 1 || fmt.Sprint(visibility[0].Member) != deferredToken {
+					t.Fatalf("visibility = %#v, want one entry for deferred token %q", visibility, deferredToken)
+				}
+				redisNow, err := client.Time(context.Background()).Result()
+				if err != nil {
+					t.Fatalf("read Redis time: %v", err)
+				}
+				remaining := time.Duration(int64(visibility[0].Score)-redisNow.UnixMilli()) * time.Millisecond
+				wantDelay := reliableRetryDelay(0, tt.body)
+				if remaining <= 0 || remaining > wantDelay || wantDelay-remaining > 500*time.Millisecond {
+					t.Fatalf("deferred visibility remaining = %v, want future deadline within 500ms of %v", remaining, wantDelay)
+				}
+				if got := client.ZCard(context.Background(), keys.repairBacklog).Val(); got != 0 {
+					t.Fatalf("repair backlog entries = %d, want 0", got)
+				}
+				return
+			}
+
+			select {
+			case <-processor.started:
+			case outcome := <-result:
+				t.Fatalf("StartConsuming returned before valid payload processing: %v", outcome.err)
+			case <-time.After(3 * time.Second):
+				c.StopConsuming()
+				t.Fatal("processor did not receive valid payload with trailing whitespace")
+			}
+			deadline := time.Now().Add(3 * time.Second)
+			for client.ZCard(context.Background(), keys.outcomes).Val() != 1 && time.Now().Before(deadline) {
+				time.Sleep(time.Millisecond)
+			}
+			if got := client.ZCard(context.Background(), keys.outcomes).Val(); got != 1 {
+				c.StopConsuming()
+				t.Fatalf("ack outcomes = %d, want 1", got)
+			}
+			c.StopConsuming()
+			select {
+			case outcome := <-result:
+				if !errors.Is(outcome.err, context.Canceled) {
+					t.Fatalf("StartConsuming error = %v, want context.Canceled after stop", outcome.err)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("consumer did not stop")
+			}
+			if got := processor.calls.Load(); got != 1 {
+				t.Fatalf("processor calls = %d, want 1", got)
+			}
+			if ready := client.LLen(context.Background(), queue).Val(); ready != 0 {
+				t.Fatalf("ready tasks after valid processing = %d, want 0", ready)
+			}
+			if inflight := client.HLen(context.Background(), keys.inflight).Val(); inflight != 0 {
+				t.Fatalf("inflight tasks after valid processing = %d, want 0", inflight)
+			}
+		})
 	}
 }

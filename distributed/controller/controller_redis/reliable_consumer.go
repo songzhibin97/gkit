@@ -5,11 +5,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"time"
-
-	json "github.com/json-iterator/go"
 
 	"github.com/songzhibin97/gkit/distributed/task"
 )
@@ -23,8 +23,21 @@ func (c *ControllerRedis) consumeReliableDelivery(
 	var signature task.Signature
 	decoder := json.NewDecoder(bytes.NewReader(delivery.payload))
 	decoder.UseNumber()
-	if err := decoder.Decode(&signature); err != nil {
-		decodeErr := fmt.Errorf("decode queued task: %w", err)
+	validationErr := decoder.Decode(&signature)
+	if validationErr == nil {
+		var trailing interface{}
+		validationErr = decoder.Decode(&trailing)
+		switch validationErr {
+		case io.EOF:
+			validationErr = nil
+		case nil:
+			validationErr = errors.New("unexpected additional JSON value")
+		default:
+			validationErr = fmt.Errorf("trailing content: %w", validationErr)
+		}
+	}
+	if validationErr != nil {
+		decodeErr := fmt.Errorf("decode queued task: %w", validationErr)
 		if c.deliveryMustRelease(attemptCtx) {
 			return errors.Join(decodeErr, c.releaseReliableDelivery(queue, delivery))
 		}
