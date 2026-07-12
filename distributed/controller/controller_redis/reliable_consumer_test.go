@@ -524,29 +524,45 @@ func TestQueuedPayloadValidationPreservesMalformedBytes(t *testing.T) {
 				if err != nil {
 					t.Fatalf("read ready queue: %v", err)
 				}
+				if len(ready) != 0 {
+					t.Fatalf("ready tasks after malformed deferral = %d, want 0", len(ready))
+				}
 				inflight, err := client.HGetAll(context.Background(), keys.inflight).Result()
 				if err != nil {
 					t.Fatalf("read inflight reservations: %v", err)
 				}
-				if copies := len(ready) + len(inflight); copies != 1 {
-					t.Fatalf("ready + inflight copies = %d, want exactly 1", copies)
+				if len(inflight) != 1 {
+					t.Fatalf("inflight reservations after malformed deferral = %d, want 1", len(inflight))
 				}
-				var recovered []byte
-				if len(ready) == 1 {
-					recovered = []byte(ready[0])
-				}
-				for _, envelope := range inflight {
-					_, payload, err := decodeReliableEnvelope([]byte(envelope))
+				var deferredToken string
+				for token, envelope := range inflight {
+					failures, payload, err := decodeReliableEnvelope([]byte(envelope))
 					if err != nil {
 						t.Fatalf("decode retained envelope: %v", err)
 					}
-					recovered = payload
+					if failures != 1 {
+						t.Fatalf("deferred failure count = %d, want 1", failures)
+					}
+					if !bytes.Equal(payload, tt.body) {
+						t.Fatalf("retained payload = %q, want exact bytes %q", payload, tt.body)
+					}
+					deferredToken = token
 				}
-				if !bytes.Equal(recovered, tt.body) {
-					t.Fatalf("retained payload = %q, want exact bytes %q", recovered, tt.body)
+				visibility, err := client.ZRangeWithScores(context.Background(), keys.visibility, 0, -1).Result()
+				if err != nil {
+					t.Fatalf("read deferred visibility: %v", err)
 				}
-				if got := client.ZCard(context.Background(), keys.visibility).Val(); got != int64(len(inflight)) {
-					t.Fatalf("visibility entries = %d, want %d", got, len(inflight))
+				if len(visibility) != 1 || fmt.Sprint(visibility[0].Member) != deferredToken {
+					t.Fatalf("visibility = %#v, want one entry for deferred token %q", visibility, deferredToken)
+				}
+				redisNow, err := client.Time(context.Background()).Result()
+				if err != nil {
+					t.Fatalf("read Redis time: %v", err)
+				}
+				remaining := time.Duration(int64(visibility[0].Score)-redisNow.UnixMilli()) * time.Millisecond
+				wantDelay := reliableRetryDelay(0, tt.body)
+				if remaining <= 0 || remaining > wantDelay || wantDelay-remaining > 500*time.Millisecond {
+					t.Fatalf("deferred visibility remaining = %v, want future deadline within 500ms of %v", remaining, wantDelay)
 				}
 				if got := client.ZCard(context.Background(), keys.repairBacklog).Val(); got != 0 {
 					t.Fatalf("repair backlog entries = %d, want 0", got)

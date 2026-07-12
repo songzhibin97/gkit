@@ -384,6 +384,7 @@ type reliableQueueState struct {
 	repairCursor        string
 	repairCursorPresent bool
 	repairBacklog       []redis.Z
+	pttls               map[string]time.Duration
 }
 
 func snapshotReliableQueueState(t *testing.T, client redis.UniversalClient, keys reliableQueueKeys) reliableQueueState {
@@ -417,6 +418,14 @@ func snapshotReliableQueueState(t *testing.T, client redis.UniversalClient, keys
 	if err != nil {
 		t.Fatalf("snapshot repair backlog: %v", err)
 	}
+	readPTTL := func(name, key string) time.Duration {
+		t.Helper()
+		pttl, err := client.PTTL(ctx, key).Result()
+		if err != nil {
+			t.Fatalf("snapshot %s PTTL: %v", name, err)
+		}
+		return pttl
+	}
 	return reliableQueueState{
 		ready:               ready,
 		inflight:            inflight,
@@ -425,6 +434,43 @@ func snapshotReliableQueueState(t *testing.T, client redis.UniversalClient, keys
 		repairCursor:        repairCursor,
 		repairCursorPresent: repairCursorPresent,
 		repairBacklog:       repairBacklog,
+		pttls: map[string]time.Duration{
+			"ready":          readPTTL("ready", keys.ready),
+			"inflight":       readPTTL("inflight", keys.inflight),
+			"visibility":     readPTTL("visibility", keys.visibility),
+			"outcomes":       readPTTL("acknowledgement outcomes", keys.outcomes),
+			"repair cursor":  readPTTL("repair cursor", keys.repairCursor),
+			"repair backlog": readPTTL("repair backlog", keys.repairBacklog),
+		},
+	}
+}
+
+func assertReliableQueueStateUnchanged(t *testing.T, before, after reliableQueueState) {
+	t.Helper()
+	beforePTTLs := before.pttls
+	afterPTTLs := after.pttls
+	before.pttls = nil
+	after.pttls = nil
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("queue values mutated\nbefore: %#v\nafter:  %#v", before, after)
+	}
+	if len(afterPTTLs) != len(beforePTTLs) {
+		t.Fatalf("PTTL snapshot key count changed from %d to %d", len(beforePTTLs), len(afterPTTLs))
+	}
+	for name, beforePTTL := range beforePTTLs {
+		afterPTTL, ok := afterPTTLs[name]
+		if !ok {
+			t.Fatalf("PTTL snapshot lost key %q", name)
+		}
+		if beforePTTL < 0 {
+			if afterPTTL != beforePTTL {
+				t.Fatalf("%s PTTL changed from %v to %v", name, beforePTTL, afterPTTL)
+			}
+			continue
+		}
+		if afterPTTL <= 0 || afterPTTL > beforePTTL || beforePTTL-afterPTTL > 2*time.Second {
+			t.Fatalf("%s PTTL changed from %v to %v beyond monotonic 2s tolerance", name, beforePTTL, afterPTTL)
+		}
 	}
 }
 
@@ -445,15 +491,20 @@ func seedReliableCollisionCandidates(t *testing.T, client redis.UniversalClient,
 		t.Fatalf("collision token count = %d, want %d", len(tokens), maxDeliveryTokenAttempts)
 	}
 	ctx := context.Background()
-	future := float64(time.Now().Add(time.Hour).UnixMilli())
+	now := time.Now()
+	visibilityDeadline := float64(now.Add(time.Hour).UnixMilli())
+	outcomeDeadline := float64(now.Add(ackOutcomeRetention).UnixMilli())
 	if err := client.HSet(ctx, keys.inflight, tokens[0], "0000000000:collision-reservation").Err(); err != nil {
 		t.Fatalf("seed inflight collision: %v", err)
 	}
-	if err := client.ZAdd(ctx, keys.visibility, &redis.Z{Score: future, Member: tokens[1]}).Err(); err != nil {
+	if err := client.ZAdd(ctx, keys.visibility, &redis.Z{Score: visibilityDeadline, Member: tokens[1]}).Err(); err != nil {
 		t.Fatalf("seed visibility-only collision: %v", err)
 	}
-	if err := client.ZAdd(ctx, keys.outcomes, &redis.Z{Score: future, Member: tokens[2]}).Err(); err != nil {
+	if err := client.ZAdd(ctx, keys.outcomes, &redis.Z{Score: outcomeDeadline, Member: tokens[2]}).Err(); err != nil {
 		t.Fatalf("seed unexpired outcome collision: %v", err)
+	}
+	if set, err := client.PExpire(ctx, keys.outcomes, ackOutcomeKeyTTL).Result(); err != nil || !set {
+		t.Fatalf("seed acknowledgement outcome TTL = %v, %v", set, err)
 	}
 	if err := client.ZAdd(ctx, keys.repairBacklog, &redis.Z{Score: 0, Member: tokens[3]}).Err(); err != nil {
 		t.Fatalf("seed repair-backlog collision: %v", err)
@@ -472,9 +523,7 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 		if _, err := q.claim(context.Background()); !errors.Is(err, ErrDeliveryTokenUnavailable) || !errors.Is(err, wantErr) {
 			t.Fatalf("claim error = %v, want token and source errors", err)
 		}
-		if after := snapshotReliableQueueState(t, client, q.keys); !reflect.DeepEqual(after, before) {
-			t.Fatalf("entropy failure mutated queue state\nbefore: %#v\nafter:  %#v", before, after)
-		}
+		assertReliableQueueStateUnchanged(t, before, snapshotReliableQueueState(t, client, q.keys))
 	})
 
 	t.Run("claim collisions across all reservation indexes", func(t *testing.T) {
@@ -487,15 +536,16 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 		}
 		seedReliableCollisionCandidates(t, client, q.keys, tokens)
 		before := snapshotReliableQueueState(t, client, q.keys)
+		if outcomePTTL := before.pttls["outcomes"]; outcomePTTL <= ackOutcomeRetention || outcomePTTL > ackOutcomeKeyTTL {
+			t.Fatalf("seeded outcome PTTL = %v, want (%v, %v]", outcomePTTL, ackOutcomeRetention, ackOutcomeKeyTTL)
+		}
 		if _, err := q.claim(context.Background()); !errors.Is(err, ErrDeliveryTokenCollision) {
 			t.Fatalf("collision claim error = %v, want ErrDeliveryTokenCollision", err)
 		}
 		if remaining := reader.Len(); remaining != 0 {
 			t.Fatalf("unused token entropy bytes = %d, want 0 after four bounded attempts", remaining)
 		}
-		if after := snapshotReliableQueueState(t, client, q.keys); !reflect.DeepEqual(after, before) {
-			t.Fatalf("claim collision exhaustion mutated queue state\nbefore: %#v\nafter:  %#v", before, after)
-		}
+		assertReliableQueueStateUnchanged(t, before, snapshotReliableQueueState(t, client, q.keys))
 	})
 
 	t.Run("defer collisions across all reservation indexes", func(t *testing.T) {
@@ -507,6 +557,9 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 		seedReservedPayloadAt(t, client, q.keys, delivery.token, delivery.payload, time.Now().Add(time.Hour).UnixMilli())
 		seedReliableCollisionCandidates(t, client, q.keys, tokens)
 		before := snapshotReliableQueueState(t, client, q.keys)
+		if outcomePTTL := before.pttls["outcomes"]; outcomePTTL <= ackOutcomeRetention || outcomePTTL > ackOutcomeKeyTTL {
+			t.Fatalf("seeded outcome PTTL = %v, want (%v, %v]", outcomePTTL, ackOutcomeRetention, ackOutcomeKeyTTL)
+		}
 		next, err := q.deferRetry(context.Background(), delivery)
 		if !errors.Is(err, ErrDeliveryTokenCollision) || next != nil {
 			t.Fatalf("defer collision = (%v, %v), want (nil, ErrDeliveryTokenCollision)", next, err)
@@ -514,9 +567,7 @@ func TestDeliveryTokenGenerationIsBounded(t *testing.T) {
 		if remaining := reader.Len(); remaining != 0 {
 			t.Fatalf("unused token entropy bytes = %d, want 0 after four bounded attempts", remaining)
 		}
-		if after := snapshotReliableQueueState(t, client, q.keys); !reflect.DeepEqual(after, before) {
-			t.Fatalf("defer collision exhaustion mutated queue state\nbefore: %#v\nafter:  %#v", before, after)
-		}
+		assertReliableQueueStateUnchanged(t, before, snapshotReliableQueueState(t, client, q.keys))
 	})
 }
 
