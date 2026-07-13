@@ -2,6 +2,7 @@ package backend_mongodb
 
 import (
 	"context"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -13,25 +14,43 @@ import (
 	"github.com/songzhibin97/gkit/distributed/backend"
 	"github.com/songzhibin97/gkit/distributed/task"
 	"go.mongodb.org/mongo-driver/mongo"
+	moption "go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-func InitBackend() backend.Backend {
-	client, err := mongo.NewClient()
-	if err != nil {
-		return nil
+// initLiveBackend returns a MongoDB-backed backend for live tests.
+// It skips the calling test unless GKIT_MONGODB_URI points to a reachable server.
+func initLiveBackend(t *testing.T) backend.Backend {
+	t.Helper()
+	uri := os.Getenv("GKIT_MONGODB_URI")
+	if uri == "" {
+		t.Skip("GKIT_MONGODB_URI is not set")
 	}
-	err = client.Connect(context.Background())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, moption.Client().ApplyURI(uri).SetServerSelectionTimeout(5*time.Second))
 	if err != nil {
-		return nil
+		t.Skipf("connect MongoDB %q: %v", uri, err)
 	}
+	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer disconnectCancel()
+		_ = client.Disconnect(disconnectCtx)
+		t.Skipf("ping MongoDB %q: %v", uri, err)
+	}
+	t.Cleanup(func() {
+		disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer disconnectCancel()
+		if err := client.Disconnect(disconnectCtx); err != nil {
+			t.Errorf("disconnect MongoDB client: %v", err)
+		}
+	})
 	return NewBackendMongoDB(client, -1)
 }
 
 func TestGroupTaskOver(t *testing.T) {
-	_backend := InitBackend()
-	if _backend == nil {
-		t.Skip()
-	}
+	_backend := initLiveBackend(t)
 	g := generator.NewSnowflake(time.Now().Local(), 1)
 	ids := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
@@ -96,10 +115,7 @@ func TestGroupTaskOver(t *testing.T) {
 }
 
 func TestGetStatus(t *testing.T) {
-	_backend := InitBackend()
-	if _backend == nil {
-		t.Skip()
-	}
+	_backend := initLiveBackend(t)
 	task1 := task.Signature{
 		ID:      "task1",
 		GroupID: "group",
@@ -137,10 +153,7 @@ func TestGetStatus(t *testing.T) {
 }
 
 func TestResult(t *testing.T) {
-	_backend := InitBackend()
-	if _backend == nil {
-		t.Skip()
-	}
+	_backend := initLiveBackend(t)
 	task1 := task.Signature{
 		ID:      "task1",
 		GroupID: "group",
