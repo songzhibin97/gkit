@@ -193,6 +193,52 @@ func TestDelayedTaskCrashBeforePublishIsRepublishedByRecovery(t *testing.T) {
 	stop()
 }
 
+// TestStaleTransitEntryIsRecoveredWhileProducerIsLive covers the recovery
+// starvation bug: popDelayedTaskWithContext polls internally while the delayed
+// zset is empty (redis.Nil -> continue), so a recovery check at the head of
+// the produce loop only ever ran at startup. A live producer with no due
+// tasks then never recovered transit entries stranded by a crashed peer.
+// Periodic recovery must run on its own ticker, independent of claim traffic.
+func TestStaleTransitEntryIsRecoveredWhileProducerIsLive(t *testing.T) {
+	c, mr, client := newMiniController(t)
+	ctx := context.Background()
+	c.delayedRecoveryInterval = 20 * time.Millisecond
+
+	// A sentinel task is claimed and published only after the startup recovery
+	// pass, so waiting for it (and for its transit entry to clear) proves the
+	// producer is past startup recovery and idle-polling an empty delayed zset
+	// before the stale entry is planted.
+	dueDelayedTaskBody(t, client, "sentinel")
+	stop := startDelayedProducer(t, c)
+	waitForRouterTask(t, client, "sentinel")
+	waitForEmptyTransit(t, client)
+	if err := client.Del(ctx, "test_task").Err(); err != nil {
+		t.Fatalf("clear router queue: %v", err)
+	}
+
+	// A crashed peer left a claimed task in transit. No new task is published
+	// after this point: only the live producer's periodic recovery can move
+	// the entry back to the delayed zset for a fresh claim.
+	due := time.Now().Add(-time.Minute)
+	signature := task.NewSignature("stale-peer", "task", task.SetETATime(&due))
+	signature.Router = "test_task"
+	body, err := json.Marshal(signature)
+	if err != nil {
+		t.Fatalf("marshal stale transit task: %v", err)
+	}
+	claimedAtMs := float64(time.Now().UnixMilli())
+	if err := client.ZAdd(ctx, deriveDelayedTransitKey("delayed"), &redis.Z{Score: claimedAtMs, Member: body}).Err(); err != nil {
+		t.Fatalf("plant stale transit entry: %v", err)
+	}
+	// Push the Redis server clock (which anchors transit claim scores) past
+	// the staleness threshold so recovery treats the peer as crashed.
+	mr.SetTime(time.Now().Add(delayedTransitRecoveryTimeout + time.Second))
+
+	waitForRouterTask(t, client, "stale-peer")
+	waitForEmptyTransit(t, client)
+	stop()
+}
+
 // TestDelayedRepublishFinalizesTransit covers the normal path: a due task is
 // republished to its router queue and its transit entry is cleared, so a
 // later recovery pass cannot deliver it a second time.

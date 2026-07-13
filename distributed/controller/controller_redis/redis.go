@@ -45,7 +45,14 @@ type ControllerRedis struct {
 	deliveryLease         time.Duration
 	finalizationTimeout   time.Duration
 	ackConfirmationWindow time.Duration
-	tokenSource           *deliveryTokenGenerator
+	// delayedRecoveryInterval paces the periodic delayed-transit recovery
+	// scan started by produceDelayedTasks. It defaults to
+	// delayedTransitRecoveryTimeout but is distinct from the Lua-side
+	// staleness threshold (always delayedTransitRecoveryTimeout): shortening
+	// the scan pace never makes transit entries stale sooner. Unexported on
+	// purpose; only same-package tests inject shorter intervals.
+	delayedRecoveryInterval time.Duration
+	tokenSource             *deliveryTokenGenerator
 }
 
 const consumerRestoreTimeout = 5 * time.Second
@@ -320,21 +327,51 @@ func (c *ControllerRedis) produceQueuedTasks(
 }
 
 func (c *ControllerRedis) produceDelayedTasks(ctx context.Context, queue string, reportFailure func(error)) {
-	nextRecovery := time.Now()
-	for {
-		// Republish transit entries stranded by a crashed producer: once at
-		// startup, then periodically for entries stranded by a crashed peer.
-		if !time.Now().Before(nextRecovery) {
-			if err := c.recoverDelayedTransit(ctx, queue); err != nil {
+	// Republish transit entries stranded by a crashed producer before the
+	// first claim, so a restart never waits a full recovery interval.
+	if err := c.recoverDelayedTransit(ctx, queue); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+		reportFailure(err)
+		return
+	}
+
+	// Periodic recovery cannot live in the claim loop below:
+	// popDelayedTaskWithContext polls internally while the delayed zset is
+	// empty (redis.Nil -> retry), so the loop head is only reached again
+	// after a successful claim. With a live producer and no due tasks,
+	// entries stranded by a crashed peer would then never be recovered. A
+	// dedicated ticker goroutine scans regardless of claim traffic; it is
+	// joined before returning so StopConsuming's producer wait converges
+	// without leaking a goroutine.
+	recoveryCtx, cancelRecovery := context.WithCancel(ctx)
+	recoveryDone := make(chan struct{})
+	go func() {
+		defer close(recoveryDone)
+		ticker := time.NewTicker(c.delayedRecoveryInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-recoveryCtx.Done():
+				return
+			case <-ticker.C:
+			}
+			if err := c.recoverDelayedTransit(recoveryCtx, queue); err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
 				reportFailure(err)
 				return
 			}
-			nextRecovery = time.Now().Add(delayedTransitRecoveryTimeout)
 		}
+	}()
+	defer func() {
+		cancelRecovery()
+		<-recoveryDone
+	}()
 
+	for {
 		taskBody, score, err := c.popDelayedTaskWithContext(ctx, queue, 0)
 		if err != nil {
 			switch {
@@ -491,15 +528,16 @@ func (c *ControllerRedis) GetDelayedTasks() ([]*task.Signature, error) {
 // closing it after every component sharing the client has stopped using it.
 func NewControllerRedis(broker *broker.Broker, client redis.UniversalClient, consumingQueue, delayedQueue string) controller.Controller {
 	return &ControllerRedis{
-		Broker:                broker,
-		client:                client,
-		lock:                  redsync.New(goredis.NewPool(client)),
-		helper:                log.NewHelper(log.DefaultLogger),
-		consumingQueue:        consumingQueue,
-		delayedQueue:          delayedQueue,
-		deliveryLease:         defaultDeliveryLease,
-		finalizationTimeout:   consumerRestoreTimeout,
-		ackConfirmationWindow: consumerRestoreTimeout,
-		tokenSource:           newDeliveryTokenGenerator(nil),
+		Broker:                  broker,
+		client:                  client,
+		lock:                    redsync.New(goredis.NewPool(client)),
+		helper:                  log.NewHelper(log.DefaultLogger),
+		consumingQueue:          consumingQueue,
+		delayedQueue:            delayedQueue,
+		deliveryLease:           defaultDeliveryLease,
+		finalizationTimeout:     consumerRestoreTimeout,
+		ackConfirmationWindow:   consumerRestoreTimeout,
+		delayedRecoveryInterval: delayedTransitRecoveryTimeout,
+		tokenSource:             newDeliveryTokenGenerator(nil),
 	}
 }

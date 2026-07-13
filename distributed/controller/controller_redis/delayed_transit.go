@@ -18,11 +18,24 @@ import (
 // to the delayed zset for a fresh claim. Delivery is at-least-once: a
 // publisher slower than the recovery timeout can race recovery and deliver
 // twice, but a claimed task is never lost.
+//
+// The at-least-once invariant holds without a per-claim token because every
+// transition that removes a member is either atomic or publish-backed: the
+// claim, restore, and recover scripts move the member between the delayed and
+// transit zsets in a single atomic step (ZADD before ZREM), and
+// finalizeDelayedTransit only ZREMs a transit member after its Publish (RPush
+// to the ready queue) has succeeded. Members are keyed by task body, so a
+// slow publisher racing recovery and a second claimant can finalize away the
+// other claimant's transit entry — but only after at least one publish
+// landed, and a restore racing a finalize can at worst re-schedule an
+// already-published body. Every interleaving therefore degrades to duplicate
+// delivery, never to loss, which is why no claim token is needed.
 
 const (
 	// delayedTransitRecoveryTimeout is how long a claimed delayed task may sit
 	// in the transit zset before recovery treats its publisher as crashed. It
-	// also paces the periodic recovery scan in produceDelayedTasks.
+	// is also the default for ControllerRedis.delayedRecoveryInterval, which
+	// paces the periodic recovery scan in produceDelayedTasks.
 	delayedTransitRecoveryTimeout = 30 * time.Second
 	// delayedTransitRecoveryBatch mirrors the bounded housekeeping batches
 	// used by the reliable queue scripts.
