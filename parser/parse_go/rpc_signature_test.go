@@ -37,6 +37,36 @@ func MissingResponse(req Request) {}
 	assertRPCSignatureError(t, err, "MissingResponse", "response")
 }
 
+func TestParseGoRejectsTaggedRPCWithoutMethodTag(t *testing.T) {
+	path := writeGoFixture(t, `package fixture
+
+type Request struct{}
+type Response struct{}
+
+// @service:Fixture
+// @router:/missing-method
+func MissingMethod(req Request) Response { return Response{} }
+`)
+
+	_, err := ParseGo(path, AddParseFunc(parseDoc), AddParseStruct(parseTag))
+	assertMissingRPCTagError(t, err, "MissingMethod", "@method")
+}
+
+func TestParseGoRejectsTaggedRPCWithoutRouterTag(t *testing.T) {
+	path := writeGoFixture(t, `package fixture
+
+type Request struct{}
+type Response struct{}
+
+// @service:Fixture
+// @method:post
+func MissingRouter(req Request) Response { return Response{} }
+`)
+
+	_, err := ParseGo(path, AddParseFunc(parseDoc), AddParseStruct(parseTag))
+	assertMissingRPCTagError(t, err, "MissingRouter", "@router")
+}
+
 func TestParseGoAcceptsContextPointerRPCAndSkipsHelper(t *testing.T) {
 	path := writeGoFixture(t, `package fixture
 
@@ -181,6 +211,18 @@ func writeGoFixture(t *testing.T, source string) string {
 		t.Fatalf("write fixture: %v", err)
 	}
 	return path
+}
+
+func assertMissingRPCTagError(t *testing.T, err error, functionName, tagName string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("ParseGo() error = nil, want missing %s tag error", tagName)
+	}
+	for _, want := range []string{functionName, tagName} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("ParseGo() error = %q, want it to contain %q", err, want)
+		}
+	}
 }
 
 func assertRPCSignatureError(t *testing.T, err error, functionName, detail string) {
