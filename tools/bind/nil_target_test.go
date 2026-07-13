@@ -1,7 +1,10 @@
 package bind
 
 import (
+	"bytes"
 	"errors"
+	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
@@ -103,5 +106,59 @@ func TestFormBindingsRejectInvalidOrUnsettableTargets(t *testing.T) {
 				t.Fatalf("bind error = %v, want existing map conversion error", err)
 			}
 		})
+	}
+}
+
+func TestMappingByPtrBindingsRejectNilTargets(t *testing.T) {
+	type targetStruct struct {
+		Name string `form:"name" header:"name"`
+	}
+	var typedNil *targetStruct
+
+	binders := []struct {
+		name string
+		bind func(interface{}) error
+	}{
+		{
+			name: "header",
+			bind: func(target interface{}) error {
+				request := httptest.NewRequest(http.MethodGet, "/", nil)
+				request.Header.Set("name", "value")
+				return Header.Bind(request, target)
+			},
+		},
+		{
+			name: "form-multipart",
+			bind: func(target interface{}) error {
+				body := &bytes.Buffer{}
+				writer := multipart.NewWriter(body)
+				if err := writer.WriteField("name", "value"); err != nil {
+					t.Fatalf("write multipart field: %v", err)
+				}
+				if err := writer.Close(); err != nil {
+					t.Fatalf("close multipart writer: %v", err)
+				}
+				request := httptest.NewRequest(http.MethodPost, "/", body)
+				request.Header.Set("Content-Type", writer.FormDataContentType())
+				return FormMultipart.Bind(request, target)
+			},
+		},
+	}
+	invalid := []struct {
+		name   string
+		target interface{}
+	}{
+		{name: "untyped-nil", target: nil},
+		{name: "typed-nil-pointer", target: typedNil},
+	}
+
+	for _, binder := range binders {
+		for _, invalidTarget := range invalid {
+			t.Run(binder.name+"/"+invalidTarget.name, func(t *testing.T) {
+				if err := binder.bind(invalidTarget.target); !errors.Is(err, errUnknownType) {
+					t.Fatalf("bind error = %v, want %v", err, errUnknownType)
+				}
+			})
+		}
 	}
 }
