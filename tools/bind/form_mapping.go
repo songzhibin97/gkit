@@ -75,8 +75,13 @@ func (form formSource) TrySet(value reflect.Value, field reflect.StructField, ta
 }
 
 func mappingByPtr(ptr interface{}, setter setter, tag string) error {
+	v := reflect.ValueOf(ptr)
+	// untyped nil 或顶层 typed-nil 指针无法寻址赋值, 统一拒绝。
+	if !v.IsValid() || (v.Kind() == reflect.Ptr && v.IsNil()) {
+		return errUnknownType
+	}
 	// emptyField 空的结构体字段
-	_, err := mapping(reflect.ValueOf(ptr), emptyField, setter, tag, newMappingState())
+	_, err := mapping(v, emptyField, setter, tag, newMappingState())
 	return err
 }
 
