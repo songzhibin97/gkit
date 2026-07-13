@@ -64,6 +64,16 @@ func main() {
 		// Step 4-2. Replace all cases
 		dataDesc := replace(data, upper, true)
 		dataAsc := replace(data, upper, false)
+		if upper == "Float32" || upper == "Float64" {
+			const rejectNaNStore = "if key != key {\n\treturn // NaN is unordered and violates skip-list ordering.\n}"
+			const rejectNaNLoadOrStore = "if key != key {\n\treturn nil, false // NaN is unordered and violates skip-list ordering.\n}"
+			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Map) Store(", rejectNaNStore)
+			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Map) LoadOrStore(", rejectNaNLoadOrStore)
+			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Map) LoadOrStoreLazy(", rejectNaNLoadOrStore)
+			dataDesc = addLineAfter(dataDesc, "func (s *"+upper+"MapDesc) Store(", rejectNaNStore)
+			dataDesc = addLineAfter(dataDesc, "func (s *"+upper+"MapDesc) LoadOrStore(", rejectNaNLoadOrStore)
+			dataDesc = addLineAfter(dataDesc, "func (s *"+upper+"MapDesc) LoadOrStoreLazy(", rejectNaNLoadOrStore)
+		}
 		w.WriteString(dataAsc)
 		w.WriteString("\r\n")
 		w.WriteString(dataDesc)

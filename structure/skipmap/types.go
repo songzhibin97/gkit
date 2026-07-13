@@ -1177,6 +1177,9 @@ func unlockFloat32(preds [maxLevel]*float32Node, highestLevel int) {
 
 // Store sets the value for a key.
 func (s *Float32Map) Store(key float32, value interface{}) {
+	if key != key {
+		return // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomlevel()
 	var preds, succs [maxLevel]*float32Node
 	for {
@@ -1339,6 +1342,9 @@ func (s *Float32Map) LoadAndDelete(key float32) (value interface{}, loaded bool)
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
 func (s *Float32Map) LoadOrStore(key float32, value interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float32Node
@@ -1409,6 +1415,9 @@ func (s *Float32Map) LoadOrStore(key float32, value interface{}) (actual interfa
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
 func (s *Float32Map) LoadOrStoreLazy(key float32, f func() interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float32Node
@@ -1692,6 +1701,9 @@ func unlockFloat32Desc(preds [maxLevel]*float32NodeDesc, highestLevel int) {
 
 // Store sets the value for a key.
 func (s *Float32MapDesc) Store(key float32, value interface{}) {
+	if key != key {
+		return // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomlevel()
 	var preds, succs [maxLevel]*float32NodeDesc
 	for {
@@ -1854,6 +1866,9 @@ func (s *Float32MapDesc) LoadAndDelete(key float32) (value interface{}, loaded b
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
 func (s *Float32MapDesc) LoadOrStore(key float32, value interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float32NodeDesc
@@ -1924,6 +1939,9 @@ func (s *Float32MapDesc) LoadOrStore(key float32, value interface{}) (actual int
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
 func (s *Float32MapDesc) LoadOrStoreLazy(key float32, f func() interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float32NodeDesc
@@ -2207,6 +2225,9 @@ func unlockFloat64(preds [maxLevel]*float64Node, highestLevel int) {
 
 // Store sets the value for a key.
 func (s *Float64Map) Store(key float64, value interface{}) {
+	if key != key {
+		return // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomlevel()
 	var preds, succs [maxLevel]*float64Node
 	for {
@@ -2369,6 +2390,9 @@ func (s *Float64Map) LoadAndDelete(key float64) (value interface{}, loaded bool)
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
 func (s *Float64Map) LoadOrStore(key float64, value interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float64Node
@@ -2439,6 +2463,9 @@ func (s *Float64Map) LoadOrStore(key float64, value interface{}) (actual interfa
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
 func (s *Float64Map) LoadOrStoreLazy(key float64, f func() interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float64Node
@@ -2722,6 +2749,9 @@ func unlockFloat64Desc(preds [maxLevel]*float64NodeDesc, highestLevel int) {
 
 // Store sets the value for a key.
 func (s *Float64MapDesc) Store(key float64, value interface{}) {
+	if key != key {
+		return // NaN is unordered and violates skip-list ordering.
+	}
 	level := s.randomlevel()
 	var preds, succs [maxLevel]*float64NodeDesc
 	for {
@@ -2884,6 +2914,9 @@ func (s *Float64MapDesc) LoadAndDelete(key float64) (value interface{}, loaded b
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
 func (s *Float64MapDesc) LoadOrStore(key float64, value interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float64NodeDesc
@@ -2954,6 +2987,9 @@ func (s *Float64MapDesc) LoadOrStore(key float64, value interface{}) (actual int
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
 func (s *Float64MapDesc) LoadOrStoreLazy(key float64, f func() interface{}) (actual interface{}, loaded bool) {
+	if key != key {
+		return nil, false // NaN is unordered and violates skip-list ordering.
+	}
 	var (
 		level        int
 		preds, succs [maxLevel]*float64NodeDesc
