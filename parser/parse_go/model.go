@@ -352,8 +352,17 @@ func isRPCServer(server *Server) bool {
 // checkFormat 简单处理meta信息,将对应func、server中的注释移入
 func (g *GoParsePB) checkFormat() error {
 	for _, serve := range g.Server {
-		if isRPCServer(serve) && serve.signatureErr != nil {
+		if !isRPCServer(serve) {
+			continue
+		}
+		if serve.signatureErr != nil {
 			return fmt.Errorf("parse_go: function %s has unsupported RPC signature: %w", serve.Name, serve.signatureErr)
+		}
+		if serve.Method == "" {
+			return fmt.Errorf("parse_go: function %s is missing the @method tag required to generate its RPC", serve.Name)
+		}
+		if serve.Router == "" {
+			return fmt.Errorf("parse_go: function %s is missing the @router tag required to generate its RPC", serve.Name)
 		}
 	}
 	// 之前已经调用过了,就直接返回了
@@ -379,9 +388,6 @@ func (g *GoParsePB) checkFormat() error {
 		if serve.ServerName != "" {
 			g.Metas["ServerName"] = serve.ServerName
 		}
-		//if serve.Router == "" || serve.Method == "" {
-		//	return errors.New("server router or method is empty")
-		//}
 		//if _, ok := serverHashSet[serve.Router+serve.Method]; ok {
 		//	return errors.New("server router method repeat")
 		//}
