@@ -52,7 +52,14 @@ func (b *BackendMongoDB) SetResultExpire(expire int64) {
 
 func (b *BackendMongoDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
 	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
+	// GroupMeta stores GroupID as the document _id, so MongoDB's implicit
+	// unique index on _id rejects a second takeover with a duplicate key
+	// error. Normalize it to the shared sentinel so callers can tolerate
+	// repeated takeovers with errors.Is across every backend.
 	_, err := b.groupTable.InsertOne(context.Background(), group)
+	if mongo.IsDuplicateKeyError(err) {
+		return fmt.Errorf("take over group %q: %w", groupID, backend.ErrGroupAlreadyExists)
+	}
 	return err
 }
 
