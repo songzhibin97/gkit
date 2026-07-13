@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
@@ -220,9 +219,9 @@ func (c *ControllerRedis) popTaskWithContext(ctx context.Context, queue string, 
 }
 
 // popDelayedTask pulls the oldest task that is due (smallest ETA-unixnano
-// score in [0, now]). The previous implementation used ZRevRangeByScore,
-// which returns the NEWEST due task — the oldest task starved until the
-// queue drained.
+// score in [0, now], FIFO by due time). The claimed task is retained in the
+// delayed transit zset until the caller finalizes or restores it, so a crash
+// before the republish never loses it (see delayed_transit.go).
 func (c *ControllerRedis) popDelayedTask(queue string, blockTime int64) ([]byte, error) {
 	result, _, err := c.popDelayedTaskWithContext(c.GetStopCtx(), queue, blockTime)
 	return result, err
@@ -232,8 +231,6 @@ func (c *ControllerRedis) popDelayedTaskWithContext(ctx context.Context, queue s
 	if blockTime <= 0 {
 		blockTime = int64(1000 * time.Millisecond)
 	}
-	var result []byte
-	var resultScore float64
 	for {
 		timer := time.NewTimer(time.Duration(blockTime))
 		select {
@@ -247,38 +244,12 @@ func (c *ControllerRedis) popDelayedTaskWithContext(ctx context.Context, queue s
 			return nil, 0, ctx.Err()
 		case <-timer.C:
 		}
-		watchFn := func(tx *redis.Tx) error {
-			now := time.Now().Local().UnixNano()
-			max := strconv.FormatInt(now, 10)
-			// Ascending: smallest score (earliest ETA) first → FIFO by due time.
-			items, err := tx.ZRangeByScoreWithScores(ctx, queue, &redis.ZRangeBy{Min: "0", Max: max, Offset: 0, Count: 1}).Result()
-			if err != nil {
-				return err
-			}
-			if len(items) != 1 {
-				return redis.Nil
-			}
-			member := fmt.Sprint(items[0].Member)
-			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				pipe.ZRem(ctx, queue, member)
-				return nil
-			})
-			if err == nil {
-				result = []byte(member)
-				resultScore = items[0].Score
-			}
-			return err
-		}
-		err := c.client.Watch(ctx, watchFn, queue)
+		result, score, err := c.claimDelayedTask(ctx, queue)
 		switch {
 		case err == nil:
-			// Success — `result` was populated by the watchFn.
-			return result, resultScore, nil
+			return result, score, nil
 		case errors.Is(err, redis.Nil):
 			// No task ready; try again on the next tick.
-			continue
-		case errors.Is(err, redis.TxFailedErr):
-			// Optimistic-tx conflict; retry.
 			continue
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return nil, 0, err
@@ -349,7 +320,21 @@ func (c *ControllerRedis) produceQueuedTasks(
 }
 
 func (c *ControllerRedis) produceDelayedTasks(ctx context.Context, queue string, reportFailure func(error)) {
+	nextRecovery := time.Now()
 	for {
+		// Republish transit entries stranded by a crashed producer: once at
+		// startup, then periodically for entries stranded by a crashed peer.
+		if !time.Now().Before(nextRecovery) {
+			if err := c.recoverDelayedTransit(ctx, queue); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return
+				}
+				reportFailure(err)
+				return
+			}
+			nextRecovery = time.Now().Add(delayedTransitRecoveryTimeout)
+		}
+
 		taskBody, score, err := c.popDelayedTaskWithContext(ctx, queue, 0)
 		if err != nil {
 			switch {
@@ -373,6 +358,12 @@ func (c *ControllerRedis) produceDelayedTasks(ctx context.Context, queue string,
 			err = fmt.Errorf("decode delayed task: %w", err)
 		}
 		if err == nil {
+			if finalizeErr := c.finalizeDelayedTransit(queue, taskBody); finalizeErr != nil {
+				// The task is already published; a leftover transit entry only
+				// risks a duplicate republish after recovery, never a loss.
+				reportFailure(finalizeErr)
+				return
+			}
 			continue
 		}
 
@@ -430,7 +421,10 @@ func (c *ControllerRedis) requeueUnregisteredTask(queue string, taskBody []byte)
 func (c *ControllerRedis) restoreDelayedTask(queue string, taskBody []byte, score float64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), consumerRestoreTimeout)
 	defer cancel()
-	if err := c.client.ZAdd(ctx, queue, &redis.Z{Score: score, Member: taskBody}).Err(); err != nil {
+	// Atomically restore the original ETA schedule and clear the transit
+	// entry, so recovery cannot republish an already-restored task.
+	err := delayedRestoreScript.Run(ctx, c.client, []string{queue, deriveDelayedTransitKey(queue)}, taskBody, score).Err()
+	if err != nil {
 		return wrapRedisOperation("restore delayed task", err)
 	}
 	return nil

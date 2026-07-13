@@ -533,4 +533,9 @@ func TestCancelledDelayedRepublishRestoresOriginalSchedule(t *testing.T) {
 	} else if score != originalScore {
 		t.Fatalf("restored score = %.0f, want %.0f", score, originalScore)
 	}
+	// The restore must also clear the transit claim, or recovery would later
+	// republish the restored task a second time.
+	if transit := client.ZCard(context.Background(), deriveDelayedTransitKey("delayed")).Val(); transit != 0 {
+		t.Fatalf("transit zset still holds %d entries after restore, want 0", transit)
+	}
 }

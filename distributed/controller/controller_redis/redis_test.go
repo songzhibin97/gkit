@@ -42,7 +42,7 @@ func initLiveController(t *testing.T) controller.Controller {
 
 		cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), time.Second)
 		defer cancelCleanup()
-		if err := client.Del(cleanupCtx, queue, delayedQueue, reliableKeys.inflight,
+		if err := client.Del(cleanupCtx, queue, delayedQueue, deriveDelayedTransitKey(delayedQueue), reliableKeys.inflight,
 			reliableKeys.visibility, reliableKeys.outcomes, reliableKeys.repairCursor, reliableKeys.repairBacklog).Err(); err != nil {
 			t.Errorf("clean live Redis queues: %v", err)
 		}
