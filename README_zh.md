@@ -42,6 +42,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── downgrade (熔断降级相关组件)
 ├── egroup (errgroup,控制组件生命周期)
 ├── encrypt (加密封装,保护padkey补全)
+  ├── aes (aes 加解密,支持 CBC/GCM 模式以及 padkey 补全)
 ├── errors (grpc error处理)
 ├── gctuner (go1.19前优化gc利器)
 ├── generator (发号器,snowflake)
@@ -50,14 +51,17 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
 ├── metrics (指标接口化)
 ├── middleware (中间件接口模型定义)
 ├── net (网络相关封装)
+  ├── arp (查询目标ip的路由信息,获取网卡、源ip以及对端硬件地址)
+  ├── ip (ip与整型互转、内网地址判断,以及请求来源ip提取和黑白名单过滤)
+  ├── port (获取本机一个可用的空闲端口)
   ├── tcp
 ├── options (选项模式接口化)
 ├── overload (服务器自适应保护,提供bbr接口,监控部署服务器状态选择流量放行,保护服务器可用性)
   ├── bbr (自适应限流)
 ├── page_token (google aip next token 实现)  
 ├── parser (文件解析,proto<->go相互解析)
-  ├── parseGo (解析go生成pb)
-  ├── parsePb (解析pb生成go)
+  ├── parse_go (解析go生成pb)
+  ├── parse_pb (解析pb生成go)
 ├── registry (服务发现接口化、google sre subset实现)
 ├── restrictor (限流,提供令牌桶和漏桶接口封装)
   ├── client_throttling (客户端节流)
@@ -69,7 +73,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── skipmap 
   ├── skipset 
   ├── zset 
-├── sync
+├── sys
     ├── cpu (获取Linux平台下的系统信息,包括cpu主频、cpu使用率等)
     ├── fastrand (随机数)
     ├── goid (获取goroutine id)
@@ -101,10 +105,11 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── pretty (格式化json)
   ├── reflect2value (基础字段映射)
   ├── rand_string (随机字符串)
-  ├── vto (具有相同类型的函数赋值,解放双手,通常用于vo->do对象转换)
-    ├── vtoPlus (新增plus 支持字段,tag以及默认值绑定)
+  ├── stm (结构体转map,可指定tag作为key,并支持导出内嵌结构体字段)
+  ├── vto (具有相同类型的函数赋值,解放双手,通常用于vo->do对象转换;VoToDoPlus 额外支持字段、tag以及默认值绑定)
 ├── trace (链路追踪)
 ├── watching (监控cpu、mum、gc、goroutine等指标信息,在波动的情况下自动dump pprof指标)
+├── wgroup (基于goroutine池的等待组,提交的任务由池调度执行,可通过Wait等待全部完成)
 └── window (滑动窗口,支持多数据类型指标窗口收集)
 
 ```
@@ -269,7 +274,7 @@ func ExampleDelete() {
 	// Delete 如果设置了 capture 会触发不或函数
 	ch.Delete("k1")
 
-	// DeleteExpire 删除所有过期了的key, 默认的 capture 就是执行 DeleteExpire()
+	// DeleteExpire 删除所有过期了的key, 它是默认的周期哨兵函数(SetFn), 而不是默认的 capture(SetCapture)
 	ch.DeleteExpire()
 }
 
@@ -508,7 +513,7 @@ func main() {
 		pool.SetWait(false, time.Second))
 
 	// New需要实例化,否则在 pool.Get() 会无法获取到资源
-	p.NewQueue(getResources)
+	p.New(getResources)
 
 	v, err := p.Get(context.TODO())
 	if err != nil {
@@ -973,8 +978,8 @@ func main() {
 	logs.Error("Error", "v")
 	logs.Errorf("%s,%s", "errorf", "v")
 	/*
-	[debug] message=debugv
-    [debug] message=debugf,v
+	[Debug] message=debugv
+    [Debug] message=debugf,v
     [Info] message=Infov
     [Info] message=infof,v
     [Warn] message=Warnv
@@ -1171,14 +1176,14 @@ func main() {
 
 	// 在middleware中 
 	// ctx中携带这两个可配置的有效数据
-	// 可以通过 ctx.Set
+	// 通过 bbr.WithLimitKey / bbr.WithLimitOp 注入
 
 	// 配置获取限制器类型,可以根据不同api获取不同的限制器
-	ctx := context.WithValue(context.TODO(), bbr.LimitKey, "key")
+	ctx := bbr.WithLimitKey(context.TODO(), "key")
 
 	// 可配置成功是否上报
 	// 必须是 overload.Op 类型
-	ctx = context.WithValue(ctx, bbr.LimitOp, overload.Success)
+	ctx = bbr.WithLimitOp(ctx, overload.Success)
 
 	_ = middle
 }
@@ -1191,16 +1196,24 @@ func main() {
 ```go
 package main
 
-import "github.com/songzhibin97/gkit/page_token"
+import (
+	"fmt"
+
+	"github.com/songzhibin97/gkit/page_token"
+)
 
 func main() {
-   	n := NewTokenGenerate("test") // 资源唯一标识,以及可传上述选项
+	n := page_token.NewTokenGenerate("test") // 资源唯一标识,以及可传上述选项
 	// 10000 为总数
-	// 生成page_token
 	// start - end 起止地址, tk为next_token
-	start, end, tk, err := n.ProcessPageTokens(10000, 100, "") // 0,100, tk
+	start, end, tk, err := n.ProcessPageTokens(10000, 100, "") // 0,100,tk
+	fmt.Println(start, end, tk, err)
+
 	start, end, ntk, err := n.ProcessPageTokens(10000, 100, tk) // 100,200,ntk
-	n.GetIndex(ntk) // 200
+	fmt.Println(start, end, ntk, err)
+
+	index, err := n.GetIndex(ntk) // 200
+	fmt.Println(index, err)
 }
 ```
 
@@ -1213,16 +1226,38 @@ package main
 
 import (
 	"fmt"
-	"github.com/songzhibin97/gkit/parse/parseGo"
-	"github.com/songzhibin97/gkit/parse/parsePb"
+	"strings"
+
+	"github.com/songzhibin97/gkit/parser/parse_go"
+	"github.com/songzhibin97/gkit/parser/parse_pb"
 )
 
+// parse_go 没有导出现成的文档解析函数,需要调用方自行实现 ParseFunc,
+// 把 @service/@method/@router 绑定到 Server 上;
+// 带有 RPC 文档标签的函数必须同时具备 @method 和 @router,否则 ParseGo 返回错误
+func bindDoc(server *parse_go.Server) {
+	for _, doc := range server.Doc {
+		for _, line := range strings.Split(doc, "\n") {
+			line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "//"))
+			switch {
+			case strings.HasPrefix(line, "@service:"):
+				server.ServerName = strings.TrimSpace(strings.TrimPrefix(line, "@service:"))
+			case strings.HasPrefix(line, "@method:"):
+				server.Method = strings.TrimSpace(strings.TrimPrefix(line, "@method:"))
+			case strings.HasPrefix(line, "@router:"):
+				server.Router = strings.TrimSpace(strings.TrimPrefix(line, "@router:"))
+			}
+		}
+	}
+}
+
 func main() {
-	pgo, err := parseGo.ParseGo("gkit/parse/demo/demo.api")
+	// 结构体 tag 的解析同理,可通过 parse_go.AddParseStruct 传入自定义 ParseStruct
+	pgo, err := parse_go.ParseGo("parser/demo/demo.api", parse_go.AddParseFunc(bindDoc))
 	if err != nil {
 		panic(err)
 	}
-	r := pgo.(*parseGo.GoParsePB)
+	r := pgo.(*parse_go.GoParsePB)
 	for _, note := range r.Note {
 		fmt.Println(note.Text, note.Pos(), note.End())
 	}
@@ -1235,7 +1270,7 @@ func main() {
 	// 拆装
 	_ = r.PileDismantle("var _ = 1")
 	
-	ppb, err := parsePb.ParsePb("GKit/parse/demo/test.proto")
+	ppb, err := parse_pb.ParsePb("parser/demo/test.proto")
 	if err != nil {
 		panic(err)
 	}
@@ -1364,6 +1399,12 @@ func main() {
 ```go
 package main
 
+import (
+	"fmt"
+
+	"github.com/songzhibin97/gkit/structure/lscq"
+)
+
 func main() {
 	l := lscq.NewUint64()
 	
@@ -1371,8 +1412,8 @@ func main() {
 	if !ok {
 		panic("enqueue failed")
     }   
-	v, err := l.Dequeue()
-	if err != nil {
+	v, ok := l.Dequeue()
+	if !ok {
 		panic("dequeue failed")
     }
 	fmt.Println("lscq dequeue value:", v)
@@ -1384,6 +1425,8 @@ func main() {
 ```go
 package main
 
+import "github.com/songzhibin97/gkit/structure/skipmap"
+
 func main() {
 	m := skipmap.NewInt()
 
@@ -1391,7 +1434,7 @@ func main() {
 	m.Store(123, "123")
 	m.Load(123)
 	m.Delete(123)
-	m.LoadOrStore(123)
+	m.LoadOrStore(123, "123")
 	m.LoadAndDelete(123)
 }
 ```
@@ -1431,9 +1474,11 @@ func Example() {
 ```go
 package main
 
+import "github.com/songzhibin97/gkit/sys/mutex"
+
 func main() {
-	// 获取锁
-    lk := mutex.NewMutex()
+	// 零值可用,无需构造函数
+    var lk mutex.Mutex
     // 尝试获取锁
     if lk.TryLock() {
     	// 获取到锁
@@ -1451,17 +1496,17 @@ func main() {
     
     // 重入锁
     // 在同一个goroutine可以多次获取
-    rvlk := mutex.NewRecursiveMutex() 
+    var rvlk mutex.RecursiveMutex
     rvlk.Lock()
     defer rvlk.Unlock()
     
     // token重入锁
     // 传入相同token 可以实现重入功能
-    tklk := mutex.NewTokenRecursiveMutex()
+    var tklk mutex.TokenRecursiveMutex
+    var token int64 = 1
     tklk.Lock(token)
     defer tklk.Unlock(token)
 }
-    
 ```
 
 ## ternary
@@ -1515,7 +1560,7 @@ func main() {
 > timeout.DbJSON // provides some functionality in db json format
 > 使用 timeout.DBJSONFromObjectE 从 Go 值创建 DbJSON 并处理 JSON 编码错误。已弃用的 DBJSONFromObject 在编码失败时保留原有的 nil 回退行为。
 > timeout.DTime // provides some functionality in db 15:04:05 format
-> DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
+> DateStruct // provides some functionality in db 2006-01-02 format Embedded in struct mode
 > Date // provides some functionality in db 2006-01-02 format
 > DateTime // provides some functions in db 2006-01-02 15:04:05 format
 > DateTimeStruct // provides some functions in db 2006-01-02 15:04:05 format Embed mode as struct
@@ -1587,9 +1632,9 @@ func main() {
 		//  "json":"json",
 		//  "query":"query"
 		// }
-		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()),bind.)
+		err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()))
 		// 自定义binding对象
-		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(),bind.SetSelectorParse([]bind.Binding{})))
+		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(), bind.SetSelectorParse([]bind.Binding{bind.Query, bind.JSON})))
 		if err != nil {
 			c.JSON(200, err)
 			return
@@ -1624,8 +1669,10 @@ func main() {
 	// 一定要dst、src 必须传指针类型
 	
 	// v1.1.2 新增default标签
-	_ = vto.VoToDo(&c2,&c3)
-	// c2 CP{ Z1: 1, Z2: "z2"}
+	// default 只填充目标对象中仍为零值的字段
+	c4 := CP{}
+	_ = vto.VoToDo(&c4,&c3)
+	// c4 CP{ Z1: 1, Z2: "z2"}
 	// 相同名称相同类型的执行复制
 	// 一定要dst、src 必须传指针类型
 	
