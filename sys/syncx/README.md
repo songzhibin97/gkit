@@ -16,7 +16,7 @@
 
 ### Not Recommended
 1. A single object is too large.
-   1. syncx.Pool permanently holds up to runtime.GOMAXPROC(0)*256 reusable objects.
+   1. syncx.Pool permanently holds up to runtime.GOMAXPROCS(0)*256 reusable objects.
    2. For example, under a 4-core docker, a 4KB object will cause about 4MB of memory usage.
    3. please evaluate it yourself.
 
@@ -43,3 +43,28 @@ func getput() {
 ```
 
 ## 2. syncx.RWMutex
+### What it is
+1. A P-sharded read-write mutex: `type RWMutex []rwMutexShard`, one cache-line padded `sync.RWMutex` per shard.
+2. `NewRWMutex()` allocates `runtime.GOMAXPROCS(0)` shards, sampled once at package init.
+3. `RLocker()` hands back the `sync.Locker` of the current P's shard only, so readers running on different P never touch the same word.
+4. `Lock`/`Unlock` take every shard in turn, so a write costs proportionally more than a `sync.RWMutex` write.
+
+### Not Recommended
+1. Write-heavy workloads, since every write walks all shards.
+2. Discarding the `sync.Locker` returned by `RLocker()` between Lock and Unlock. Keep that value and unlock it; a second `RLocker()` call may resolve to a different shard, because the shard is picked from the P the caller currently runs on.
+
+### Example
+```go
+var mu = syncx.NewRWMutex()
+
+func read() {
+	r := mu.RLocker()
+	r.Lock()
+	defer r.Unlock()
+}
+
+func write() {
+	mu.Lock()
+	defer mu.Unlock()
+}
+```

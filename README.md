@@ -64,7 +64,7 @@ Dedicated to providing microservices and monolithic services of the availability
   ├── parse_go (parses go to generate pb)
   ├── parse_pb (parses pb to generate go)
 ├── registry (service discovery interfacing, google sre subset implementation)
-├── restrictor (restrict flow, provide token bucket and leaky bucket interface wrappers)
+├── restrictor (restrict flow, provide token bucket limiter interface wrappers (x/time/rate, juju/ratelimit) and client-side throttling)
   ├── client_throttling (client throttling)
   ├── rate 
   ├── ratelimite 
@@ -675,7 +675,10 @@ func main() {
 	// hystrix.CommandConfig{} set the parameters
 	fuse.ConfigureCommand("test", hystrix.CommandConfig{})
 
-	// Do: execute func() error synchronously, no timeout control until it returns.
+	// Do: execute func() error synchronously, blocking until the func returns, the command's own
+	// timeout fires (1000ms by default, tunable via CommandConfig.Timeout), or the circuit rejects
+	// the call. The func is attempted at most once, and the timeout only unblocks the caller,
+	// it does not cancel the running func.
 	// if return error ! = nil then FallbackFunc is triggered to downgrade
 	err := fuse.Do("do", mockRunFunc(), mockFallbackFunc())
 	if err != nil {
@@ -699,7 +702,7 @@ func main() {
 
 ## egroup
 
-> ErrorGroup, compared with sync.ErrorGroup, adds a fault tolerance mechanism to prevent wild goroutine panic resulting in abnormal system exit
+> ErrorGroup, compared with golang.org/x/sync/errgroup.Group, adds a fault tolerance mechanism to prevent wild goroutine panic resulting in abnormal system exit
 
 ```go
 // errorGroup 
@@ -1294,7 +1297,7 @@ flow limiter
 
 ### rate
 
-leakage bucket
+Token bucket (golang.org/x/time/rate)
 
 ```go
 package main
@@ -1492,7 +1495,7 @@ func main() {
     }
     // Failed to execute other logic
     
-    lk.Count() // get the number of locks waiting
+    lk.Count() // get the number of contenders: the current holder (if any) plus the waiters
     
     lk.IsLocked() // whether the lock is held
     
@@ -1741,25 +1744,33 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// _Transport is a minimal map-backed carrier; in real code carry the metadata of
+// your own transport (for example http.Header).
 type _Transport struct {
+	md map[string]string
 }
 
 func (tr *_Transport) Get(key string) string {
-	panic("implement me")
+	return tr.md[key]
 }
 
 func (tr *_Transport) Set(key string, value string) {
-	panic("implement me")
+	tr.md[key] = value
 }
 
 func (tr *_Transport) Keys() []string {
-	panic("implement me")
+	keys := make([]string, 0, len(tr.md))
+	for k := range tr.md {
+		keys = append(keys, k)
+	}
+	return keys
 }
+
 func main() {
 	// trace.WithServer() server side using middleware
 	// trace.WithClient() client using middleware
 	tracer := gtrace.NewTracer(trace.SpanKindServer)
-	ctx, span := tracer.Start(context.Background(), "Using gkit", &_Transport{})
+	ctx, span := tracer.Start(context.Background(), "Using gkit", &_Transport{md: make(map[string]string)})
 	fmt.Println(span)
 	defer tracer.End(ctx, span, "replay", nil)
 }

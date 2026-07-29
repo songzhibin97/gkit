@@ -3,7 +3,7 @@
 ## Introduction
 
 zset provides a concurrent-safety sorted set, can be used as a local replacement
-of [Redis' zset](https://redis.com/ebook/part-2-core-concepts/chapter-3-commands-in-redis/3-5-sorted-sets/).
+of [Redis' zset](https://redis.io/docs/latest/develop/data-types/sorted-sets/).
 
 The main difference to other sets is, every value of set is associated with a score, that is used to take the sorted set
 ordered, from the smallest to the greatest score.
@@ -44,7 +44,10 @@ when doing Contains operations.
 | ZPOPMAX               | *TODO*              |
 | ZRANDMEMBER           | *TODO*              |
 
-List of redis commands are generated from the following command:
+List of redis commands are generated from the following command, run inside a
+checkout of the redis source tree. The pattern matches the command table as it
+was laid out in `server.c`; Redis 7 moved the table out of that file, so run it
+against a 6.x checkout:
 
 ```bash
 cat redis/src/server.c | grep -o '"z.*",z.*Command' | grep -o '".*"' | cut -d '"' -f2

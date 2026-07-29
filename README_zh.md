@@ -63,7 +63,7 @@ _____/\\\\\\\\\\\\__/\\\________/\\\__/\\\\\\\\\\\__/\\\\\\\\\\\\\\\_
   ├── parse_go (解析go生成pb)
   ├── parse_pb (解析pb生成go)
 ├── registry (服务发现接口化、google sre subset实现)
-├── restrictor (限流,提供令牌桶和漏桶接口封装)
+├── restrictor (限流,提供令牌桶限流器接口封装 (x/time/rate、juju/ratelimit) 及客户端节流)
   ├── client_throttling (客户端节流)
   ├── rate 
   ├── ratelimite 
@@ -671,7 +671,9 @@ func main() {
 	// hystrix.CommandConfig{} 设置参数
 	fuse.ConfigureCommand("test", hystrix.CommandConfig{})
 
-	// Do: 同步执行 func() error, 没有超时控制 直到等到返回,
+	// Do: 同步执行 func() error, 阻塞直到函数返回、命令自身超时(默认 1000ms, 可通过
+	// CommandConfig.Timeout 调整)或被熔断器拒绝为止。函数至多执行一次,
+	// 且超时只解除调用方的阻塞, 不会取消正在运行的函数。
 	// 如果返回 error != nil 则触发 FallbackFunc 进行降级
 	err := fuse.Do("do", mockRunFunc(), mockFallbackFunc())
 	if err != nil {
@@ -695,7 +697,7 @@ func main() {
 
 ## egroup
 
-> 组件生命周期管理,与sync.ErrorGroup相比,增加了容错机制,防止野生goroutine panic导致系统异常退出
+> 组件生命周期管理,与 golang.org/x/sync/errgroup.Group 相比,增加了容错机制,防止野生goroutine panic导致系统异常退出
 
 
 ```go
@@ -1283,7 +1285,7 @@ func main() {
 ## registry
 
 > 提供注册发现通用接口,使用通用接口外挂依赖,以及固定的实例结构
-> 服务发现提供了多种算法,常见的subset算法,以及最新的rock_steadier_subset
+> 服务发现提供了多种算法,常见的subset算法,以及最新的rock_steadier_subset(https://dl.acm.org/doi/10.1145/3570937)
 
 
 ## restrictor
@@ -1292,7 +1294,7 @@ func main() {
 
 ### rate
 
-漏桶
+令牌桶 (golang.org/x/time/rate)
 
 ```go
 package main
@@ -1486,7 +1488,7 @@ func main() {
     }
     // 获取失败执行其他逻辑
     
-    lk.Count() // 获取等待锁的数量
+    lk.Count() // 获取锁的竞争者数量: 持有者(如果已加锁)加上等待者
     
     lk.IsLocked() // 锁是否被持有
     
@@ -1737,25 +1739,32 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// _Transport 是一个最小的 map 载体; 实际代码中请承载自身传输协议的元数据(例如 http.Header)。
 type _Transport struct {
+	md map[string]string
 }
 
 func (tr *_Transport) Get(key string) string {
-	panic("implement me")
+	return tr.md[key]
 }
 
 func (tr *_Transport) Set(key string, value string) {
-	panic("implement me")
+	tr.md[key] = value
 }
 
 func (tr *_Transport) Keys() []string {
-	panic("implement me")
+	keys := make([]string, 0, len(tr.md))
+	for k := range tr.md {
+		keys = append(keys, k)
+	}
+	return keys
 }
+
 func main() {
 	// trace.WithServer() 服务端使用中间件
 	// trace.WithClient() 客户端使用中间件
 	tracer := gtrace.NewTracer(trace.SpanKindServer)
-	ctx, span := tracer.Start(context.Background(), "使用gkit", &_Transport{})
+	ctx, span := tracer.Start(context.Background(), "使用gkit", &_Transport{md: make(map[string]string)})
 	fmt.Println(span)
 	defer tracer.End(ctx, span, "replay", nil)
 }

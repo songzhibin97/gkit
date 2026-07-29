@@ -4,7 +4,7 @@
 
 [PRODUCT.md](./PRODUCT.md) defines the observable contract. `distributed/service.go` currently writes `PENDING` before `Controller.Publish`, then uses unconditional `Backend.SetStateFailure` after a publish error. That can overwrite worker progress or a newer send of the same task ID. `distributed/backend/backend.go` has no conditional state primitive. The built-in implementations persist task state in SQL (`backend_db/db.go`), MongoDB (`backend_mongodb/mongo.go`), and Redis (`backend_redis/redis.go`). `distributed/worker.go` currently discards ordinary callback send errors.
 
-The PR description refers to this specification directory, but it was absent before this remediation.
+The PR description points at `specs/callback-publish-compensation/`, a directory that has never existed in this repository; this `specs/126/` directory was added by this remediation.
 
 ## Proposed changes
 
