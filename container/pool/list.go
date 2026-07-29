@@ -39,7 +39,7 @@ type List struct {
 	// code outside NewList.
 	cleanerOnce sync.Once
 
-	// active: 最大连接数
+	// active: 当前已创建且未关闭的资源数(使用中 + 空闲), 上限由 conf.active 控制
 	active uint64
 
 	// conf: 配置信息

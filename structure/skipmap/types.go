@@ -1176,6 +1176,7 @@ func unlockFloat32(preds [maxLevel]*float32Node, highestLevel int) {
 }
 
 // Store sets the value for a key.
+// Storing a NaN key is a no-op: NaN is unordered, so the entry could never be found again.
 func (s *Float32Map) Store(key float32, value interface{}) {
 	if key != key {
 		return // NaN is unordered and violates skip-list ordering.
@@ -1341,6 +1342,7 @@ func (s *Float32Map) LoadAndDelete(key float32) (value interface{}, loaded bool)
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
+// A NaN key returns (nil, false) and stores nothing.
 func (s *Float32Map) LoadOrStore(key float32, value interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -1414,6 +1416,7 @@ func (s *Float32Map) LoadOrStore(key float32, value interface{}) (actual interfa
 // Otherwise, it stores and returns the given value from f, f will only be called once.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
+// A NaN key returns (nil, false), stores nothing and never calls f.
 func (s *Float32Map) LoadOrStoreLazy(key float32, f func() interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -1700,6 +1703,7 @@ func unlockFloat32Desc(preds [maxLevel]*float32NodeDesc, highestLevel int) {
 }
 
 // Store sets the value for a key.
+// Storing a NaN key is a no-op: NaN is unordered, so the entry could never be found again.
 func (s *Float32MapDesc) Store(key float32, value interface{}) {
 	if key != key {
 		return // NaN is unordered and violates skip-list ordering.
@@ -1865,6 +1869,7 @@ func (s *Float32MapDesc) LoadAndDelete(key float32) (value interface{}, loaded b
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
+// A NaN key returns (nil, false) and stores nothing.
 func (s *Float32MapDesc) LoadOrStore(key float32, value interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -1938,6 +1943,7 @@ func (s *Float32MapDesc) LoadOrStore(key float32, value interface{}) (actual int
 // Otherwise, it stores and returns the given value from f, f will only be called once.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
+// A NaN key returns (nil, false), stores nothing and never calls f.
 func (s *Float32MapDesc) LoadOrStoreLazy(key float32, f func() interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -2224,6 +2230,7 @@ func unlockFloat64(preds [maxLevel]*float64Node, highestLevel int) {
 }
 
 // Store sets the value for a key.
+// Storing a NaN key is a no-op: NaN is unordered, so the entry could never be found again.
 func (s *Float64Map) Store(key float64, value interface{}) {
 	if key != key {
 		return // NaN is unordered and violates skip-list ordering.
@@ -2389,6 +2396,7 @@ func (s *Float64Map) LoadAndDelete(key float64) (value interface{}, loaded bool)
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
+// A NaN key returns (nil, false) and stores nothing.
 func (s *Float64Map) LoadOrStore(key float64, value interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -2462,6 +2470,7 @@ func (s *Float64Map) LoadOrStore(key float64, value interface{}) (actual interfa
 // Otherwise, it stores and returns the given value from f, f will only be called once.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
+// A NaN key returns (nil, false), stores nothing and never calls f.
 func (s *Float64Map) LoadOrStoreLazy(key float64, f func() interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -2748,6 +2757,7 @@ func unlockFloat64Desc(preds [maxLevel]*float64NodeDesc, highestLevel int) {
 }
 
 // Store sets the value for a key.
+// Storing a NaN key is a no-op: NaN is unordered, so the entry could never be found again.
 func (s *Float64MapDesc) Store(key float64, value interface{}) {
 	if key != key {
 		return // NaN is unordered and violates skip-list ordering.
@@ -2913,6 +2923,7 @@ func (s *Float64MapDesc) LoadAndDelete(key float64) (value interface{}, loaded b
 // Otherwise, it stores and returns the given value.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from Store)
+// A NaN key returns (nil, false) and stores nothing.
 func (s *Float64MapDesc) LoadOrStore(key float64, value interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.
@@ -2986,6 +2997,7 @@ func (s *Float64MapDesc) LoadOrStore(key float64, value interface{}) (actual int
 // Otherwise, it stores and returns the given value from f, f will only be called once.
 // The loaded result is true if the value was loaded, false if stored.
 // (Modified from LoadOrStore)
+// A NaN key returns (nil, false), stores nothing and never calls f.
 func (s *Float64MapDesc) LoadOrStoreLazy(key float64, f func() interface{}) (actual interface{}, loaded bool) {
 	if key != key {
 		return nil, false // NaN is unordered and violates skip-list ordering.

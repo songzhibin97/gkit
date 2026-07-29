@@ -52,10 +52,10 @@ func TestPopDelayedTask_FIFOByETA(t *testing.T) {
 	}
 }
 
-// TestPopDelayedTask_PropagatesWatchError covers the error-surfacing fix: a real
-// Watch/transaction error must propagate, not be swallowed and reported as "no
-// task ready" (the old code did `break` + `return result, nil`). We force a
-// WRONGTYPE error by making the delayed key a string instead of a ZSET.
+// TestPopDelayedTask_PropagatesWatchError asserts that a real error from the
+// atomic Lua claim propagates instead of being reported as "no task ready".
+// The error is forced by making the delayed key a string instead of a ZSET,
+// which trips the claim script's key-type guard.
 func TestPopDelayedTask_PropagatesWatchError(t *testing.T) {
 	c, _, client := newMiniController(t)
 	ctx := context.Background()

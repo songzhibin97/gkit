@@ -18,7 +18,7 @@ func WithCollectInterval(interval string) options.Option {
 		opts := o.(*Watching)
 		var err error
 		// CollectInterval wouldn't be zero value, because it
-		// will be initialized as defaultInterval at newOptions()
+		// will be initialized as defaultInterval in defaultConfig()
 		newInterval, err := time.ParseDuration(interval)
 		if err != nil || newInterval <= 0 || opts.config.CollectInterval.Seconds() == newInterval.Seconds() {
 			return
@@ -100,7 +100,9 @@ func WithTextDump() options.Option {
 	return withDumpProfileType(textDump)
 }
 
-// WithFullStack set to dump full stack or top 10 stack, when dump in text mode.
+// WithFullStack selects how much of a text-mode dump is kept. NOTE: the
+// behaviour is inverted relative to the name -- isFull=true keeps only the top
+// 10 stacks, isFull=false keeps all of them (see writeFile in util.go).
 func WithFullStack(isFull bool) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)
@@ -254,8 +256,8 @@ func WithShrinkThread(enable bool, threshold int, delay time.Duration) options.O
 	}
 }
 
-// WithProfileReporter will enable reporter
-// reopens profile reporter through WithProfileReporter(h.opts.rptOpts.reporter)
+// WithProfileReporter sets config.rptConfigs.reporter and activates reporting.
+// A nil reporter is ignored, the current one is readable via GetReporterConfigs.
 func WithProfileReporter(r ProfileReporter) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)

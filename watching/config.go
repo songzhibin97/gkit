@@ -59,11 +59,13 @@ type configs struct {
 
 // DumpConfigs contains configuration about dump file.
 type DumpConfigs struct {
-	// full path to put the profile files, default /tmp
+	// path to put the profile files, default "./tmp" (relative to the working directory)
 	DumpPath string
 	// default dump to binary profile, set to true if you want a text profile
 	DumpProfileType dumpProfileType
-	// only dump top 10 if set to false, otherwise dump all, only effective when in_text = true
+	// only effective in text mode. NOTE: the behaviour is inverted relative to
+	// the field name -- true keeps only the top 10 stacks, false dumps all
+	// (see writeFile in util.go).
 	DumpFullStack bool
 }
 
@@ -103,9 +105,11 @@ type gcHeapConfigs struct {
 }
 
 type groupConfigs struct {
-	// enable the goroutine dumper, should dump if one of the following requirements is matched
-	//   1. goroutine_num > GoroutineTriggerNumMin && goroutine_num < GoroutineTriggerNumMax && goroutine diff percent > GoroutineTriggerPercentDiff
-	//   2. goroutine_num > GoroutineTriggerNumAbsNum && goroutine_num < GoroutineTriggerNumMax
+	// enable the goroutine dumper, should dump if goroutine_num >= TriggerMin and
+	// goroutine_num < GoroutineTriggerNumMax (the max is ignored when it's 0), and
+	// one of the following requirements is matched
+	//   1. goroutine_num > TriggerAbs
+	//   2. goroutine diff percent > TriggerDiff
 	*typeConfig
 	GoroutineTriggerNumMax int // goroutine trigger max in number
 }
@@ -243,21 +247,21 @@ func (c *configs) GetShrinkThreadConfigs() ShrinkThrConfigs {
 	return *c.ShrinkThrConfigs
 }
 
-// GetMemConfigs return a copy of memConfigs.
+// GetMemConfigs return a copy of MemConfigs.
 func (c *configs) GetMemConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
 	return *c.MemConfigs
 }
 
-// GetCPUConfigs return a copy of cpuConfigs
+// GetCPUConfigs return a copy of CpuConfigs
 func (c *configs) GetCPUConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
 	return *c.CpuConfigs
 }
 
-// GetGroupConfigs return a copy of grOptions
+// GetGroupConfigs return a copy of GroupConfigs, including its embedded typeConfig
 func (c *configs) GetGroupConfigs() groupConfigs {
 	c.L.RLock()
 	defer c.L.RUnlock()
@@ -269,14 +273,14 @@ func (c *configs) GetGroupConfigs() groupConfigs {
 	return config
 }
 
-// GetThreadConfigs return a copy of threadConfigs
+// GetThreadConfigs return a copy of ThreadConfigs
 func (c *configs) GetThreadConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()
 	return *c.ThreadConfigs
 }
 
-// GetGcHeapConfigs return a copy of gcHeapConfigs
+// GetGcHeapConfigs return a copy of GCHeapConfigs
 func (c *configs) GetGcHeapConfigs() typeConfig {
 	c.L.RLock()
 	defer c.L.RUnlock()

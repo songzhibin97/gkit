@@ -50,7 +50,10 @@ type config struct {
 	// waitTimeout 如果设置 waitTimeout 如果池内资源已经耗尽,将会等待 time.Duration 时间, 直到某个连接退回
 	waitTimeout time.Duration
 
-	// wait 如果是 true 则等待 waitTimeout 时间, 否则无线傻等
+	// wait 仅在 waitTimeout == 0 时起作用:
+	// waitTimeout == 0 且 wait == true: 池耗尽时一直等待, 直到有资源归还或 ctx 结束
+	// waitTimeout == 0 且 wait == false: 池耗尽时立即返回 ErrPoolExhausted
+	// waitTimeout > 0: 无论 wait 取值, 最多等待 waitTimeout(并受上游链路超时约束)
 	wait bool
 }
 
