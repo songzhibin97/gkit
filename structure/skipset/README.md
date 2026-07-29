@@ -41,7 +41,7 @@ import (
 )
 
 func main() {
-	l := NewInt()
+	l := skipset.NewInt()
 
 	for _, v := range []int{10, 12, 15} {
 		if l.Add(v) {
@@ -75,6 +75,8 @@ OS: ubuntu 18.04
 MEMORY: 16G x 2 (3200MHz)
 
 ![benchmark](https://raw.githubusercontent.com/zhangyunhao116/public-data/master/skipset-benchmark.png)
+
+The numbers below are the result published by the upstream project `github.com/zhangyunhao116/skipset` (v0.11.0) on the machine described above, and the row names are the benchmark IDs upstream emitted: there, the int64 and string cases were sub-benchmarks of `BenchmarkInt64`/`BenchmarkString`. The copy vendored here declares them as separate top-level benchmarks instead (`BenchmarkAdd`, `BenchmarkStringAdd`, ...), so a local run reports `Add/skipset-N`, `StringAdd/skipset-N` and so on. Reproduce locally in this package with:
 
 ```shell
 $ go test -run=NOTEST -bench=. -benchtime=100000x -benchmem -count=20 -timeout=60m  > x.txt

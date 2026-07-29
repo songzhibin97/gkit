@@ -18,7 +18,7 @@ Removing a task from the ready queue before processing creates a loss window: de
 6. A renewal changes the locally trusted delivery deadline only after Redis confirms it. A transport failure before Redis receives the renewal leaves both the trusted deadline and server-side visibility unchanged.
 7. After a delivery expires, its token cannot renew, acknowledge, or release the task, and those rejected operations do not mutate it.
 8. A failure after processing succeeds but before acknowledgement may cause another delivery, but every attempt preserves the original serialized task and task ID.
-9. `Stop` waits for an active processor to return and then waits for its in-flight renewal to finish before finalization and shutdown complete. It does not close the caller-owned Redis client, and cannot guarantee termination if the processor never returns.
+9. `StopConsuming` waits for an active processor to return and then waits for its in-flight renewal to finish before finalization and shutdown complete. It does not close the caller-owned Redis client, and cannot guarantee termination if the processor never returns.
 10. Acknowledgement confirmation is retained for 24 hours using Redis server time. Expired confirmation cleanup is bounded per operation, and the confirmation key has bounded lifetime after traffic stops.
 11. Existing public APIs, serialized tasks, ready queues, delayed scheduling, pending-task inspection, and tagged, untagged, or malformed-brace Redis Cluster queue names continue to work without queue renaming.
 12. A malformed serialized task remains recoverable and does not disappear merely because it cannot be decoded.

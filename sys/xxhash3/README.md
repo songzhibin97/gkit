@@ -94,7 +94,8 @@ import "github.com/songzhibin97/gkit/sys/xxhash3"
 
 func main() {
 	println(xxhash3.HashString("hello world!"))
-	println(xxhash3.Hash128String("hello world!"))
+	h := xxhash3.Hash128String("hello world!")
+	println(h[0], h[1])
 }
 ```
 ## Benchmark
