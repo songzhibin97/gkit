@@ -94,16 +94,6 @@ type typeConfig struct {
 	TriggerDiff int
 }
 
-type gcHeapConfigs struct {
-	// enable the heap dumper, should dump if one of the following requirements is matched
-	//   1. GC heap usage > GCHeapTriggerPercentMin && GC heap usage diff > GCHeapTriggerPercentDiff
-	//   2. GC heap usage > GCHeapTriggerPercentAbs
-	Enable                   bool
-	GCHeapTriggerPercentMin  int // GC heap trigger minimum in percent
-	GCHeapTriggerPercentDiff int // GC heap trigger diff in percent
-	GCHeapTriggerPercentAbs  int // GC heap trigger absolute in percent
-}
-
 type groupConfigs struct {
 	// enable the goroutine dumper, should dump if goroutine_num >= TriggerMin and
 	// goroutine_num < GoroutineTriggerNumMax (the max is ignored when it's 0), and
@@ -112,33 +102,6 @@ type groupConfigs struct {
 	//   2. goroutine diff percent > TriggerDiff
 	*typeConfig
 	GoroutineTriggerNumMax int // goroutine trigger max in number
-}
-
-type memConfigs struct {
-	// enable the heap dumper, should dump if one of the following requirements is matched
-	//   1. memory usage > MemTriggerPercentMin && memory usage diff > MemTriggerPercentDiff
-	//   2. memory usage > MemTriggerPercentAbs
-	Enable                bool
-	MemTriggerPercentMin  int // mem trigger minimum in percent
-	MemTriggerPercentDiff int // mem trigger diff in percent
-	MemTriggerPercentAbs  int // mem trigger absolute in percent
-}
-
-type cpuConfigs struct {
-	// enable the cpu dumper, should dump if one of the following requirements is matched
-	//   1. cpu usage > CPUTriggerMin && cpu usage diff > CPUTriggerDiff
-	//   2. cpu usage > CPUTriggerAbs
-	Enable                bool
-	CPUTriggerPercentMin  int // cpu trigger min in percent
-	CPUTriggerPercentDiff int // cpu trigger diff in percent
-	CPUTriggerPercentAbs  int // cpu trigger abs in percent
-}
-
-type threadConfigs struct {
-	Enable                   bool
-	ThreadTriggerPercentMin  int // thread trigger min in number
-	ThreadTriggerPercentDiff int // thread trigger diff in percent
-	ThreadTriggerPercentAbs  int // thread trigger abs in number
 }
 
 type ReporterConfigs struct {
