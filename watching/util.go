@@ -190,7 +190,7 @@ func getBinaryFileNameAndCreate(dump string, dumpType configureType, eventID str
 func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfigs, eventID string) error {
 	if dumpConfigs.DumpProfileType == textDump {
 		// write to log
-		if dumpConfigs.DumpFullStack {
+		if !dumpConfigs.DumpFullStack {
 			res := trimResult(data)
 			return errors.New(res) // nolint:goerr113
 		}

@@ -63,9 +63,8 @@ type DumpConfigs struct {
 	DumpPath string
 	// default dump to binary profile, set to true if you want a text profile
 	DumpProfileType dumpProfileType
-	// only effective in text mode. NOTE: the behaviour is inverted relative to
-	// the field name -- true keeps only the top 10 stacks, false dumps all
-	// (see writeFile in util.go).
+	// only effective in text mode. true dumps the full stack (default),
+	// false keeps only the top 10 stacks.
 	DumpFullStack bool
 }
 
@@ -230,7 +229,7 @@ func defaultConfig() *configs {
 		DumpConfigs: &DumpConfigs{
 			DumpPath:        defaultDumpPath,
 			DumpProfileType: defaultDumpProfileType,
-			DumpFullStack:   false,
+			DumpFullStack:   true,
 		},
 		ShrinkThrConfigs: &ShrinkThrConfigs{
 			Enable: false,
