@@ -770,9 +770,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) NewWorker(consumerTag string, concurrency int, queue string) *Worker {
 	return &Worker{
-		bindService: s,
-		Concurrency: concurrency,
-		ConsumerTag: consumerTag,
-		Queue:       queue,
+		NoUnixSignals: s.config != nil && s.config.NoUnixSignals,
+		bindService:   s,
+		Concurrency:   concurrency,
+		ConsumerTag:   consumerTag,
+		Queue:         queue,
 	}
 }
