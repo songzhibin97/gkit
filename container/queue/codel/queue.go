@@ -132,7 +132,10 @@ func (q *Queue) controlLaw(now int64) int64 {
 // judge 决定数据包是否丢弃
 // Core: CoDel
 func (q *Queue) judge(p packet) (drop bool) {
-	now := time.Now().UnixNano() / int64(time.Millisecond)
+	return q.judgeAt(p, time.Now().UnixNano()/int64(time.Millisecond))
+}
+
+func (q *Queue) judgeAt(p packet, now int64) (drop bool) {
 	sojurn := now - p.ts
 	q.mux.Lock()
 	defer q.mux.Unlock()
@@ -147,11 +150,13 @@ func (q *Queue) judge(p packet) (drop bool) {
 		if !drop {
 			// sojourn time below target - leave dropping state
 			q.dropping = false
-		} else if now > atomic.LoadInt64(&q.dropNext) {
+		} else if now >= atomic.LoadInt64(&q.dropNext) {
 			atomic.AddInt64(&q.count, 1)
 			q.controlLaw(atomic.LoadInt64(&q.dropNext))
 			drop = true
 			return
+		} else {
+			drop = false
 		}
 	} else if drop && (now-atomic.LoadInt64(&q.dropNext) < q.conf.internal || now-atomic.LoadInt64(&q.faTime) >= q.conf.internal) {
 		q.dropping = true
