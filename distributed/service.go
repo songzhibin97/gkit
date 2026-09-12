@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	stderrors "errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -497,10 +498,20 @@ func (s *Server) SendGroupCallback(groupCallback *task.GroupCallback, concurrenc
 	return s.SendGroupCallbackWithContext(context.Background(), groupCallback, concurrency)
 }
 
+func parseTimedSchedule(spec string) (cron.Schedule, error) {
+	if strings.HasPrefix(spec, "TZ=") || strings.HasPrefix(spec, "CRON_TZ=") {
+		separator := strings.Index(spec, " ")
+		if separator < 0 || strings.TrimSpace(spec[separator:]) == "" {
+			return nil, fmt.Errorf("timezone prefix requires a schedule")
+		}
+	}
+	return cron.ParseStandard(spec)
+}
+
 // RegisteredTimedTask 注册定时任务
 func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -532,7 +543,7 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 // RegisteredTimedChain 注册定时链式任务
 func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -565,7 +576,7 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 // RegisteredTimedGroup 注册定时任务组
 func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurrency int, signatures ...*task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -597,7 +608,7 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 // RegisteredTimedGroupCallback 注册具有回调的组任务
 func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string, concurrency int, callback *task.Signature, signatures ...*task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
