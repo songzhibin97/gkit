@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -122,12 +124,17 @@ func TestLifeAdminSignalWatcherDoesNotMaskShutdownError(t *testing.T) {
 	go func() { startDone <- admin.Start() }()
 	waitIssue80Signal(t, backend.registered, "shutdown task registration")
 	waitIssue80Signal(t, backend.registered, "signal task registration")
+	// Both launchers must have created their controller goroutines before
+	// the live-controller count can distinguish a waiter from a future launch.
+	waitIssue80Signal(t, backend.completed, "first controller launch completion")
+	waitIssue80Signal(t, backend.completed, "second controller launch completion")
 
 	group.cancel()
 	waitIssue80Signal(t, shutdownEntered, "member shutdown start")
-	// The shutdown callback is still blocked, so this completion can only be
-	// the signal watcher. Waiting for it removes scheduler timing from the test.
-	waitIssue80Signal(t, backend.completed, "signal watcher completion")
+	// The pool now launches controllers without holding a worker for their
+	// lifetime. Observe the real controller goroutines: only the shutdown
+	// callback held above may remain before its error is released.
+	waitLifeAdminControllerCount(t, 1)
 	close(releaseShutdown)
 
 	if err := waitIssue80Value(t, startDone, "LifeAdmin.Start completion"); !errors.Is(err, want) {
@@ -159,6 +166,9 @@ func TestLifeAdminStartCancellationDoesNotMaskShutdownError(t *testing.T) {
 	go func() { startDone <- admin.Start() }()
 	waitIssue80Signal(t, backend.registered, "shutdown task registration")
 	waitIssue80Signal(t, backend.registered, "start task registration")
+	// Only the shutdown controller's short launcher can complete before
+	// cancellation; Start still runs as an ordinary pool task.
+	waitIssue80Signal(t, backend.completed, "shutdown controller launch completion")
 
 	admin.Shutdown()
 	waitIssue80Signal(t, shutdownEntered, "member shutdown start")
@@ -169,6 +179,27 @@ func TestLifeAdminStartCancellationDoesNotMaskShutdownError(t *testing.T) {
 
 	if err := waitIssue80Value(t, startDone, "LifeAdmin.Start completion"); !errors.Is(err, want) {
 		t.Fatalf("LifeAdmin.Start error = %v, want shutdown error %v", err, want)
+	}
+}
+
+func waitLifeAdminControllerCount(t *testing.T, want int) {
+	t.Helper()
+	const frame = "github.com/songzhibin97/gkit/egroup.(*LifeAdmin).goController.func1.1("
+	stack := make([]byte, 1<<20)
+	deadline := time.Now().Add(time.Second)
+	for {
+		n := runtime.Stack(stack, true)
+		if n == len(stack) {
+			t.Fatal("controller stack snapshot was truncated")
+		}
+		count := strings.Count(string(stack[:n]), frame)
+		if count == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("live LifeAdmin controllers = %d, want %d", count, want)
+		}
+		runtime.Gosched()
 	}
 }
 
