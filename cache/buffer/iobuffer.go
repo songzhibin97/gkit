@@ -87,7 +87,7 @@ func (p *pipe) Read(buffer []byte) (int, error) {
 		if p.err != nil {
 			return 0, p.err
 		}
-		// 等待写入,写入完成后会触发 Signal 唤醒读
+		// 等待写入,写入完成后会触发 Broadcast 唤醒读
 		p.c.Wait()
 	}
 }
@@ -98,8 +98,8 @@ func (p *pipe) Write(buffer []byte) (int, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.checkCond()
-	// 唤醒一个读取
-	defer p.c.Signal()
+	// 唤醒所有读取,让它们重新检查并消费可用数据
+	defer p.c.Broadcast()
 	if p.err != nil {
 		return 0, ErrClosedPipeWrite
 	}
