@@ -15,7 +15,7 @@
 | 500  | `DATA_LOSS`           | 出现不可恢复的数据丢失或数据损坏。客户端应该向用户报告错误。 |
 | 500  | `UNKNOWN`             | 出现未知的服务器错误。通常是服务器错误。                     |
 | 500  | `INTERNAL`            | 出现内部服务器错误。通常是服务器错误。                       |
-| 501  | `NOT_IMPLEMENTED`     | API 方法未通过服务器实现。                                   |
+| 501  | `UNIMPLEMENTED`       | API 方法未通过服务器实现。                                   |
 | 503  | `UNAVAILABLE`         | 服务不可用。通常是服务器已关闭。                             |
 | 504  | `DEADLINE_EXCEEDED`   | 超出请求时限。仅当调用者设置的时限比方法的默认时限短（即请求的时限不足以让服务器处理请求）并且请求未在时限范围内完成时，才会发生这种情况。 |
 
@@ -37,7 +37,7 @@
 | 500  | `DATA_LOSS`           | 请参阅注释。                                        |
 | 500  | `UNKNOWN`             | 请参阅注释。                                        |
 | 500  | `INTERNAL`            | 请参阅注释。                                        |
-| 501  | `NOT_IMPLEMENTED`     | 方法“xxx”未实现。                                   |
+| 501  | `UNIMPLEMENTED`       | 方法“xxx”未实现。                                   |
 | 503  | `UNAVAILABLE`         | 请参阅注释。                                        |
 | 504  | `DEADLINE_EXCEEDED`   | 请参阅备注。                                        |
 
@@ -59,7 +59,7 @@
 | 500  | `DATA_LOSS`           |                                  |
 | 500  | `UNKNOWN`             |                                  |
 | 500  | `INTERNAL`            |                                  |
-| 501  | `NOT_IMPLEMENTED`     |                                  |
+| 501  | `UNIMPLEMENTED`       |                                  |
 | 503  | `UNAVAILABLE`         |                                  |
 | 504  | `DEADLINE_EXCEEDED`   |                                  |
 

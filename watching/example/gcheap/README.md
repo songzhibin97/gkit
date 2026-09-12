@@ -16,9 +16,9 @@ go build gcheap.go
 GODEBUG=gctrace=1 ./gcheap
 ```
 
-4. start the rand allocation case
-```
-./rand.sh
+4. start the rand allocation case (in another shell, keep it running)
+```bash
+while true; do curl -s http://localhost:10024/rand > /dev/null; done
 ```
 
 the `/rand` api will allocation some memory and will be recycled soon,
@@ -30,9 +30,11 @@ gc 28 @11.666s 0%: 0.17+0.19+0.017 ms clock, 2.0+0.085/0.19/0.13+0.20 ms cpu, 20
 gc 29 @12.121s 0%: 0.065+0.21+0.015 ms clock, 0.78+0.11/0.23/0.13+0.18 ms cpu, 20->20->10 MB, 21 MB goal, 12 P
 ```
 
-Also, we can see the following Watching log from /tmp/Watching.log:
+Also, we can see the following Watching log from `./tmp/watching.log`
+(`gcheap.go` calls `watching.WithDumpPath("./tmp")`, so the path is relative to the
+directory you started `./gcheap` in):
 ```
-[Watching] NODUMP GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 10], current: 10
+[Watching] NODUMP gcHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 10], current: 10
 ```
 
 Everything works well now.
@@ -52,16 +54,24 @@ gc 433 @192.079s 0%: 0.042+0.22+0.002 ms clock, 0.51+0.097/0.38/0.21+0.024 ms cp
 
 And we see that we got two profiles from Watching log:
 ```
-[2022-02-09 14:48:23.103][Watching] pprof GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 19
-[2022-02-09 14:48:23.751][Watching] pprof GCHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 10
+[2022-02-09 14:48:23.103][Watching] pprof gcHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 19
+[2022-02-09 14:48:23.751][Watching] pprof gcHeap, config_min : 10, config_diff : 20, config_abs : 40, config_max : 0, previous : [10 10 10 10 10 10 10 10 10 19], current: 10
 ```
+
+Note: the two lines above are sample output captured by the original author, and their
+`previous` field does not match what the current code prints. `gcHeapProfile` in
+`watching/watching.go` logs the whole ring (`w.gcHeapStats`) on the `pprof` lines, so
+`previous` renders as `{[...] idx sum maxLen}`; only the `NODUMP` line shown earlier
+logs `w.gcHeapStats.data`, i.e. the bare slice.
 
 6. generate flamegraph
 
 we will know what cause the GC goal increased exactly by using the following command.
-(we got the profile name by timestamp that from Watching log)
+(the profiles are written into the dump path `./tmp` as
+`gcHeap.<event-id>.<timestamp>.bin`, where `<event-id>` is `heap-N`; pick the two whose
+timestamps match the Watching log lines above — `ls ./tmp/gcHeap.*.bin`)
 ```
-go tool pprof -http=:8000 -base GCHeap.20220209144823.103.bin GCHeap.20220209144823.751.bin
+go tool pprof -http=:8000 -base ./tmp/gcHeap.heap-N.20220209144823.103.bin ./tmp/gcHeap.heap-N.20220209144823.751.bin
 ```
 
 It shows the reason for memory spike clearly.

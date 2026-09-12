@@ -31,13 +31,13 @@
 ```go
 var pool = &syncx.Pool{
 	New: func() interface{} {
-		return &struct{}
+		return &struct{}{}
 	},
 	NoGC: true,
 }
 
 func getput() {
-	var obj = pool.Get().(*struct)
+	var obj = pool.Get().(*struct{})
 	pool.Put(obj)
 }
 ```

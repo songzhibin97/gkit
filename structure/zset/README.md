@@ -27,12 +27,12 @@ when doing Contains operations.
 | ZREM                  | Remove              |
 | ZREMRANGEBYSCORE      | RemoveRangeByScore  |
 | ZREMRANGEBYRANK       | RemoveRangeByRank   |
-| ZUNION                | Union               |
-| ZINTER                | Inter               |
+| ZUNION                | UnionFloat64        |
+| ZINTER                | InterFloat64        |
 | ZINTERCARD            | *TODO*              |
 | ZDIFF                 | *TODO*              |
 | ZRANGE                | Range               |
-| ZRANGEBYSCORE         | IncrBy              |
+| ZRANGEBYSCORE         | RangeByScore        |
 | ZREVRANGEBYSCORE      | RevRangeByScore     |
 | ZCOUNT                | Count               |
 | ZREVRANGE             | RevRange            |

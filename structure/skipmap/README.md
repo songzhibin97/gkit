@@ -77,6 +77,8 @@ MEMORY: 16G x 2 (3200MHz)
 
 ![benchmark](https://raw.githubusercontent.com/zhangyunhao116/public-data/master/skipmap-benchmark.png)
 
+The numbers below are the result published by the upstream project `github.com/zhangyunhao116/skipmap` (v0.6.0) on the machine described above, and the row names are the benchmark IDs upstream emitted: there, the int64 and string cases were sub-benchmarks of `BenchmarkInt64`/`BenchmarkString`. The copy vendored here declares them as separate top-level benchmarks instead (`BenchmarkStore`, `BenchmarkStringStore`, ...), so a local run reports `Store/skipmap-N`, `StringStore/skipmap-N` and so on. Reproduce locally in this package with:
+
 ```shell
 $ go test -run=NOTEST -bench=. -benchtime=100000x -benchmem -count=20 -timeout=60m  > x.txt
 $ benchstat x.txt

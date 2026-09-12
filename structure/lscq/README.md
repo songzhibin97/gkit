@@ -2,7 +2,7 @@
 
 LSCQ is a scalable, unbounded, multiple-producer and multiple-consumer FIFO queue in Go language. 
 
-In the benchmark(AMD 3700x, running at 3.6 GHZ, -cpu=16), the LSCQ outperforms lock-based linked queue **5x ~ 6x** in most cases. Since built-in channel is a bounded queue, we can only compared it in EnqueueDequeuePair,  the LSCQ outperforms built-in channel **8x ~ 9x** in this case.
+In the benchmark(AMD 3700x, running at 3.6 GHZ, -cpu=16), the LSCQ outperforms lock-based linked queue **5x ~ 6x** in most cases.
 
 The ideas behind the LSCQ are [A Scalable, Portable, and Memory-Efficient Lock-Free FIFO Queue](https://arxiv.org/abs/1908.04511) and [Fast Concurrent Queues for x86 Processors](https://www.cs.tau.ac.il/~mad/publications/ppopp2013-x86queues.pdf).
 
@@ -32,6 +32,8 @@ func main() {
 - OS: ubuntu 18.04
 - CPU: AMD 3700x(8C16T), running at 3.6 GHZ (disable CPU turbo boost)
 - MEMORY: 16G x 2 DDR4 memory, running at 3200 MHZ
+
+The three tables below are the result published by the upstream project this package was vendored from (its charts are linked from `zhangyunhao116/public-data`), measured on the machine described above. Their rows name the two comparison queues `linkedQ` and `msqueue`; the bench file vendored here names the same two queues `LinkedQueue` (`internal/benchmark/linkedq`) and `MSQueue` (`internal/benchmark/msq`), so a local run reports `Default/EnqueueOnly/LinkedQueue-N` and `Default/EnqueueOnly/MSQueue-N` instead. The command above each table reproduces it locally in this package.
 
 
 

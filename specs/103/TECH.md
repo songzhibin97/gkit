@@ -2,9 +2,9 @@
 
 ## Context
 
-`ControllerRedis.StartConsuming` owns the producer and processor lifetimes and joins them before returning (`distributed/controller/controller_redis/redis.go:123-196`). Delivery processing starts one renewal worker, joins it, and only then acknowledges or defers the task (`reliable_consumer.go:17-63`).
+`ControllerRedis.StartConsuming` owns the producer and processor lifetimes and joins them before returning (`distributed/controller/controller_redis/redis.go:129-204`). Delivery processing starts one renewal worker, joins it, and only then acknowledges or defers the task (`reliable_consumer.go:17-77`).
 
-The reliable queue stores private lease state and executes atomic Redis transitions (`reliable_queue.go:19-95`). Claim, renewal, acknowledgement, release, and deferred retry are implemented by the production Lua sources and their Go response decoders (`reliable_queue.go:97-665`). Public construction and the caller-owned client contract remain in `redis.go:439-510`.
+The reliable queue stores private lease state and executes atomic Redis transitions (`reliable_queue.go:19-95`). Claim, renewal, acknowledgement, release, and deferred retry are implemented by the production Lua sources and their Go response decoders (`reliable_queue.go:97-665`). Public construction and the caller-owned client contract remain in `redis.go:527-543`.
 
 This document describes the implementation that ships for [PRODUCT.md](./PRODUCT.md), not a future design.
 

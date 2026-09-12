@@ -53,8 +53,8 @@ The recommended threshold is 70% of the memory limit.
 ```go
 
 // Get mem limit from the host machine or cgroup file.
-limit := 4 * 1024 * 1024 * 1024
-threshold := limit * 0.7
+limit := uint64(4 * 1024 * 1024 * 1024)
+threshold := uint64(float64(limit) * 0.7)
 
 gctuner.Tuning(threshold)
 
