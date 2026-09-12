@@ -127,3 +127,52 @@ func TestTimedTaskAndChainUseDistinctRuntimeGraphs(t *testing.T) {
 		})
 	}
 }
+
+func TestTimedRunsIsolateNestedMetadata(t *testing.T) {
+	for _, kind := range []string{"task", "chain"} {
+		t.Run(kind, func(t *testing.T) {
+			template := task.NewSignature("template", "task")
+			template.Meta.Set("nested", map[string]interface{}{"counter": 0, "items": []int{10}})
+			var published [][2]int
+			server := &Server{
+				backend: &groupTestBackend{},
+				controller: &groupTestController{publishFn: func(_ context.Context, signature *task.Signature) error {
+					value, _ := signature.Meta.Get("nested")
+					nested := value.(map[string]interface{})
+					published = append(published, [2]int{nested["counter"].(int), nested["items"].([]int)[0]})
+					return nil
+				}},
+				lock: timedGroupTestLocker{}, scheduler: cron.New(),
+				prePublishHandler: func(signature *task.Signature) {
+					value, _ := signature.Meta.Get("nested")
+					nested := value.(map[string]interface{})
+					nested["counter"] = nested["counter"].(int) + 1
+					nested["items"].([]int)[0]++
+				},
+			}
+			var err error
+			if kind == "task" {
+				err = server.RegisteredTimedTask("* * * * *", "job", template)
+			} else {
+				err = server.RegisteredTimedChain("* * * * *", "job", template)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			entries := server.scheduler.Entries()
+			if len(entries) != 1 {
+				t.Fatalf("jobs = %d, want 1", len(entries))
+			}
+			entries[0].Job.Run()
+			entries[0].Job.Run()
+			if len(published) != 2 || published[0] != [2]int{1, 11} || published[1] != [2]int{1, 11} {
+				t.Errorf("published metadata = %v, want independent [1 11] values", published)
+			}
+			value, _ := template.Meta.Get("nested")
+			nested := value.(map[string]interface{})
+			if nested["counter"] != 0 || nested["items"].([]int)[0] != 10 {
+				t.Errorf("registered template metadata changed: %v", nested)
+			}
+		})
+	}
+}

@@ -147,3 +147,32 @@ func TestCopiedSafeMetaSupportsConcurrentAccess(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestCopySignatureIsolatesNestedMetadataValues(t *testing.T) {
+	source := NewSignature("root", "task")
+	source.CallbackOnSuccess = []*Signature{NewSignature("success", "task")}
+	source.CallbackOnError = []*Signature{NewSignature("error", "task")}
+	source.CallbackChord = NewSignature("chord", "task")
+	nodes := func(s *Signature) []*Signature {
+		return []*Signature{s, s.CallbackOnSuccess[0], s.CallbackOnError[0], s.CallbackChord}
+	}
+	for _, node := range nodes(source) {
+		node.Meta.Set("nested", map[string]interface{}{"counter": 0, "items": []int{10}})
+	}
+	first, second := CopySignature(source), CopySignature(source)
+	for _, node := range nodes(first) {
+		value, _ := node.Meta.Get("nested")
+		nested := value.(map[string]interface{})
+		nested["counter"] = 1
+		nested["items"].([]int)[0] = 20
+	}
+	for name, signature := range map[string]*Signature{"source": source, "second copy": second} {
+		for _, node := range nodes(signature) {
+			value, _ := node.Meta.Get("nested")
+			nested := value.(map[string]interface{})
+			if nested["counter"] != 0 || nested["items"].([]int)[0] != 10 {
+				t.Errorf("%s %s metadata changed through first copy: %v", name, node.ID, nested)
+			}
+		}
+	}
+}
