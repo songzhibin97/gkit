@@ -143,3 +143,54 @@ func TestWorkerOrdinaryErrorKeepsRetryCountPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkerTypedNilRetryErrorKeepsOrdinaryRetryPolicy(t *testing.T) {
+	var standard *task.ErrRetryTaskLater
+	var custom *concreteWorkerRetry
+	for name, returned := range map[string]error{
+		"standard":         standard,
+		"custom":           custom,
+		"wrapped_standard": fmt.Errorf("wrapped retry: %w", standard),
+		"wrapped_custom":   fmt.Errorf("wrapped retry: %w", custom),
+	} {
+		t.Run(name, func(t *testing.T) {
+			base, group := newGroupAttemptFixture(t)
+			b := &workerRetryStateBackend{Backend: base, PublicationAttemptBackend: base.(backend.PublicationAttemptBackend)}
+			signature := group.Tasks[0]
+			if signature.RetryCount != 3 {
+				t.Fatalf("default retry count = %d, want 3", signature.RetryCount)
+			}
+			signature.RetryInterval = 1
+			var published *task.Signature
+			controller := &groupTestController{publishFn: func(_ context.Context, signature *task.Signature) error {
+				published = task.CopySignature(signature)
+				return nil
+			}}
+			server := &Server{backend: b, controller: controller, registeredTasks: &sync.Map{}, helper: log.NewHelper(log.NewStdLogger(io.Discard))}
+			if err := server.RegisteredTask(signature.Name, func() error { return returned }); err != nil {
+				t.Fatal(err)
+			}
+			if err := b.SetStatePending(signature); err != nil {
+				t.Fatal(err)
+			}
+			worker := server.NewWorker("typed-nil", 1, "test-queue")
+			var reported error
+			worker.SetErrorHandler(func(err error) { reported = err })
+			before := time.Now()
+			if err := worker.Process(signature); err != nil {
+				t.Fatal(err)
+			}
+			after := time.Now()
+			if reported != nil || controller.publishCount.Load() != 1 || published == nil || published.ETA == nil || published.RetryCount != 2 || published.RetryInterval != 2 {
+				t.Fatalf("ordinary retry policy changed: reported=%v published=%v", reported, published)
+			}
+			if len(b.retryStates) != 1 || b.retryStates[0] != task.StateRetry {
+				t.Fatalf("actual retry transitions = %v", b.retryStates)
+			}
+			if published.ETA.Before(before.Add(2*time.Second)) || published.ETA.After(after.Add(2*time.Second)) {
+				t.Fatalf("ordinary retry ETA = %v", published.ETA)
+			}
+			assertCallbackTaskState(t, base, signature.ID, task.StatePending, "")
+		})
+	}
+}

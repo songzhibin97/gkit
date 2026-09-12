@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"reflect"
 	"syscall"
 	"time"
 
@@ -114,9 +115,13 @@ func (w *Worker) Process(signature *task.Signature) error {
 	if err != nil {
 		// 判断err是否是可重试错误
 		var retryErr task.Retrievable
-		if errors.As(err, &retryErr) {
-			// 重试
-			return w.handlerRetryIn(signature, retryErr.RetryIn())
+		if errors.As(err, &retryErr) && retryErr != nil {
+			// A typed-nil pointer still matches the interface. Keep the ordinary
+			// error policy instead of invoking RetryIn on a nil receiver.
+			value := reflect.ValueOf(retryErr)
+			if value.Kind() != reflect.Ptr || !value.IsNil() {
+				return w.handlerRetryIn(signature, retryErr.RetryIn())
+			}
 		}
 		// 根据自定义重试次数开始重试
 		if signature.RetryCount > 0 {
