@@ -100,9 +100,8 @@ func WithTextDump() options.Option {
 	return withDumpProfileType(textDump)
 }
 
-// WithFullStack selects how much of a text-mode dump is kept. NOTE: the
-// behaviour is inverted relative to the name -- isFull=true keeps only the top
-// 10 stacks, isFull=false keeps all of them (see writeFile in util.go).
+// WithFullStack set to dump full stack (isFull=true) or top 10 stack
+// (isFull=false) in text mode.
 func WithFullStack(isFull bool) options.Option {
 	return func(o interface{}) {
 		opts := o.(*Watching)

@@ -688,8 +688,9 @@ func (w *Watching) gcHeapProfile(gc int, force bool, c typeConfig) bool {
 
 	w.logDumpTrigger("pprof", gcHeap, c.TriggerMin, c.TriggerDiff, c.TriggerAbs,
 		NotSupportTypeMaxConfig, w.gcHeapStats, gc)
-	// gcTriggerCount only increased after got both two profiles
-	eventID := fmt.Sprintf("heap-%d", w.grTriggerCount)
+	// gcHeapTriggerCount only increased after got both two profiles,
+	// so both dumps of one trigger share the same event ID.
+	eventID := fmt.Sprintf("heap-%d", w.gcHeapTriggerCount)
 
 	var buf bytes.Buffer
 	_ = pprof.Lookup("heap").WriteTo(&buf, int(w.config.DumpProfileType)) // nolint: errcheck

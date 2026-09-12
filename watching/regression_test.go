@@ -140,6 +140,64 @@ func TestWriteFilePreservesPercentText(t *testing.T) {
 	}
 }
 
+// makeStackProfile builds count "\n\n"-separated stack segments.
+func makeStackProfile(count int) string {
+	segments := make([]string, count)
+	for index := range segments {
+		segments[index] = fmt.Sprintf("goroutine %d [running]:\nmain.f%d()", index, index)
+	}
+	return strings.Join(segments, "\n\n")
+}
+
+func TestWriteFileFullStackKeepsEveryStack(t *testing.T) {
+	input := makeStackProfile(TrimResultTopN + 3)
+	var profile bytes.Buffer
+	profile.WriteString(input)
+	err := writeFile(profile, goroutine, &DumpConfigs{
+		DumpProfileType: textDump,
+		DumpFullStack:   true,
+	}, "")
+	if err == nil {
+		t.Fatal("writeFile text mode returned nil error")
+	}
+	if got := err.Error(); got != input {
+		t.Fatalf("writeFile with DumpFullStack=true = %q, want every segment %q", got, input)
+	}
+}
+
+func TestWriteFileWithoutFullStackTrimsToTopN(t *testing.T) {
+	input := makeStackProfile(TrimResultTopN + 3)
+	var profile bytes.Buffer
+	profile.WriteString(input)
+	err := writeFile(profile, goroutine, &DumpConfigs{
+		DumpProfileType: textDump,
+		DumpFullStack:   false,
+	}, "")
+	if err == nil {
+		t.Fatal("writeFile text mode returned nil error")
+	}
+	want := strings.Join(strings.Split(input, "\n\n")[:TrimResultTopN], "\n\n")
+	if got := err.Error(); got != want {
+		t.Fatalf("writeFile with DumpFullStack=false = %q, want top %d %q", got, TrimResultTopN, want)
+	}
+}
+
+// TestDefaultConfigTextDumpKeepsEveryStack guards the default output: callers
+// that never touch WithFullStack must still get the whole dump.
+func TestDefaultConfigTextDumpKeepsEveryStack(t *testing.T) {
+	w := NewWatching(WithTextDump())
+	input := makeStackProfile(TrimResultTopN + 3)
+	var profile bytes.Buffer
+	profile.WriteString(input)
+	err := writeFile(profile, goroutine, w.config.DumpConfigs, "")
+	if err == nil {
+		t.Fatal("writeFile text mode returned nil error")
+	}
+	if got := err.Error(); got != input {
+		t.Fatalf("writeFile with default config = %q, want every segment %q", got, input)
+	}
+}
+
 func TestTrimResultKeepsAllSegmentsUpToLimit(t *testing.T) {
 	makeProfile := func(count int) string {
 		segments := make([]string, count)
