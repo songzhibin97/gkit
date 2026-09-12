@@ -1126,7 +1126,9 @@ func (c *cache) Save(w io.Writer) (err error) {
 	}
 	c.RUnlock()
 	for _, iterator := range snapshot {
-		gob.Register(iterator.Val)
+		if iterator.Val != nil {
+			gob.Register(iterator.Val)
+		}
 	}
 	return enc.Encode(&snapshot)
 }
