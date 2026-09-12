@@ -233,9 +233,6 @@ func (i *ioBuffer) ReadFrom(r io.Reader) (n int64, err error) {
 		if e != nil {
 			return n, e
 		}
-		if m == 0 {
-			return n, nil
-		}
 	}
 }
 
