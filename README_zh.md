@@ -164,47 +164,59 @@ func main() {
 ```
 
 ### local_cache
+
+将完整示例保存为 `main.go`；`main` 会先创建缓存，并在退出时停止清理任务。
 ```go
-package local_cache
+package main
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"log"
+	"time"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
+	"github.com/songzhibin97/gkit/cache/local_cache"
 )
 
-var ch Cache
+var ch local_cache.Cache
+
+func main() {
+	ExampleNewCache()
+	defer ExampleShutdown()
+	ExampleCacheStorage()
+	ExampleGet()
+}
 
 func ExampleNewCache() {
 	// 默认配置
-	//ch = NewCache()
+	//ch = local_cache.NewCache()
 
 	// 可供选择的配置选项
 
 	// 设置间隔时间
-	// SetInternal(interval time.Duration)
+	// local_cache.SetInternal(interval time.Duration)
 
 	// 设置默认的超时时间
-	// SetDefaultExpire(expire time.Duration)
+	// local_cache.SetDefaultExpire(expire time.Duration)
 
 	// 设置周期的执行函数,默认(不设置)是扫描全局清除过期的k
-	// SetFn(fn func())
+	// local_cache.SetFn(fn func())
 
 	// 设置触发删除后的捕获函数, 数据删除后回调用设置的捕获函数
-	// SetCapture(capture func(k string, v interface{}))
+	// local_cache.SetCapture(capture func(k string, v interface{}))
 
 	// 设置初始化存储的成员对象
-	// SetMember(m map[string]Iterator)
+	// local_cache.SetMember(m map[string]local_cache.Iterator)
 
-	ch = NewCache(SetInternal(1000),
-		SetDefaultExpire(10000),
-		SetCapture(func(k string, v interface{}) {
+	ch = local_cache.NewCache(local_cache.SetInternal(time.Second),
+		local_cache.SetDefaultExpire(time.Minute),
+		local_cache.SetCapture(func(k string, v interface{}) {
 			log.Println(k, v)
 		}))
 }
 
 func ExampleCacheStorage() {
 	// Set 添加cache 无论是否存在都会覆盖
-	ch.Set("k1", "v1", DefaultExpire)
+	ch.Set("k1", "v1", local_cache.DefaultExpire)
 
 	// SetDefault 无论是否存在都会覆盖
 	// 偏函数模式,默认传入超时时间为创建cache的默认时间
@@ -215,12 +227,12 @@ func ExampleCacheStorage() {
 	ch.SetNoExpire("k1", 1.1)
 
 	// Add 添加cache 如果存在的话会抛出异常
-	err := ch.Add("k1", nil, DefaultExpire)
-	CacheErrExist(err) // true
+	err := ch.Add("k1", nil, local_cache.DefaultExpire)
+	local_cache.CacheErrExist(err) // true
 
 	// Replace 如果有就设置没有就抛出错误
-	err = ch.Replace("k2", make(chan struct{}), DefaultExpire)
-	CacheErrNoExist(err) // true
+	err = ch.Replace("k2", make(chan struct{}), local_cache.DefaultExpire)
+	local_cache.CacheErrNoExist(err) // true
 }
 
 func ExampleGet() {
@@ -236,7 +248,7 @@ func ExampleGet() {
 	if !ok {
 		// v == nil
 	}
-	// 如果超时时间是 NoExpire t.IsZero() == true
+	// 如果超时时间是 local_cache.NoExpire t.IsZero() == true
 	if t.IsZero() {
 		// 没有设置超时时间
 	}
@@ -252,11 +264,11 @@ func ExampleGet() {
 }
 
 func ExampleIncrement() {
-	ch.Set("k3", 1, DefaultExpire)
-	ch.Set("k4", 1.1, DefaultExpire)
+	ch.Set("k3", 1, local_cache.DefaultExpire)
+	ch.Set("k4", 1.1, local_cache.DefaultExpire)
 	// Increment 为k对应的value增加n n必须为数字类型
 	err := ch.Increment("k3", 1)
-	if CacheErrExpire(err) || CacheErrExist(CacheTypeErr) {
+	if local_cache.CacheErrExpire(err) || local_cache.CacheErrTypeErr(err) {
 		// 未设置成功
 	}
 	_ = ch.IncrementFloat("k4", 1.1)
@@ -274,7 +286,7 @@ func ExampleDelete() {
 	// Delete 如果设置了 capture 会触发不或函数
 	ch.Delete("k1")
 
-	// DeleteExpire 删除所有过期了的key, 它是默认的周期哨兵函数(SetFn), 而不是默认的 capture(SetCapture)
+	// DeleteExpire 删除所有过期了的key, 它是默认的周期哨兵函数(local_cache.SetFn), 而不是默认的 capture(local_cache.SetCapture)
 	ch.DeleteExpire()
 }
 
@@ -311,7 +323,9 @@ func ExampleFlush()  {
 
 func ExampleShutdown()  {
 	// Shutdown 释放对象
-	ch.Shutdown()
+	if err := ch.Shutdown(); err != nil {
+		log.Println(err)
+	}
 }
 ```
 

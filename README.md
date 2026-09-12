@@ -167,47 +167,59 @@ func main() {
 
 
 ### local_cache
+
+Save this complete example as `main.go`; `main` creates the cache before use and stops its janitor on exit.
 ```go
-package local_cache
+package main
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"log"
+	"time"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
+	"github.com/songzhibin97/gkit/cache/local_cache"
 )
 
-var ch Cache
+var ch local_cache.Cache
+
+func main() {
+	ExampleNewCache()
+	defer ExampleShutdown()
+	ExampleCacheStorage()
+	ExampleGet()
+}
 
 func ExampleNewCache() {
 	// default configuration
-	// ch = NewCache()
+	// ch = local_cache.NewCache()
 
 	// Optional configuration options
 
 	// Set the interval time
-	// SetInternal(interval time.Duration)
+	// local_cache.SetInternal(interval time.Duration)
 
 	// Set the default timeout
-	// SetDefaultExpire(expire time.Duration)
+	// local_cache.SetDefaultExpire(expire time.Duration)
 
 	// Set the cycle execution function, the default (not set) is to scan the global to clear expired k
-	// SetFn(fn func())
+	// local_cache.SetFn(fn func())
 
 	// Set the capture function to be called after the deletion is triggered, the set capture function will be called back after the data is deleted
-	// SetCapture(capture func(k string, v interface{}))
+	// local_cache.SetCapture(capture func(k string, v interface{}))
 
 	// Set the initialization of the stored member object
-	// SetMember(m map[string]Iterator)
+	// local_cache.SetMember(m map[string]local_cache.Iterator)
 
-	ch = NewCache(SetInternal(1000),
-		SetDefaultExpire(10000),
-		SetCapture(func(k string, v interface{}) {
+	ch = local_cache.NewCache(local_cache.SetInternal(time.Second),
+		local_cache.SetDefaultExpire(time.Minute),
+		local_cache.SetCapture(func(k string, v interface{}) {
 			log.Println(k, v)
 		}))
 }
 
 func ExampleCacheStorage() {
 	// Set adds cache and overwrites it whether it exists or not
-	ch.Set("k1", "v1", DefaultExpire)
+	ch.Set("k1", "v1", local_cache.DefaultExpire)
 
 	// SetDefault overrides whether or not it exists
 	// Default function mode, default timeout is passed in as the default time to create the cache
@@ -218,12 +230,12 @@ func ExampleCacheStorage() {
 	ch.SetNoExpire("k1", 1.1)
 
 	// Add the cache and throw an exception if it exists
-	err := ch.Add("k1", nil, DefaultExpire)
-	CacheErrExist(err) // true
+	err := ch.Add("k1", nil, local_cache.DefaultExpire)
+	local_cache.CacheErrExist(err) // true
 
-	// Replace throws an error if it is set or not
-	err = ch.Replace("k2", make(chan struct{}), DefaultExpire)
-	CacheErrNoExist(err) // true
+	// Replace updates an existing key; a missing key returns an error
+	err = ch.Replace("k2", make(chan struct{}), local_cache.DefaultExpire)
+	local_cache.CacheErrNoExist(err) // true
 }
 
 func ExampleGet() {
@@ -239,7 +251,7 @@ func ExampleGet() {
 	if !ok {
 		// v == nil
 	}
-	// if the timeout is NoExpire t.IsZero() == true
+	// if the timeout is local_cache.NoExpire t.IsZero() == true
 	if t.IsZero() {
 		// No timeout is set
 	}
@@ -255,11 +267,11 @@ func ExampleGet() {
 }
 
 func ExampleIncrement() {
-	ch.Set("k3", 1, DefaultExpire)
-	ch.Set("k4", 1.1, DefaultExpire)
+	ch.Set("k3", 1, local_cache.DefaultExpire)
+	ch.Set("k4", 1.1, local_cache.DefaultExpire)
 	// Increment adds n to the value corresponding to k n must be a number type
 	err := ch.Increment("k3", 1)
-	if CacheErrExpire(err) || CacheErrExist(CacheTypeErr) {
+	if local_cache.CacheErrExpire(err) || local_cache.CacheErrTypeErr(err) {
 		// Not set successfully
 	}
 	_ = ch.IncrementFloat("k4", 1.1)
@@ -277,7 +289,7 @@ func ExampleDelete() {
 	// Delete triggers the not-or function if capture is set
 	ch.Delete("k1")
 
-	// DeleteExpire deletes all expired keys; it is the default periodic sentinel function (SetFn), not the default capture (SetCapture)
+	// DeleteExpire deletes all expired keys; it is the default periodic sentinel function (local_cache.SetFn), not the default capture (local_cache.SetCapture)
 	ch.DeleteExpire()
 }
 
@@ -314,7 +326,9 @@ func ExampleFlush() {
 
 func ExampleShutdown() {
 	// Shutdown frees the object
-	ch.Shutdown()
+	if err := ch.Shutdown(); err != nil {
+		log.Println(err)
+	}
 }
 ```
 
