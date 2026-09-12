@@ -13,10 +13,10 @@ var (
 
 func ValidateTask(task interface{}) error {
 	v := reflect.ValueOf(task)
-	t := v.Type()
-	if t.Kind() != reflect.Func {
+	if !v.IsValid() || v.Kind() != reflect.Func || v.IsNil() {
 		return ErrTaskMustFunc
 	}
+	t := v.Type()
 
 	if t.NumOut() < 1 {
 		return ErrTaskReturnNoValue
