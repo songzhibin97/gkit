@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -371,48 +370,65 @@ func (w *Worker) StartSync(errChan chan<- error) {
 	w.bindService.helper.Info("worker start")
 	w.bindService.helper.Info("worker tag", w.ConsumerTag)
 	w.bindService.helper.Info("use queue", w.Queue)
+	if w.NoUnixSignals {
+		go func() { errChan <- w.consumeUntilDone(nil) }()
+		return
+	}
+	sign := make(chan os.Signal, 1)
+	signal.Notify(sign, os.Interrupt, syscall.SIGTERM)
+	go func() { errChan <- w.consumeWithSignals(sign) }()
+}
+
+func (w *Worker) consumeUntilDone(done <-chan struct{}) error {
 	controller := w.bindService.GetController()
-
-	var wg sync.WaitGroup
-	go func() {
-		for {
-			retry, err := controller.StartConsuming(w.Concurrency, w)
-			if retry {
-				if w.errorHandler != nil {
-					w.errorHandler(err)
-				} else {
-					w.bindService.helper.Warnf("controller consume err: %s", err)
-				}
-			} else {
-				wg.Wait()
-				errChan <- err
-				return
-			}
+	for {
+		select {
+		case <-done:
+			return nil
+		default:
 		}
-	}()
-	if !w.NoUnixSignals {
-		sign := make(chan os.Signal, 1)
-		signal.Notify(sign, os.Interrupt, syscall.SIGTERM)
+		retry, err := controller.StartConsuming(w.Concurrency, w)
+		if !retry {
+			return err
+		}
+		if w.errorHandler != nil {
+			w.errorHandler(err)
+		} else {
+			w.bindService.helper.Warnf("controller consume err: %s", err)
+		}
+	}
+}
 
-		var acceptCount uint
-		go func() {
-			for s := range sign {
-				w.bindService.helper.Warnf("signal received: %v", s)
-				acceptCount++
-				if acceptCount < 2 {
-					// 正常退出
-					w.bindService.helper.Warn("Waiting for running tasks to finish before shutting down")
-					wg.Add(1)
-					go func() {
-						w.Quit()
-						errChan <- ErrWorkerGracefullyQuit
-						wg.Done()
-					}()
-				} else {
-					// 重复收到退出信号
-					errChan <- ErrWorkerAbruptlyQuit
-				}
+// Only this coordinator chooses a completion result. Its deferred cleanup runs
+// before StartSync sends that result, so callers cannot observe completion while
+// the worker still owns signal delivery.
+func (w *Worker) consumeWithSignals(sign chan os.Signal) error {
+	defer signal.Stop(sign)
+	done := make(chan struct{})
+	defer close(done)
+	consumed := make(chan error, 1)
+	go func() { consumed <- w.consumeUntilDone(done) }()
+	quitDone := make(chan struct{})
+	quitting := false
+	for {
+		select {
+		case err := <-consumed:
+			if !quitting {
+				return err
 			}
-		}()
+		case sig := <-sign:
+			w.bindService.helper.Warnf("signal received: %v", sig)
+			if quitting {
+				return ErrWorkerAbruptlyQuit
+			}
+			quitting = true
+			w.bindService.helper.Warn("Waiting for running tasks to finish before shutting down")
+			go func() {
+				w.Quit()
+				close(quitDone)
+			}()
+		case <-quitDone:
+			return ErrWorkerGracefullyQuit
+		}
 	}
 }
