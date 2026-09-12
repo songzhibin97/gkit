@@ -65,12 +65,12 @@ type rptEvent struct {
 	EventID string
 }
 
-// EnableThreadDump enables the goroutine dump.
+// EnableThreadDump enables the thread dump.
 func (w *Watching) EnableThreadDump() *Watching {
 	return w.setDumpEnabled(w.config.ThreadConfigs, true)
 }
 
-// DisableThreadDump disables the goroutine dump.
+// DisableThreadDump disables the thread dump.
 func (w *Watching) DisableThreadDump() *Watching {
 	return w.setDumpEnabled(w.config.ThreadConfigs, false)
 }
@@ -295,8 +295,8 @@ func (w *Watching) startDumpLoop() {
 	}
 }
 
-// startReporter starts a background goroutine to consume event channel,
-// and finish it at after receive from cancel channel.
+// startReporter starts a background goroutine to consume the event channel,
+// the goroutine exits once ch is closed, which Stop does.
 func (w *Watching) startReporter(ch chan rptEvent) {
 	go func() {
 		for event := range ch {

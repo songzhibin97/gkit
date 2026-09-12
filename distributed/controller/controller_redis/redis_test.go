@@ -26,7 +26,7 @@ func initLiveController(t *testing.T) controller.Controller {
 	}
 	// Without a live Redis the client is created lazily; skip this integration
 	// test. Ping-failure behavior is covered deterministically by regression_test.go,
-	// while FIFO and watch-error behavior is covered by fifo_test.go.
+	// while FIFO ordering and claim-error propagation are covered by fifo_test.go.
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		_ = client.Close()
 		return nil

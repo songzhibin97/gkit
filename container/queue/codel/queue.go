@@ -46,9 +46,9 @@ type Queue struct {
 
 	mux      sync.RWMutex
 	conf     *config
-	count    int64 // 计数请求数量
+	count    int64 // 丢弃周期计数, 作为控制率 internal/sqrt(count) 的除数
 	faTime   int64
-	dropNext int64 // 丢弃请求的数量
+	dropNext int64 // 下次丢弃的时间点(毫秒时间戳)
 }
 
 // Reload 重新加载配置
@@ -73,8 +73,10 @@ func (q *Queue) Stat() Stat {
 	}
 }
 
-// Push 请求进入CoDel Queue
-// 如果返回错误为nil，则在完成请求处理后，调用方必须调用q.Done()
+// Push 请求进入CoDel Queue, 阻塞至 judge 做出放行/丢弃的判定
+// 返回 nil 表示请求被放行, 调用方无需再做任何释放操作;
+// 返回 bbr.LimitExceed 表示缓冲区已满或被 CoDel 丢弃;
+// 返回 ctx.Err() 表示等待判定期间 ctx 已结束
 func (q *Queue) Push(ctx context.Context) (err error) {
 	if err := ctx.Err(); err != nil {
 		return err

@@ -28,13 +28,14 @@ const (
 type BackendSQLDB struct {
 	// gClient db客户端
 	gClient *gorm.DB
+	// resultExpireMu 保护 resultExpire 的并发读写
+	resultExpireMu sync.RWMutex
 	// resultExpire 数据过期时间
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
 	// 单位为s
-	resultExpireMu sync.RWMutex
-	resultExpire   int64
-	now            func() time.Time
+	resultExpire int64
+	now          func() time.Time
 }
 
 const publicationAttemptColumn = "publication_attempt_id"

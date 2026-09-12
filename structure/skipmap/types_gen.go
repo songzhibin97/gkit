@@ -67,6 +67,15 @@ func main() {
 		if upper == "Float32" || upper == "Float64" {
 			const rejectNaNStore = "if key != key {\n\treturn // NaN is unordered and violates skip-list ordering.\n}"
 			const rejectNaNLoadOrStore = "if key != key {\n\treturn nil, false // NaN is unordered and violates skip-list ordering.\n}"
+			const docNaNStore = "// Storing a NaN key is a no-op: NaN is unordered, so the entry could never be found again."
+			const docNaNLoadOrStore = "// A NaN key returns (nil, false) and stores nothing."
+			const docNaNLoadOrStoreLazy = "// A NaN key returns (nil, false), stores nothing and never calls f."
+			dataAsc = addLineBefore(dataAsc, "func (s *"+upper+"Map) Store(", docNaNStore)
+			dataAsc = addLineBefore(dataAsc, "func (s *"+upper+"Map) LoadOrStore(", docNaNLoadOrStore)
+			dataAsc = addLineBefore(dataAsc, "func (s *"+upper+"Map) LoadOrStoreLazy(", docNaNLoadOrStoreLazy)
+			dataDesc = addLineBefore(dataDesc, "func (s *"+upper+"MapDesc) Store(", docNaNStore)
+			dataDesc = addLineBefore(dataDesc, "func (s *"+upper+"MapDesc) LoadOrStore(", docNaNLoadOrStore)
+			dataDesc = addLineBefore(dataDesc, "func (s *"+upper+"MapDesc) LoadOrStoreLazy(", docNaNLoadOrStoreLazy)
 			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Map) Store(", rejectNaNStore)
 			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Map) LoadOrStore(", rejectNaNLoadOrStore)
 			dataAsc = addLineAfter(dataAsc, "func (s *"+upper+"Map) LoadOrStoreLazy(", rejectNaNLoadOrStore)
@@ -225,4 +234,22 @@ func addLineAfter(src string, after string, added string) string {
 		}
 	}
 	panic("can not find:" + after)
+}
+
+func addLineBefore(src string, before string, added string) string {
+	all := strings.Split(string(src), "\n")
+	for i, v := range all {
+		if strings.Index(v, before) != -1 {
+			res := make([]string, len(all)+1)
+			for j := 0; j < i; j++ {
+				res[j] = all[j]
+			}
+			res[i] = added
+			for j := i; j < len(all); j++ {
+				res[j+1] = all[j]
+			}
+			return strings.Join(res, "\n")
+		}
+	}
+	panic("can not find:" + before)
 }

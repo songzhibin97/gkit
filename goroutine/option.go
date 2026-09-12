@@ -15,7 +15,8 @@ type config struct {
 	// <=0 不启动超时时间
 	stopTimeout time.Duration
 
-	// max 最大goroutine以及初始化channel大小,channel长度不可更改
+	// max pool内goroutine数量上限,与task channel无关(task channel无缓冲)
+	// <=0 实例化时会修正为1,运行期可通过 ChangeMax 修改
 	max int64
 
 	// idle 闲置goroutine大小

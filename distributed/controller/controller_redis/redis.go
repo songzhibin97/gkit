@@ -28,9 +28,10 @@ type ControllerRedis struct {
 	// lock 分布式锁
 	lock *redsync.Redsync
 
-	// helper drives structured logs from the consumer / popDelayedTask
-	// paths. Previously these printed errors via fmt.Println, which made
-	// operational issues invisible to anyone consuming structured logs.
+	// helper emits the consumer's startup banner in StartConsuming. It
+	// defaults to log.DefaultLogger and can be replaced via SetHelper.
+	// Errors are not logged through it: the produce/consume and delayed-claim
+	// paths surface them to the StartConsuming caller via reportFailure.
 	helper *log.Helper
 
 	// consumingWg 确保消费组并发完成
