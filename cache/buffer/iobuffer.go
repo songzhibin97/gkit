@@ -379,7 +379,7 @@ func (i *ioBuffer) Drain(offset int) {
 	if offset < 0 {
 		return
 	}
-	if i.off+offset > len(i.buffer) {
+	if offset > len(i.buffer)-i.off {
 		return
 	}
 	i.off += offset
