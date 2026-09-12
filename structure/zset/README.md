@@ -50,7 +50,7 @@ was laid out in `server.c`; Redis 7 moved the table out of that file, so run it
 against a 6.x checkout:
 
 ```bash
-cat redis/src/server.c | grep -o '"z.*",z.*Command' | grep -o '".*"' | cut -d '"' -f2
+cat src/server.c | grep -o '"z.*",z.*Command' | grep -o '".*"' | cut -d '"' -f2
 ```
 
 You may find that not all redis commands have corresponding go implementations,

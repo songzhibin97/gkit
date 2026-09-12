@@ -46,7 +46,7 @@ func getput() {
 ### What it is
 1. A P-sharded read-write mutex: `type RWMutex []rwMutexShard`, one cache-line padded `sync.RWMutex` per shard.
 2. `NewRWMutex()` allocates `runtime.GOMAXPROCS(0)` shards, sampled once at package init.
-3. `RLocker()` hands back the `sync.Locker` of the current P's shard only, so readers running on different P never touch the same word.
+3. `RLocker()` picks a shard using the current P's ID modulo the shard count. The returned `sync.Locker` stays bound to that shard even if the goroutine later moves to another P.
 4. `Lock`/`Unlock` take every shard in turn, so a write costs proportionally more than a `sync.RWMutex` write.
 
 ### Not Recommended

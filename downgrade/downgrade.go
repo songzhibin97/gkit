@@ -19,9 +19,10 @@ type (
 // Fuse 熔断降级接口
 type Fuse interface {
 	// Do 以同步的方式至多运行一次 RunFunc,不会重试;熔断器打开或并发额度耗尽时根本不会运行
-	// 阻塞直到 RunFunc 返回、命令超时(默认 1000ms,可通过 ConfigureCommand 的 CommandConfig.Timeout 调整)
-	// 或被熔断器拒绝为止;超时只解除调用方的阻塞,不会取消仍在运行的 RunFunc
-	// 如果返回错误,执行 FallbackFunc 函数
+	// 命令默认超时为 1000ms,可通过 ConfigureCommand 的 CommandConfig.Timeout 调整
+	// 出错、超时或被拒绝时,若提供 FallbackFunc 则调用它
+	// 超时不会取消仍在运行的 RunFunc,也不限制 fallback 的执行时间;
+	// Do 仍可能因 fallback 阻塞,应单独控制 fallback 内阻塞操作的时限
 	Do(name string, run RunFunc, fallback FallbackFunc) error
 
 	// DoC 同步方式处理

@@ -49,10 +49,10 @@ func ExampleHystrix_ConfigureCommand() {
 }
 
 func ExampleHystrix_Do() {
-	// Do: 同步执行 func() error, 阻塞直到函数返回、命令超时
-	// (默认 1000ms, 可通过 ConfigureCommand 传入 CommandConfig.Timeout 调整) 或被熔断器拒绝为止,
-	// 超时只解除调用方的阻塞, 不会取消仍在运行的函数
-	// 如果返回 error != nil 则触发 FallbackFunc 进行降级
+	// Do: 函数至多执行一次, 命令默认超时为 1000ms, 可通过 CommandConfig.Timeout 调整
+	// 出错、超时或被拒绝时, 若提供 FallbackFunc 则调用它
+	// 超时不会取消运行中的函数, 也不限制 fallback 的执行时间;
+	// Do 仍可能因 fallback 阻塞, 应单独控制 fallback 内阻塞操作的时限
 	err := fuse.Do("do", mockRunFunc(), mockFallbackFunc())
 	if err != nil {
 		// 处理 error
