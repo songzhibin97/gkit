@@ -51,19 +51,7 @@ func (g *Goroutine) _go() {
 	g.wait.Add(1)
 	go func() {
 		// recover 避免野生goroutine panic后主程退出
-		defer func() {
-			if err := recover(); err != nil {
-				buf := buffer.GetBytes(64 << 10)
-				n := runtime.Stack(*buf, false)
-				defer buffer.PutBytes(buf)
-				if g.logger == nil {
-					fmt.Println("\nrecover go func,", "panic:", err, "\n\npanic stack:\n", string((*buf)[:n]))
-					return
-				}
-				g.logger.Log(log.LevelError, "panic err:", err, "panic stack:", string((*buf)[:n]))
-				return
-			}
-		}()
+		defer g.recoverPanic()
 		defer atomic.AddInt64(&g.n, -1)
 		defer g.wait.Done()
 		t := time.NewTicker(g.checkTime)
@@ -76,7 +64,10 @@ func (g *Goroutine) _go() {
 					return
 				}
 			case f := <-g.task:
-				f()
+				func() {
+					defer g.recoverPanic()
+					f()
+				}()
 				if atomic.LoadInt64(&g.n) > atomic.LoadInt64(&g.max) {
 					return
 				}
@@ -86,6 +77,19 @@ func (g *Goroutine) _go() {
 			}
 		}
 	}()
+}
+
+func (g *Goroutine) recoverPanic() {
+	if err := recover(); err != nil {
+		buf := buffer.GetBytes(64 << 10)
+		n := runtime.Stack(*buf, false)
+		defer buffer.PutBytes(buf)
+		if g.logger == nil {
+			fmt.Println("\nrecover go func,", "panic:", err, "\n\npanic stack:\n", string((*buf)[:n]))
+			return
+		}
+		g.logger.Log(log.LevelError, "panic err:", err, "panic stack:", string((*buf)[:n]))
+	}
 }
 
 // AddTask 添加任务
