@@ -23,7 +23,7 @@ func (m *Mutex) TryLock() bool {
 	return m.Mutex.TryLock()
 }
 
-// Count 指标信息 获取等待锁的数量
+// Count 指标信息 获取锁的竞争者数量: 等待者加上当前持有者(已加锁时计 1)
 func (m *Mutex) Count() int {
 	// 获取state字段的值
 	v := atomic.LoadInt32((*int32)(unsafe.Pointer(&m.Mutex)))
