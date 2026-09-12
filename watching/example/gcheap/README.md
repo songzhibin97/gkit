@@ -65,3 +65,8 @@ go tool pprof -http=:8000 -base GCHeap.20220209144823.103.bin GCHeap.20220209144
 ```
 
 It shows the reason for memory spike clearly.
+
+Each dump is written to a separate binary file. If the timestamp-based filename
+already exists, a numeric suffix is inserted before `.bin` (for example,
+`gcHeap.heap-3.20260912120000.000.1.bin`). The two heap snapshots keep the same
+event ID, but must be selected as two distinct files for `pprof -base`.

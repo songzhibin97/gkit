@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"strconv"
@@ -173,18 +174,34 @@ func getBinaryFileName(filePath string, dumpType configureType, eventID string) 
 
 // getBinaryFileNameAndCreate 获取文件路径并创建
 func getBinaryFileNameAndCreate(dump string, dumpType configureType, eventID string) (*os.File, string, error) {
-	filepath := getBinaryFileName(dump, dumpType, eventID)
-	f, err := os.OpenFile(filepath, defaultLoggerFlags, defaultLoggerPerm)
-	if err != nil && os.IsNotExist(err) {
-		if err = os.MkdirAll(dump, 0o755); err != nil {
-			return nil, filepath, err
+	return createBinaryFile(getBinaryFileName(dump, dumpType, eventID))
+}
+
+// createBinaryFile reserves a separate file for each dump, even when multiple
+// writers choose the same timestamp. Existing profiles are never appended to.
+func createBinaryFile(filename string) (*os.File, string, error) {
+	const maxAttempts = 1000
+	base := strings.TrimSuffix(filename, ".bin")
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 {
+			filename = fmt.Sprintf("%s.%d.bin", base, attempt)
 		}
-		f, err = os.OpenFile(filepath, defaultLoggerFlags, defaultLoggerPerm)
+		f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, defaultLoggerPerm)
+		if errors.Is(err, os.ErrNotExist) {
+			if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+				return nil, filename, fmt.Errorf("create profile directory: %w", err)
+			}
+			f, err = os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, defaultLoggerPerm)
+		}
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
 		if err != nil {
-			return nil, filepath, err
+			return nil, filename, fmt.Errorf("create profile: %w", err)
 		}
+		return f, filename, nil
 	}
-	return f, filepath, err
+	return nil, filename, fmt.Errorf("create profile after %d filename collisions: %w", maxAttempts, os.ErrExist)
 }
 
 func writeFile(data bytes.Buffer, dumpType configureType, dumpConfigs *DumpConfigs, eventID string) error {

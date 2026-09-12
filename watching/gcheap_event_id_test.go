@@ -2,12 +2,14 @@ package watching
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 // gcHeapEventIDs returns the event ID embedded in every gcHeap binary dump
-// found in dir. getBinaryFileName composes "<type>.<eventID>.<timestamp>.bin".
+// found in dir. A collision suffix may follow the timestamp, but the event ID
+// stays in the second component. Every file must be an independently valid pprof.
 func gcHeapEventIDs(t *testing.T, dir string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -25,6 +27,7 @@ func gcHeapEventIDs(t *testing.T, dir string) []string {
 			t.Fatalf("unexpected gcHeap dump file name: %q", name)
 		}
 		ids = append(ids, parts[1])
+		assertReadableProfile(t, filepath.Join(dir, name))
 	}
 	return ids
 }
@@ -75,8 +78,8 @@ func TestGCHeapPairedDumpsShareOneEventID(t *testing.T) {
 	}
 
 	ids := gcHeapEventIDs(t, dir)
-	if len(ids) == 0 {
-		t.Fatalf("no gcHeap dump file written under %s", dir)
+	if len(ids) != 2 {
+		t.Fatalf("gcHeap dump files = %v, want exactly two", ids)
 	}
 	for _, id := range ids {
 		if id != "heap-3" {

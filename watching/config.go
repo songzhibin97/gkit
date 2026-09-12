@@ -108,7 +108,8 @@ type groupConfigs struct {
 	// goroutine_num < GoroutineTriggerNumMax (the max is ignored when it's 0), and
 	// one of the following requirements is matched
 	//   1. goroutine_num > TriggerAbs
-	//   2. goroutine diff percent > TriggerDiff
+	//   2. goroutine_num >= avg*(100+TriggerDiff)/100, where avg is the history's
+	//      integer average; division uses integer arithmetic, and equality triggers
 	*typeConfig
 	GoroutineTriggerNumMax int // goroutine trigger max in number
 }

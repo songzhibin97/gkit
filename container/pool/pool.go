@@ -53,7 +53,8 @@ type config struct {
 	// wait 仅在 waitTimeout == 0 时起作用:
 	// waitTimeout == 0 且 wait == true: 池耗尽时一直等待, 直到有资源归还或 ctx 结束
 	// waitTimeout == 0 且 wait == false: 池耗尽时立即返回 ErrPoolExhausted
-	// waitTimeout > 0: 无论 wait 取值, 最多等待 waitTimeout(并受上游链路超时约束)
+	// waitTimeout > 0: 无论 wait 取值, 每轮最多等待 waitTimeout(并受 ctx 截止时间约束)
+	// 被唤醒后重新检查资源; 若再次耗尽则重新计时, 整个 Get 的总时限应由 ctx 控制
 	wait bool
 }
 
