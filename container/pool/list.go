@@ -3,6 +3,7 @@ package pool
 import (
 	"container/list"
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -327,11 +328,14 @@ func (l *List) Shutdown() error {
 	l.idles.Init()
 	l.notifyLocked()
 	l.mu.Unlock()
+	var shutdownErrs []error
 	for _, s := range shutdowns {
-		_ = s.Shutdown()
+		if err := s.Shutdown(); err != nil {
+			shutdownErrs = append(shutdownErrs, err)
+		}
 	}
 	<-l.cleanerDone
-	return nil
+	return errors.Join(shutdownErrs...)
 }
 
 // New 设置创建资源函数
