@@ -246,6 +246,15 @@ func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, co
 	if err := ctx.Err(); err != nil {
 		return asyncResults, err
 	}
+	attemptBackend, supportsAttempts := s.backend.(backend.PublicationAttemptBackend)
+	var attemptID string
+	if supportsAttempts {
+		var err error
+		attemptID, err = s.nextPublicationAttemptID()
+		if err != nil {
+			return asyncResults, fmt.Errorf("generate group publication attempt ID: %w", err)
+		}
+	}
 
 	// 接管任务
 	if err := s.backend.GroupTakeOver(group.GroupID, group.Name, group.GetTaskIDs()...); err != nil {
@@ -260,7 +269,13 @@ func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, co
 		if err := ctx.Err(); err != nil {
 			return asyncResults, s.withGroupInitializationCleanup(err, group.GroupID, initializedTaskIDs)
 		}
-		if err := s.backend.SetStatePending(signature); err != nil {
+		var err error
+		if supportsAttempts {
+			err = attemptBackend.SetStatePendingAttempt(signature, attemptID)
+		} else {
+			err = s.backend.SetStatePending(signature)
+		}
+		if err != nil {
 			primaryErr := errors.Wrapf(err, "set state pending task %s", signature.ID)
 			return asyncResults, s.withGroupInitializationCleanup(primaryErr, group.GroupID, initializedTaskIDs)
 		}
@@ -325,15 +340,15 @@ admission:
 		}
 	}
 	if primaryErr != nil {
-		// No call to Publish means no queue side effect can have occurred, so the
-		// complete initialization is safe to roll back and the caller can retry
-		// the same group ID. Once a publish attempt starts, retain the group and
-		// converge every unsuccessful or unadmitted member to a terminal failure;
-		// confirmed successful publishers are never touched.
+		// With no call to Publish, retain the existing initialization rollback
+		// so the caller can retry the same group ID. Once publication starts,
+		// retain the group and converge
+		// only PENDING states still owned by this attempt. Backends without this
+		// atomic operation retain their states rather than overwrite progress.
 		if startedPublishers == 0 {
 			return asyncResults, s.withGroupInitializationCleanup(primaryErr, group.GroupID, initializedTaskIDs)
 		}
-		if convergenceErr := s.convergeGroupPublicationFailures(group, publishErrs); convergenceErr != nil {
+		if convergenceErr := s.convergeGroupPublicationFailures(group, publishErrs, attemptBackend, attemptID, startedPublishers); convergenceErr != nil {
 			return asyncResults, stderrors.Join(primaryErr, convergenceErr)
 		}
 		return asyncResults, primaryErr
@@ -347,17 +362,25 @@ admission:
 	return asyncResults, nil
 }
 
-func (s *Server) convergeGroupPublicationFailures(group *task.Group, publishErrs []error) error {
+func (s *Server) convergeGroupPublicationFailures(group *task.Group, publishErrs []error, attemptBackend backend.PublicationAttemptBackend, attemptID string, startedPublishers int) error {
+	if attemptBackend == nil {
+		return nil
+	}
 	var convergenceErrs []error
 	for index, publishErr := range publishErrs {
 		if publishErr == nil {
 			continue
 		}
-		failureMessage := "group publication failed before task execution"
-		if stderrors.Is(publishErr, context.Canceled) || stderrors.Is(publishErr, context.DeadlineExceeded) {
-			failureMessage = "group publication canceled before task execution"
+		failureMessage := taskPublicationFailureMessage
+		// Admission is a prefix of group.Tasks. A called Publish can have
+		// succeeded remotely even when it returned a cancellation/error locally.
+		if index >= startedPublishers {
+			failureMessage = "group publication failed before task execution"
+			if stderrors.Is(publishErr, context.Canceled) || stderrors.Is(publishErr, context.DeadlineExceeded) {
+				failureMessage = "group publication canceled before task execution"
+			}
 		}
-		if err := s.backend.SetStateFailure(group.Tasks[index], failureMessage); err != nil {
+		if _, err := attemptBackend.FailPendingAttempt(group.Tasks[index], attemptID, failureMessage); err != nil {
 			convergenceErrs = append(convergenceErrs, fmt.Errorf(
 				"converge group task %s after publication failure: %w",
 				group.Tasks[index].ID,
