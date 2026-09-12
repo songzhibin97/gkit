@@ -60,8 +60,6 @@ var (
 	}
 	ctxTypeInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
 
-	retrievableInterface = reflect.TypeOf((*Retrievable)(nil)).Elem()
-
 	errInterface = reflect.TypeOf((*error)(nil)).Elem()
 
 	typeConversionError = func(argValue interface{}, argTypeStr string) error {

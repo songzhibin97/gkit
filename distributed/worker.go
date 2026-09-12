@@ -114,8 +114,8 @@ func (w *Worker) Process(signature *task.Signature) error {
 	results, err := exec.Call()
 	if err != nil {
 		// 判断err是否是可重试错误
-		retryErr, ok := (interface{})(err).(task.ErrRetryTaskLater)
-		if ok {
+		var retryErr task.Retrievable
+		if errors.As(err, &retryErr) {
 			// 重试
 			return w.handlerRetryIn(signature, retryErr.RetryIn())
 		}
