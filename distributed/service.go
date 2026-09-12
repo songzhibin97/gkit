@@ -531,7 +531,9 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 		defer s.lock.UnLock(key, mark)
 
 		// send task
-		_, err = s.SendTask(task.CopySignature(signature))
+		runtimeSignature := task.CopySignature(signature)
+		rekeyTimedSignature(runtimeSignature, rand_string.RandomLetter(timedRunSuffixLength), "task-0", make(map[*task.Signature]struct{}))
+		_, err = s.SendTask(runtimeSignature)
 		if err != nil {
 			s.helper.Errorf("timed task failed. task name is: %s. error is %s", name, err.Error())
 		}
@@ -551,7 +553,12 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 		return err
 	}
 	f := func() {
-		chain, _ := task.NewChain(name, task.CopySignatures(signatures...)...)
+		runtimeSignatures := task.CopySignatures(signatures...)
+		runSuffix := rand_string.RandomLetter(timedRunSuffixLength)
+		for index, signature := range runtimeSignatures {
+			rekeyTimedSignature(signature, runSuffix, fmt.Sprintf("task-%d", index), make(map[*task.Signature]struct{}))
+		}
+		chain, _ := task.NewChain(name, runtimeSignatures...)
 
 		// get lock
 		key := getLockName(name, spec)
