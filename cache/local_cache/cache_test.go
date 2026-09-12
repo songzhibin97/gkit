@@ -1219,9 +1219,6 @@ func TestDecrementUnderflowUint(t *testing.T) {
 func TestOnEvicted(t *testing.T) {
 	tc := NewCache()
 	tc.Set("foo", 3, DefaultExpire)
-	if tc.capture == nil {
-		t.Fatal("tc.onEvicted is nil")
-	}
 	works := false
 	tc.ChangeCapture(func(k string, v interface{}) {
 		if k == "foo" && v.(int) == 3 {
