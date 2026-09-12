@@ -43,6 +43,7 @@ Dedicated to providing microservices and monolithic services of the availability
 ├── downgrade (fusion downgrade related components)
 ├── egroup (errgroup, controls component lifecycle)
 ├── encrypt (Encryption encapsulation, protection padkey complement)
+  ├── aes (aes-cbc and aes-gcm encryption/decryption, with key padding helpers)
 ├── errors (grpc error handling)
 ├── gctuner (pre go1.19 gc optimization tool)
 ├── generator (number generator, snowflake)
@@ -51,14 +52,17 @@ Dedicated to providing microservices and monolithic services of the availability
 ├── metrics (interface to metrics)
 ├── middleware (middleware interface model definition)
 ├── net (network related encapsulation)
+  ├── arp (resolves the outbound interface, source ip and destination hardware address for a target ip via arp)
+  ├── ip (ip tools, client ip extraction, ip/CIDR allow and block filtering)
+  ├── port (gets a free local port)
   ├── tcp
 ├── options (option model interfacing)
 ├── overload (server adaptive protection, provides bbr interface, monitors deployed server status to select traffic release, protects server availability)
   ├── bbr (adaptive flow limiting)
 ├── page_token (google aip next token implementation)  
 ├── parser (file parsing, proto<->go mutual parsing)
-  ├── parseGo (parses go to generate pb)
-  ├── parsePb (parses pb to generate go)
+  ├── parse_go (parses go to generate pb)
+  ├── parse_pb (parses pb to generate go)
 ├── registry (service discovery interfacing, google sre subset implementation)
 ├── restrictor (restrict flow, provide token bucket and leaky bucket interface wrappers)
   ├── client_throttling (client throttling)
@@ -70,7 +74,7 @@ Dedicated to providing microservices and monolithic services of the availability
   ├── skipmap 
   ├── skipset 
   ├── zset 
-├── sync
+├── sys
     ├── cpu (Get system information for Linux, including cpu mains, cpu usage, etc.)
     ├── fastrand (random numbers)
     ├── goid (get goroutine id)
@@ -102,10 +106,11 @@ Dedicated to providing microservices and monolithic services of the availability
   ├── pretty (formatting json)
   ├── reflect2value (basic field mapping)
   ├── rand_string (random strings)
-  ├── vto (assignment of functions with the same type, hands free, usually used for vo->do object conversions)
-    ├── vtoPlus (adds plus support for field, tag and default value binding)
+  ├── stm (struct to map conversion, key names taken from the given tag)
+  ├── vto (assignment of functions with the same type, hands free, usually used for vo->do object conversions; VoToDoPlus additionally supports field, tag and default value binding)
 ├── trace (link tracing)
 ├── watching (monitor cpu, mum, gc, goroutine and other metrics, automatically dump pprof metrics in case of fluctuations)
+├── wgroup (waitgroup wrapper over a goroutine pool, submits tasks and waits for them to finish)
 └── window (sliding window, supports multi-data type metrics window collection)
 
 ```
@@ -121,7 +126,7 @@ go get github.com/songzhibin97/gkit
 
 Cache-related components
 > buffer & mbuffer provide similar functionality, buffer has more encapsulation and implements some interfaces to io, while mbuffer is just a memory cache; it is more suitable for short and frequent life cycles.
-> local_cache provides a local data cache, and also has some expiry mechanisms, you can set the expiry time, and regularly clean up the expired data, but he is now older, if needed there is a generic version https://github.com/songzhibin97/go-baseutils/blob/main/ app/bcache
+> local_cache provides a local data cache, and also has some expiry mechanisms, you can set the expiry time, and regularly clean up the expired data, but he is now older, if needed there is a generic version https://github.com/songzhibin97/go-baseutils/blob/main/app/bcache
 > singleflight wraps golang.org/x/sync/singleflight to prevent the effects of changes.
 
 
@@ -150,7 +155,7 @@ func main() {
 	// IOByte reuse
 
 	// io buffer.IoBuffer interface
-	GetIoPool(1024)
+	io := buffer.GetIoPool(1024)
 
 	// If an object has already been recycled, referring to the recycled object again will trigger an error
 	err := buffer.PutIoPool(io)
@@ -162,47 +167,59 @@ func main() {
 
 
 ### local_cache
+
+Save this complete example as `main.go`; `main` creates the cache before use and stops its janitor on exit.
 ```go
-package local_cache
+package main
 
 import (
-	"github.com/songzhibin97/gkit/cache/buffer"
 	"log"
+	"time"
+
+	"github.com/songzhibin97/gkit/cache/buffer"
+	"github.com/songzhibin97/gkit/cache/local_cache"
 )
 
-var ch Cache
+var ch local_cache.Cache
+
+func main() {
+	ExampleNewCache()
+	defer ExampleShutdown()
+	ExampleCacheStorage()
+	ExampleGet()
+}
 
 func ExampleNewCache() {
 	// default configuration
-	// ch = NewCache()
+	// ch = local_cache.NewCache()
 
 	// Optional configuration options
 
 	// Set the interval time
-	// SetInternal(interval time.Duration)
+	// local_cache.SetInternal(interval time.Duration)
 
 	// Set the default timeout
-	// SetDefaultExpire(expire time.Duration)
+	// local_cache.SetDefaultExpire(expire time.Duration)
 
 	// Set the cycle execution function, the default (not set) is to scan the global to clear expired k
-	// SetFn(fn func())
+	// local_cache.SetFn(fn func())
 
 	// Set the capture function to be called after the deletion is triggered, the set capture function will be called back after the data is deleted
-	// SetCapture(capture func(k string, v interface{}))
+	// local_cache.SetCapture(capture func(k string, v interface{}))
 
 	// Set the initialization of the stored member object
-	// SetMember(m map[string]Iterator)
+	// local_cache.SetMember(m map[string]local_cache.Iterator)
 
-	ch = NewCache(SetInternal(1000).
-		SetDefaultExpire(10000).
-		SetCapture(func(k string, v interface{}) {
+	ch = local_cache.NewCache(local_cache.SetInternal(time.Second),
+		local_cache.SetDefaultExpire(time.Minute),
+		local_cache.SetCapture(func(k string, v interface{}) {
 			log.Println(k, v)
 		}))
 }
 
 func ExampleCacheStorage() {
 	// Set adds cache and overwrites it whether it exists or not
-	ch.Set("k1", "v1", DefaultExpire)
+	ch.Set("k1", "v1", local_cache.DefaultExpire)
 
 	// SetDefault overrides whether or not it exists
 	// Default function mode, default timeout is passed in as the default time to create the cache
@@ -213,12 +230,12 @@ func ExampleCacheStorage() {
 	ch.SetNoExpire("k1", 1.1)
 
 	// Add the cache and throw an exception if it exists
-	err := ch.Add("k1", nil, DefaultExpire)
-	CacheErrExist(err) // true
+	err := ch.Add("k1", nil, local_cache.DefaultExpire)
+	local_cache.CacheErrExist(err) // true
 
-	// Replace throws an error if it is set or not
-	err = ch.Replace("k2", make(chan struct{}), DefaultExpire)
-	CacheErrNoExist(err) // true
+	// Replace updates an existing key; a missing key returns an error
+	err = ch.Replace("k2", make(chan struct{}), local_cache.DefaultExpire)
+	local_cache.CacheErrNoExist(err) // true
 }
 
 func ExampleGet() {
@@ -234,7 +251,7 @@ func ExampleGet() {
 	if !ok {
 		// v == nil
 	}
-	// if the timeout is NoExpire t.IsZero() == true
+	// if the timeout is local_cache.NoExpire t.IsZero() == true
 	if t.IsZero() {
 		// No timeout is set
 	}
@@ -250,11 +267,11 @@ func ExampleGet() {
 }
 
 func ExampleIncrement() {
-	ch.Set("k3", 1, DefaultExpire)
-	ch.Set("k4", 1.1, DefaultExpire)
+	ch.Set("k3", 1, local_cache.DefaultExpire)
+	ch.Set("k4", 1.1, local_cache.DefaultExpire)
 	// Increment adds n to the value corresponding to k n must be a number type
 	err := ch.Increment("k3", 1)
-	if CacheErrExpire(err) || CacheErrExist(CacheTypeErr) {
+	if local_cache.CacheErrExpire(err) || local_cache.CacheErrTypeErr(err) {
 		// Not set successfully
 	}
 	_ = ch.IncrementFloat("k4", 1.1)
@@ -272,7 +289,7 @@ func ExampleDelete() {
 	// Delete triggers the not-or function if capture is set
 	ch.Delete("k1")
 
-	// DeleteExpire Deletes all expired keys, the default capture is to execute DeleteExpire()
+	// DeleteExpire deletes all expired keys; it is the default periodic sentinel function (local_cache.SetFn), not the default capture (local_cache.SetCapture)
 	ch.DeleteExpire()
 }
 
@@ -309,7 +326,9 @@ func ExampleFlush() {
 
 func ExampleShutdown() {
 	// Shutdown frees the object
-	ch.Shutdown()
+	if err := ch.Shutdown(); err != nil {
+		log.Println(err)
+	}
 }
 ```
 
@@ -389,7 +408,7 @@ func main() {
 		Lever int
 	}{"Gkit", 200}
 	fmt.Println(coding.GetCode("json").Name())
-	GetCode("json").Marshal(t)
+	data, err := coding.GetCode("json").Marshal(t)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -504,13 +523,13 @@ func main() {
 
 	// Customize the configuration
 	p = pool.NewList(
-		pool.SetActive(100).
-		pool.SetIdle(20).
-		pool.SetIdleTimeout(time.Second).
-		SetIdleTimeout(time.Second), pool.SetWait(false, time.Second))
+		pool.SetActive(100),
+		pool.SetIdle(20),
+		pool.SetIdleTimeout(time.Second),
+		pool.SetWait(false, time.Second))
 
 	// New needs to be instantiated, otherwise it will not get the resource in pool.
-	p.NewQueue(getResources)
+	p.New(getResources)
 
 	v, err := p.Get(context.TODO())
 	if err != nil {
@@ -705,7 +724,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/songzhibin97/gkit/egroup"
+	"github.com/songzhibin97/gkit/goroutine"
+	"net/http"
 	"os"
 	"syscall"
 	"time"
@@ -975,8 +997,8 @@ func main() {
 	logs.Error("Error", "v")
 	logs.Errorf("%s,%s", "errorf", "v")
 	/*
-	[debug] message=debugv
-    [debug] message=debugf,v
+	[Debug] message=debugv
+    [Debug] message=debugf,v
     [Info] message=Infov
     [Info] message=infof,v
     [Warn] message=Warnv
@@ -1189,16 +1211,24 @@ func main() {
 ```go
 package main
 
-import "github.com/songzhibin97/gkit/page_token"
+import (
+	"fmt"
+
+	"github.com/songzhibin97/gkit/page_token"
+)
 
 func main() {
-   	n := NewTokenGenerate("test") // Unique identification of the resource, and the option to pass the above
-	// 10000 is the total number
-	// Generate page_token
-	// start - end start and end address, tk is next_token
-	start, end, tk, err := n.ProcessPageTokens(10000, 100, "") // 0,100, tk
+	n := page_token.NewTokenGenerate("test") // Unique identification of the resource, plus the options above
+	// 10000 is the total number of elements
+	// start - end are the start and end offsets, tk is next_token
+	start, end, tk, err := n.ProcessPageTokens(10000, 100, "") // 0,100,tk
+	fmt.Println(start, end, tk, err)
+
 	start, end, ntk, err := n.ProcessPageTokens(10000, 100, tk) // 100,200,ntk
-	n.GetIndex(ntk) // 200
+	fmt.Println(start, end, ntk, err)
+
+	index, err := n.GetIndex(ntk) // 200
+	fmt.Println(index, err)
 }
 ```
 
@@ -1212,16 +1242,39 @@ package main
 
 import (
 	"fmt"
-	"github.com/songzhibin97/gkit/parse/parseGo"
-	"github.com/songzhibin97/gkit/parse/parsePb"
+	"strings"
+
+	"github.com/songzhibin97/gkit/parser/parse_go"
+	"github.com/songzhibin97/gkit/parser/parse_pb"
 )
 
+// parse_go registers no doc parser by default, so supply your own to bind the
+// @service/@method/@router comments onto the parsed function.
+// Any function carrying one of these RPC doc tags must end up with both a method
+// and a router, otherwise ParseGo returns an error.
+func bindDoc(server *parse_go.Server) {
+	for _, doc := range server.Doc {
+		for _, line := range strings.Split(doc, "\n") {
+			line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "//"))
+			switch {
+			case strings.HasPrefix(line, "@service:"):
+				server.ServerName = strings.TrimSpace(strings.TrimPrefix(line, "@service:"))
+			case strings.HasPrefix(line, "@method:"):
+				server.Method = strings.TrimSpace(strings.TrimPrefix(line, "@method:"))
+			case strings.HasPrefix(line, "@router:"):
+				server.Router = strings.TrimSpace(strings.TrimPrefix(line, "@router:"))
+			}
+		}
+	}
+}
+
 func main() {
-	pgo, err := parseGo.ParseGo("gkit/parse/demo/demo.api")
+	// parse_go.AddParseStruct is available in the same way to customize struct tag parsing
+	pgo, err := parse_go.ParseGo("parser/demo/demo.api", parse_go.AddParseFunc(bindDoc))
 	if err != nil {
 		panic(err)
 	}
-	r := pgo.(*parseGo.GoParsePB)
+	r := pgo.(*parse_go.GoParsePB)
 	for _, note := range r.Note {
 		fmt.Println(note.Text, note.Pos(), note.End())
 	}
@@ -1234,7 +1287,7 @@ func main() {
 	// Dismounting
 	_ = r.PileDismantle("var _ = 1")
 	
-	ppb, err := parsePb.ParsePb("GKit/parse/demo/test.proto")
+	ppb, err := parse_pb.ParsePb("parser/demo/test.proto")
 	if err != nil {
 		panic(err)
 	}
@@ -1364,6 +1417,12 @@ func main() {
 ```go
 package main
 
+import (
+	"fmt"
+
+	"github.com/songzhibin97/gkit/structure/lscq"
+)
+
 func main() {
     l := lscq.NewUint64()
 	
@@ -1371,8 +1430,8 @@ func main() {
 	if !ok {
 		panic("enqueue failed")
     }   
-	v, err := l.Dequeue()
-	if err != nil {
+	v, ok := l.Dequeue()
+	if !ok {
 		panic("dequeue failed")
     }
 	fmt.Println("lscq dequeue value:", v)
@@ -1385,6 +1444,8 @@ func main() {
 ```go
 package main
 
+import "github.com/songzhibin97/gkit/structure/skipmap"
+
 func main() {
      m := skipmap.NewInt()
 
@@ -1392,7 +1453,7 @@ func main() {
 	m.Store(123, "123")
 	m.Load(123)
 	m.Delete(123)
-	m.LoadOrStore(123)
+	m.LoadOrStore(123, "123")
 	m.LoadAndDelete(123)
 }
 ```
@@ -1433,9 +1494,11 @@ func Example() {
 ```go
 package main
 
+import "github.com/songzhibin97/gkit/sys/mutex"
+
 func main() {
-     // Get the lock
-    lk := mutex.NewMutex()
+     // The zero value is ready to use, no constructor needed
+    var lk mutex.Mutex
     // Try to get a lock
     if lk.TryLock() {
     	// Get the lock
@@ -1453,13 +1516,14 @@ func main() {
     
     // Reentrant locks
     // can be acquired multiple times in the same goroutine
-    rvlk := mutex.NewRecursiveMutex() 
+    var rvlk mutex.RecursiveMutex
     rvlk.Lock()
     defer rvlk.Unlock()
     
     // token reentrant lock
     // Pass in the same token to enable the reentrant function
-    tklk := mutex.NewTokenRecursiveMutex()
+    var tklk mutex.TokenRecursiveMutex
+    var token int64 = 1
     tklk.Lock(token)
     defer tklk.Unlock(token)
 }
@@ -1518,7 +1582,7 @@ Other(currently, gorm also has a related type that is supported.)
 > timeout.DbJSON // provides some functionality in db json format
 > Use timeout.DBJSONFromObjectE to create DbJSON from Go values and handle JSON encoding errors. The deprecated DBJSONFromObject preserves its legacy nil fallback on encoding failure.
 > timeout.DTime // provides some functionality in db 15:04:05 format
-> DateStruct // provides some functionality in db 15:04:05 format Embedded in struct mode
+> DateStruct // provides some functionality in db 2006-01-02 format Embedded in struct mode
 > Date // provides some functionality in db 2006-01-02 format
 > DateTime // provides some functions in db 2006-01-02 15:04:05 format
 > DateTimeStruct // provides some functions in db 2006-01-02 15:04:05 format Embed mode as struct
@@ -1549,9 +1613,9 @@ func main() {
 	}
 	db.AutoMigrate(&GoStruct{})
 	db.Create(&GoStruct{
-		DateTime: timeout.DateTime(time.Now()).
-		DTime: timeout.DTime(time.Now()).
-		Date: timeout.Date(time.Now()).
+		DateTime: timeout.DateTime(time.Now()),
+		DTime:    timeout.DTime(time.Now()),
+		Date:     timeout.Date(time.Now()),
 	})
 	v := &GoStruct{}
 	db.Find(v) // successfully found
@@ -1576,8 +1640,8 @@ import (
 )
 
 type Test struct {
-	Json string `json: "json" form: "json,default=jjjson"`
-	Query string `json: "query" form: "query"`
+	Json  string `json:"json" form:"json,default=jjjson"`
+	Query string `json:"query" form:"query"`
 }
 
 func main() {
@@ -1589,9 +1653,9 @@ func main() {
 		// "json": "json".
 		// "query": "query"
 		// }
-		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()), bind.)
+		err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType()))
 		// Custom binding object
-		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(), bind.SetSelectorParse([]bind.Binding{})))
+		// err := c.ShouldBindWith(&t, bind.CreateBindAll(c.ContentType(), bind.SetSelectorParse([]bind.Binding{bind.Query, bind.JSON})))
 		if err != nil {
 			c.JSON(200, err)
 			return
@@ -1609,8 +1673,8 @@ package main
 import "github.com/songzhibin97/gkit/tools/vto"
 
 type CP struct {
-	Z1 int `default: "1"`
-	Z2 string `default: "z2"`
+	Z1 int    `default:"1"`
+	Z2 string `default:"z2"`
 }
 
 func main() {
@@ -1626,8 +1690,9 @@ func main() {
 	// must be dst, src must pass pointer type
 	
 	// v1.1.2 New default tag
-	_ = vto.VoToDo(&c2,&c3)
-	// c2 CP{ Z1: 1, Z2: "z2"}
+	c4 := CP{}
+	_ = vto.VoToDo(&c4,&c3)
+	// c4 CP{ Z1: 1, Z2: "z2"} (defaults only fill zero-valued dst fields)
 	// same name same type execution copy
 	// must dst, src must pass pointer type
 	
@@ -1652,12 +1717,12 @@ import (
 func main() {
 	w := window.NewWindow()
 	slice := []window.Index{
-		{Name: "1", Score: 1}, {Name: "2", Score: 2}.
-		{Name: "2", Score: 2}, {Name: "3", Score: 3}.
-		{Name: "2", Score: 2}, {Name: "3", Score: 3}.
-		{Name: "4", Score: 4}, {Name: "3", Score: 3}.
-		{Name: "5", Score: 5}, {Name: "2", Score: 2}.
-		{Name: "6", Score: 6}, {Name: "5", Score: 5}.
+		{Name: "1", Score: 1}, {Name: "2", Score: 2},
+		{Name: "2", Score: 2}, {Name: "3", Score: 3},
+		{Name: "2", Score: 2}, {Name: "3", Score: 3},
+		{Name: "4", Score: 4}, {Name: "3", Score: 3},
+		{Name: "5", Score: 5}, {Name: "2", Score: 2},
+		{Name: "6", Score: 6}, {Name: "5", Score: 5},
 	}
 	/*
 			[{1 1} {2 2}]
