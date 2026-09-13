@@ -12,6 +12,7 @@ import (
 func TestDelegateCompletesAfterPanics(t *testing.T) {
 	sentinel := errors.New("controlled callback error")
 	for _, mode := range []string{"normal", "returned_error", "error_panic", "nil_panic", "string_panic", "value_panic"} {
+		mode := mode // Each callback owns its case on Go 1.20 too.
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
