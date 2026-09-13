@@ -135,6 +135,10 @@ func (w *Watching) DisableProfileReporter() {
 }
 
 func finalizerCallback(gc *gcHeapFinalizer) {
+	// Synchronize notification admission and re-registration with Stop's
+	// channel teardown; checking stopped alone cannot protect a later send.
+	gc.w.Lock()
+	defer gc.w.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
 			gc.w.logf("Panic in finalizer callback: %v", r)
