@@ -68,8 +68,20 @@ func NewGroupCallbackAsyncResult(groupAsyncResult []*task.Signature, callbackAsy
 	}
 }
 
-func waitForPoll(ctx context.Context, duration time.Duration) error {
+// Socket deadlines can fire before the context timer updates Err. Observe the
+// deadline itself as well, without masking an earlier independent backend error.
+func contextError(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
+}
+
+func waitForPoll(ctx context.Context, duration time.Duration) error {
+	if err := contextError(ctx); err != nil {
 		return err
 	}
 	timer := time.NewTimer(duration)
@@ -78,7 +90,7 @@ func waitForPoll(ctx context.Context, duration time.Duration) error {
 		if !timer.Stop() {
 			<-timer.C
 		}
-		return ctx.Err()
+		return contextError(ctx)
 	case <-timer.C:
 		return nil
 	}
@@ -106,7 +118,7 @@ func (asyncResult *AsyncResult) GetWithTimeout(timeoutDuration, sleepDuration ti
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, contextError(ctx)
 		default:
 			results, err := asyncResult.monitor(ctx)
 			if results == nil && err == nil {
@@ -126,11 +138,11 @@ func (asyncResult *AsyncResult) Monitor() ([]reflect.Value, error) {
 }
 
 func (asyncResult *AsyncResult) monitor(ctx context.Context) (values []reflect.Value, err error) {
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
 	defer func() {
-		if deadlineErr := ctx.Err(); deadlineErr != nil {
+		if deadlineErr := contextError(ctx); deadlineErr != nil {
 			values, err = nil, deadlineErr
 		}
 	}()
@@ -158,7 +170,7 @@ func (asyncResult *AsyncResult) GetStateWithError() (*task.Status, error) {
 }
 
 func (asyncResult *AsyncResult) getStateContext(ctx context.Context) (*task.Status, error) {
-	if err := ctx.Err(); err != nil {
+	if err := contextError(ctx); err != nil {
 		return asyncResult.state, err
 	}
 	if asyncResult.state.IsCompleted() {
@@ -174,7 +186,7 @@ func (asyncResult *AsyncResult) getStateContext(ctx context.Context) (*task.Stat
 	} else {
 		taskState, err = asyncResult.backend.GetStatus(asyncResult.Signature.ID)
 	}
-	if deadlineErr := ctx.Err(); deadlineErr != nil {
+	if deadlineErr := contextError(ctx); deadlineErr != nil {
 		return asyncResult.state, deadlineErr
 	}
 	if err != nil {
@@ -233,7 +245,7 @@ func (chainAsyncResult *ChainAsyncResult) GetWithTimeout(timeoutDuration, sleepD
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, contextError(ctx)
 		default:
 			for _, result := range chainAsyncResult.asyncResult {
 				_, err = result.monitor(ctx)
@@ -287,7 +299,7 @@ func (groupCallbackAsyncResult *GroupCallbackAsyncResult) GetWithTimeout(timeout
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, contextError(ctx)
 		default:
 			for _, result := range groupCallbackAsyncResult.groupAsyncResult {
 				_, err = result.monitor(ctx)

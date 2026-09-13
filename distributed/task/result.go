@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 
@@ -70,6 +71,30 @@ func (r *Result) UnmarshalBSON(data []byte) error {
 				return fmt.Errorf("decode BSON result type %q: %w", wire.Type, err)
 			}
 			value = decoded
+		} else if wire.Type == "float32" {
+			var number float64
+			if err := wire.Value.Unmarshal(&number); err != nil {
+				return fmt.Errorf("decode BSON result type %q: %w", wire.Type, err)
+			}
+			decoded, err := bsonFloat32(number)
+			if err != nil {
+				return fmt.Errorf("decode BSON result type %q: %w", wire.Type, err)
+			}
+			value = decoded
+		} else if wire.Type == "[]float32" {
+			var numbers []float64
+			if err := wire.Value.Unmarshal(&numbers); err != nil {
+				return fmt.Errorf("decode BSON result type %q: %w", wire.Type, err)
+			}
+			decoded := make([]float32, len(numbers))
+			for i, number := range numbers {
+				var err error
+				decoded[i], err = bsonFloat32(number)
+				if err != nil {
+					return fmt.Errorf("decode BSON result type %q element %d: %w", wire.Type, i, err)
+				}
+			}
+			value = decoded
 		} else if typ, ok := typeOfMap[wire.Type]; ok {
 			target := reflect.New(typ)
 			if err := wire.Value.Unmarshal(target.Interface()); err != nil {
@@ -82,6 +107,17 @@ func (r *Result) UnmarshalBSON(data []byte) error {
 	}
 	*r = Result{Type: wire.Type, Value: value}
 	return nil
+}
+
+// BSON doubles from old JSON clones use short decimal float32 values. Round
+// them back normally, checking the converted result rather than comparing the
+// double to MaxFloat32 (whose valid short decimal spelling can exceed it).
+func bsonFloat32(number float64) (float32, error) {
+	value := float32(number)
+	if math.IsNaN(number) || (!math.IsInf(number, 0) && math.IsInf(float64(value), 0)) {
+		return 0, fmt.Errorf("BSON number cannot be represented as float32")
+	}
+	return value, nil
 }
 
 // ConvertResult 将Result类型转换成reflect.Value
