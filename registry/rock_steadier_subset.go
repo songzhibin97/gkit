@@ -217,6 +217,7 @@ func shuffle(magicNumber int64, clients []int, matrixServices [][]*int) {
 	})
 }
 
+// AddService snapshots IDs for asynchronous execution. A nil return means queued.
 func (r *RockSteadierSubset) AddService(ctx context.Context, ids []int) error {
 	if atomic.LoadInt32(&r.close) == 1 {
 		return ErrorHasBeenClosed
@@ -232,7 +233,7 @@ func (r *RockSteadierSubset) AddService(ctx context.Context, ids []int) error {
 		// instead of sending (the channel is never closed, so this can't panic).
 		return ErrorHasBeenClosed
 	case r.command <- command{
-		ids:  ids,
+		ids:  append([]int(nil), ids...),
 		code: 1,
 	}:
 		return nil
@@ -287,6 +288,7 @@ func (r *RockSteadierSubset) addService(ids []int) {
 	}
 }
 
+// RemoveService snapshots IDs for asynchronous execution. A nil return means queued.
 func (r *RockSteadierSubset) RemoveService(ctx context.Context, ids []int) error {
 	if atomic.LoadInt32(&r.close) == 1 {
 		return ErrorHasBeenClosed
@@ -302,7 +304,7 @@ func (r *RockSteadierSubset) RemoveService(ctx context.Context, ids []int) error
 		// instead of sending (the channel is never closed, so this can't panic).
 		return ErrorHasBeenClosed
 	case r.command <- command{
-		ids:  ids,
+		ids:  append([]int(nil), ids...),
 		code: 2,
 	}:
 		return nil
