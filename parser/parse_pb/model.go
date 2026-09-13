@@ -224,7 +224,7 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix, scope string) error 
 	return nil
 }
 
-func (p *PbParseGo) parseService(sv *proto.Service) {
+func (p *PbParseGo) parseService(sv *proto.Service) error {
 	for _, element := range sv.Elements {
 		switch v := element.(type) {
 		case *proto.RPC:
@@ -241,9 +241,13 @@ func (p *PbParseGo) parseService(sv *proto.Service) {
 			for _, f := range p.ParseServices {
 				f(server)
 			}
+			if _, exists := p.Server[server.Name]; exists {
+				return fmt.Errorf("parse_pb: duplicate RPC %s in service %s", server.Name, sv.Name)
+			}
 			p.AddServers(server)
 		}
 	}
+	return nil
 }
 
 func (p *PbParseGo) PackageName() string {

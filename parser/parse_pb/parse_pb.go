@@ -46,7 +46,9 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			}
 		case *proto.Service:
 			// service
-			ret.parseService(v)
+			if err := ret.parseService(v); err != nil {
+				return nil, err
+			}
 		case *proto.Enum:
 			ret.parseEnum(v, "")
 		}
