@@ -24,7 +24,8 @@ type Conn struct {
 
 	// deadlineMu serializes underlying deadline changes with local state.
 	// Never hold it across Read or Write.
-	deadlineMu sync.Mutex
+	deadlineMu          sync.Mutex
+	readDeadlineVersion uint64
 
 	// sendTimeout: 发送超时时间
 	sendTimeout time.Time
@@ -183,6 +184,9 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 	}
 
 	deadlineChanged := false
+	idleApplied := false
+	var probeVersion uint64
+	var idleDeadline time.Time
 	defer func() {
 		if !deadlineChanged {
 			return
@@ -211,7 +215,10 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 			return bf[:index], nil
 		}
 		if err != nil {
-			if deadlineChanged && isTimeout(err) {
+			c.deadlineMu.Lock()
+			idleExpired := idleApplied && probeVersion == c.readDeadlineVersion && !time.Now().Before(idleDeadline)
+			c.deadlineMu.Unlock()
+			if idleExpired && isTimeout(err) {
 				return bf[:index], nil
 			}
 			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, err)
@@ -220,10 +227,13 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, io.ErrNoProgress)
 		}
 		c.deadlineMu.Lock()
-		idleDeadline := time.Now().Add(c.recvBufferInterval)
+		idleDeadline = time.Now().Add(c.recvBufferInterval)
+		idleApplied = true
 		if !c.recvTimeout.IsZero() && c.recvTimeout.Before(idleDeadline) {
 			idleDeadline = c.recvTimeout
+			idleApplied = false
 		}
+		probeVersion = c.readDeadlineVersion
 		err = c.Conn.SetReadDeadline(idleDeadline)
 		c.deadlineMu.Unlock()
 		if err != nil {
@@ -310,6 +320,7 @@ func (c *Conn) SetDeadline(t time.Time) error {
 	err := c.Conn.SetDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
+		c.readDeadlineVersion++
 		c.sendTimeout = t
 	}
 	return err
@@ -321,6 +332,7 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 	err := c.Conn.SetReadDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
+		c.readDeadlineVersion++
 	}
 	return err
 }

@@ -217,7 +217,8 @@ func TestIssue83RecvStreamDrainsAndRestoresDeadline(t *testing.T) {
 		{err: issue83TimeoutError{}},
 	}}
 	conn := NewConnByNetConn(raw)
-	conn.SetRecvBufferInterval(20 * time.Millisecond)
+	// The scripted timeout represents an already expired idle probe.
+	conn.SetRecvBufferInterval(0)
 	original := time.Now().Add(time.Minute).Round(0)
 	if err := conn.SetReadDeadline(original); err != nil {
 		t.Fatalf("SetReadDeadline() error = %v", err)

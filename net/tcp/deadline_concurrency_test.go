@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"errors"
 	"net"
 	"sync"
 	"testing"
@@ -82,6 +83,10 @@ func TestStreamRestoreKeepsConcurrentDeadline(t *testing.T) {
 	}
 	select {
 	case r := <-done:
+		var ne net.Error
+		if !errors.As(r.err, &ne) || !ne.Timeout() {
+			t.Fatalf("external deadline error = %v, want timeout", r.err)
+		}
 		if string(r.data) != "partial" {
 			t.Fatalf("data = %q", r.data)
 		}
