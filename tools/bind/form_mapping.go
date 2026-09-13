@@ -468,7 +468,11 @@ func setFormMap(ptr interface{}, form map[string][]string) error {
 		return errors.New("cannot convert to map of strings")
 	}
 	for k, v := range form {
-		ptrMap[k] = v[len(v)-1] // pick last
+		var value string
+		if len(v) > 0 {
+			value = v[len(v)-1] // pick last
+		}
+		ptrMap[k] = value
 	}
 
 	return nil
