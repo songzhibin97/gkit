@@ -1,7 +1,6 @@
 package task
 
 import (
-	"encoding/json"
 	"testing"
 )
 
@@ -12,7 +11,7 @@ func TestResultsScanDriverValues(t *testing.T) {
 		if err := results.Scan(src); err != nil {
 			t.Fatalf("Scan(%T): %v", src, err)
 		}
-		if len(results) != 1 || results[0].Value != json.Number("9007199254740993") {
+		if len(results) != 1 || results[0].Value != int64(9007199254740993) {
 			t.Fatalf("Scan(%T): %#v", src, results)
 		}
 	}
