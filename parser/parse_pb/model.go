@@ -185,7 +185,7 @@ func (e *Enum) AddElem(name string, offset int, index int) {
 	}
 }
 
-func (p *PbParseGo) parseMessage(ms *proto.Message, prefix, scope string) {
+func (p *PbParseGo) parseMessage(ms *proto.Message, prefix, scope string) error {
 	scope = strings.TrimPrefix(scope+"."+ms.Name, ".")
 	ret := CreateMessage(prefix+ms.Name, ms.Position.Offset)
 	// note
@@ -208,7 +208,11 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix, scope string) {
 			ret.AddFiles(CreateFile(v.Field.Name, fmt.Sprintf("map[%s]%s",
 				PbTypeToGo(keyType), p.resolveType(valueType, scope)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
 		case *proto.Message:
-			p.parseMessage(v, prefix+ms.Name, scope)
+			if err := p.parseMessage(v, prefix+ms.Name, scope); err != nil {
+				return err
+			}
+		case *proto.Oneof:
+			return fmt.Errorf("parse_pb: message %s contains unsupported oneof %s", scope, v.Name)
 		case *proto.Enum:
 			p.parseEnum(v, prefix+ms.Name)
 		}
@@ -217,6 +221,7 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix, scope string) {
 		f(ret)
 	}
 	p.AddMessages(ret)
+	return nil
 }
 
 func (p *PbParseGo) parseService(sv *proto.Service) {

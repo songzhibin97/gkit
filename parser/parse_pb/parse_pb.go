@@ -41,7 +41,9 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.AddNode(&Note{Comment: v})
 		case *proto.Message:
 			// message
-			ret.parseMessage(v, "", ret.PkgName)
+			if err := ret.parseMessage(v, "", ret.PkgName); err != nil {
+				return nil, err
+			}
 		case *proto.Service:
 			// service
 			ret.parseService(v)
