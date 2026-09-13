@@ -135,9 +135,8 @@ func (w *Watching) rotate(ref *loggerRef) {
 		return
 	}
 
-	dumpPath := w.config.DumpPath
 	suffix := time.Now().Format("20060102150405")
-	srcPath := filepath.Clean(filepath.Join(dumpPath, defaultLoggerName))
+	srcPath := filepath.Clean(ref.file.Name())
 	dstPath := srcPath + "_" + suffix + ".back"
 
 	if err := os.Rename(srcPath, dstPath); err != nil {
