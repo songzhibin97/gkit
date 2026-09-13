@@ -24,14 +24,10 @@ func (m Metadata) Inject(ctx context.Context, carrier propagation.TextMapCarrier
 func (m Metadata) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
 	name := carrier.Get(serverMark)
 	if name != "" {
-		if md, ok := metadata.FromServerContext(ctx); ok {
-			md.Set(serverMark, name)
-		} else {
-			// 设置新的metadata
-			md := metadata.NewMetadata()
-			md.Set(serverMark, name)
-			ctx = metadata.NewServerContext(ctx, md)
-		}
+		md, _ := metadata.FromServerContext(ctx)
+		md = md.Clone()
+		md.Set(serverMark, name)
+		ctx = metadata.NewServerContext(ctx, md)
 	}
 	return ctx
 }
