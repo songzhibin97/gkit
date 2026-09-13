@@ -17,6 +17,8 @@ var (
 	ErrOverdueToken         = errors.New("the field `page_token` is overdue")
 	ErrOverMaxPageSizeToken = errors.New("the field `page_token` is over max page size")
 	ErrInvalidPageSize      = errors.New("the page size provided must not be negative")
+	ErrInvalidNumElements   = errors.New("the number of elements must not be negative")
+	ErrInvalidMaxElements   = errors.New("the maximum number of elements must not be negative")
 
 	// ErrDefaultSalt is returned by NewTokenGenerateE when no SetSalt option
 	// has been supplied. The default salt "gkit" is hard-coded in this package
@@ -109,6 +111,12 @@ func (t *token) GetIndex(s string) (int, error) {
 }
 
 func (t *token) ProcessPageTokens(numElements int, pageSize int, pageToken string) (start, end int, nextToken string, err error) {
+	if numElements < 0 {
+		return 0, 0, "", ErrInvalidNumElements
+	}
+	if t.maxElements < 0 {
+		return 0, 0, "", ErrInvalidMaxElements
+	}
 	if pageSize < 0 {
 		return 0, 0, "", ErrInvalidPageSize
 	}
