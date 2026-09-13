@@ -153,19 +153,21 @@ func (t *tuner) tuning() {
 // if threshold < inuse*2, so gcPercent < 100, and GC positively to avoid OOM
 // if threshold > inuse*2, so gcPercent > 100, and GC negatively to reduce GC times
 func calcGCPercent(inuse, threshold uint64) uint32 {
+	minPercent := atomic.LoadUint32(&minGCPercent)
+	maxPercent := atomic.LoadUint32(&maxGCPercent)
 	// invalid params
 	if inuse == 0 || threshold == 0 {
 		return defaultGCPercent
 	}
 	// inuse heap larger than threshold, use min percent
 	if threshold <= inuse {
-		return minGCPercent
+		return minPercent
 	}
 	gcPercent := math.Floor(float64(threshold-inuse) / float64(inuse) * 100)
-	if gcPercent < float64(minGCPercent) {
-		return minGCPercent
-	} else if gcPercent > float64(maxGCPercent) {
-		return maxGCPercent
+	if gcPercent < float64(minPercent) {
+		return minPercent
+	} else if gcPercent > float64(maxPercent) {
+		return maxPercent
 	}
 	return uint32(gcPercent)
 }
