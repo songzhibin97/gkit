@@ -102,7 +102,11 @@ func (l *Lock) UnlockContext(ctx context.Context, key string, mark string) error
 	return nil
 }
 
+// Renew extends a held lock. A nonpositive TTL fails without accessing Redis.
 func (l *Lock) Renew(key string, expire int, mark string) error {
+	if expire <= 0 {
+		return ErrRenewFailed
+	}
 	ctx := l.client.Context()
 	resp, err := l.client.Eval(ctx, CMDRenew, []string{key}, []string{mark, strconv.Itoa(expire)}).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
