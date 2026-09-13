@@ -3,12 +3,10 @@ package gctuner
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math"
 	"os"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -235,52 +233,10 @@ func TuningWithAuto(isContainer bool) {
 	Tuning(uint64(float64(threshold) * 0.7))
 }
 
-const cgroupMemLimitPath = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-
-func getCGroupMemoryLimit() (uint64, error) {
-	usage, err := readUint(cgroupMemLimitPath)
-	if err != nil {
-		return 0, err
-	}
-	machineMemory, err := mem_util.VirtualMemory()
-	if err != nil {
-		return 0, err
-	}
-	limit := uint64(math.Min(float64(usage), float64(machineMemory.Total)))
-	return limit, nil
-}
-
 func getNormalMemoryLimit() (uint64, error) {
 	machineMemory, err := mem_util.VirtualMemory()
 	if err != nil {
 		return 0, err
 	}
 	return machineMemory.Total, nil
-}
-
-// copied from https://github.com/containerd/cgroups/blob/318312a373405e5e91134d8063d04d59768a1bff/utils.go#L251
-func parseUint(s string, base, bitSize int) (uint64, error) {
-	v, err := strconv.ParseUint(s, base, bitSize)
-	if err != nil {
-		intValue, intErr := strconv.ParseInt(s, base, bitSize)
-		// 1. Handle negative values greater than MinInt64 (and)
-		// 2. Handle negative values lesser than MinInt64
-		if intErr == nil && intValue < 0 {
-			return 0, nil
-		} else if intErr != nil &&
-			intErr.(*strconv.NumError).Err == strconv.ErrRange &&
-			intValue < 0 {
-			return 0, nil
-		}
-		return 0, err
-	}
-	return v, nil
-}
-
-func readUint(path string) (uint64, error) {
-	v, err := ioutil.ReadFile(path)
-	if err != nil {
-		return 0, err
-	}
-	return parseUint(strings.TrimSpace(string(v)), 10, 64)
 }
