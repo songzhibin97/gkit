@@ -12,9 +12,10 @@ import (
 func TestNewMockTickerRejectsNonPositivePeriodSynchronously(t *testing.T) {
 	for _, period := range []time.Duration{0, -time.Nanosecond} {
 		t.Run(period.String(), func(t *testing.T) {
-			want := capturePanic(t, func() { time.NewTicker(period) })
-			require.Equal(t, want, capturePanic(t, func() { NewRealTicker(period) }))
-			require.Equal(t, want, capturePanic(t, func() { NewMockTicker(period) }))
+			// The standard library's panic payload type differs across Go versions.
+			want := fmt.Sprint(capturePanic(t, func() { time.NewTicker(period) }))
+			require.Equal(t, want, fmt.Sprint(capturePanic(t, func() { NewRealTicker(period) })))
+			require.Equal(t, want, fmt.Sprint(capturePanic(t, func() { NewMockTicker(period) })))
 		})
 	}
 }
