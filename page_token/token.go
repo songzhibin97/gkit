@@ -49,7 +49,7 @@ type token struct {
 }
 
 func (t *token) ForIndex(i int) string {
-	v, err := aes.EncryptGCM(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, time.Now().Format(layout), i), t.salt)
+	v, err := aes.EncryptGCM(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, "v2|"+strconv.FormatInt(time.Now().UnixNano(), 10), i), t.salt)
 	if err != nil {
 		return ""
 	}
@@ -80,7 +80,17 @@ func (t *token) GetIndex(s string) (int, error) {
 		return -1, ErrInvalidToken
 	}
 	if t.timeLimitation != 0 {
-		generateTime, err := time.ParseInLocation(layout, parseToken[0], time.Local)
+		var generateTime time.Time
+		var err error
+		if strings.HasPrefix(parseToken[0], "v2|") {
+			var nanos int64
+			nanos, err = strconv.ParseInt(strings.TrimPrefix(parseToken[0], "v2|"), 10, 64)
+			generateTime = time.Unix(0, nanos)
+		} else {
+			// Legacy timestamps contain no zone. Preserve their reader-local
+			// interpretation; the unknown issuer zone cannot be recovered.
+			generateTime, err = time.ParseInLocation(layout, parseToken[0], time.Local)
+		}
 		if err != nil {
 			return -1, ErrInvalidToken
 		}
