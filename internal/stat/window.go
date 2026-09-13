@@ -5,6 +5,8 @@ type Bucket struct {
 	Points []float64
 	Count  int64
 	next   *Bucket
+	// integerSum preserves RollingCounter values without float64 rounding.
+	integerSum int64
 }
 
 // Append 将给定值附加到存储桶中
@@ -23,6 +25,7 @@ func (b *Bucket) Add(offset int, val float64) {
 func (b *Bucket) Reset() {
 	b.Points = b.Points[:0]
 	b.Count = 0
+	b.integerSum = 0
 }
 
 // Next 返回下一个存储桶
