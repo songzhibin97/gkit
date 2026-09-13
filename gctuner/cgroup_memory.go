@@ -123,13 +123,13 @@ func cgroupMemoryLimit(membership, mountinfo string, host uint64) (uint64, error
 		}
 		name := filepath.Join(current, filename)
 		data, err := os.ReadFile(name)
-		// memory.max can be absent at a v2 hierarchy root. Accept that only
-		// at a visible mount root reported as "/", with memory listed as
-		// an available controller. Hidden ancestor limits cannot be inspected.
-		if err != nil && fsType == "cgroup2" && current == mountPoint && mountRoot == "/" && os.IsNotExist(err) {
+		// A v2 child without an available memory controller has no memory.max;
+		// continue to its visible ancestors to find the inherited limit.
+		// The visible hierarchy root has a separate no-limit-file exception.
+		if err != nil && fsType == "cgroup2" && os.IsNotExist(err) {
 			controllers, controllerErr := os.ReadFile(filepath.Join(current, "cgroup.controllers"))
 			if controllerErr != nil {
-				return 0, fmt.Errorf("read cgroup memory root (%v): %w", err, controllerErr)
+				return 0, fmt.Errorf("read cgroup memory controllers (%v): %w", err, controllerErr)
 			}
 			hasMemory := false
 			for _, controller := range strings.Fields(string(controllers)) {
@@ -138,8 +138,13 @@ func cgroupMemoryLimit(membership, mountinfo string, host uint64) (uint64, error
 					break
 				}
 			}
-			if !hasMemory {
-				return 0, fmt.Errorf("no memory controller at visible cgroup root %q", current)
+			if current == mountPoint {
+				// Hidden ancestor limits cannot be inspected.
+				if mountRoot != "/" || !hasMemory {
+					return 0, fmt.Errorf("no memory limit at visible cgroup root %q: %w", current, err)
+				}
+			} else if hasMemory {
+				return 0, fmt.Errorf("missing limit for available memory controller in %q: %w", current, err)
 			}
 		} else {
 			if err != nil {

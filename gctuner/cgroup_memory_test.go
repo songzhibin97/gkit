@@ -181,3 +181,48 @@ func TestCGroupMemoryRootRequiresMemoryController(t *testing.T) {
 		}
 	}
 }
+
+func TestCGroupMemoryV2InheritsWithoutDelegation(t *testing.T) {
+	for _, depth := range []int{1, 3} {
+		t.Run(fmt.Sprintf("depth-%d", depth), func(t *testing.T) {
+			mount := t.TempDir()
+			memoryFixture(t, filepath.Join(mount, "memory.max"), "max")
+			memoryFixture(t, filepath.Join(mount, "cgroup.controllers"), "cpu memory")
+			memoryFixture(t, filepath.Join(mount, "cgroup.subtree_control"), "cpu memory")
+			memoryFixture(t, filepath.Join(mount, "tenant", "memory.max"), "536870912")
+			memoryFixture(t, filepath.Join(mount, "tenant", "cgroup.controllers"), "cpu memory")
+			memoryFixture(t, filepath.Join(mount, "tenant", "cgroup.subtree_control"), "cpu")
+			member := "/tenant"
+			for i := 0; i < depth; i++ {
+				member += "/leaf"
+				controllers := ""
+				if i == 0 {
+					controllers = "cpu"
+				}
+				memoryFixture(t, filepath.Join(mount, member, "cgroup.controllers"), controllers)
+				memoryFixture(t, filepath.Join(mount, member, "cgroup.subtree_control"), "")
+			}
+			got, err := cgroupMemoryLimit("0::"+member+"\n", memoryMount("/", mount, "cgroup2", "rw"), 1073741824)
+			if err != nil || got != 536870912 {
+				t.Fatalf("inherited limit=%d, err=%v; want 536870912", got, err)
+			}
+		})
+	}
+}
+
+func TestCGroupMemoryV2AvailableControllerRequiresLimit(t *testing.T) {
+	mount := t.TempDir()
+	memoryFixture(t, filepath.Join(mount, "memory.max"), "512")
+	memoryFixture(t, filepath.Join(mount, "leaf", "cgroup.controllers"), "cpu memory\n")
+	if got, err := cgroupMemoryLimit("0::/leaf\n", memoryMount("/", mount, "cgroup2", "rw"), 1024); err == nil {
+		t.Fatalf("missing active memory.max returned %d without error", got)
+	}
+}
+
+func TestCGroupMemoryV2DoesNotGuessHiddenParentLimit(t *testing.T) {
+	mount := t.TempDir()
+	memoryFixture(t, filepath.Join(mount, "cgroup.controllers"), "cpu\n")
+	if got, err := cgroupMemoryLimit("0::/tenant/leaf\n", memoryMount("/tenant/leaf", mount, "cgroup2", "rw"), 1024); err == nil {
+		t.Fatalf("hidden ancestor returned %d without error", got)
+	}
+}
