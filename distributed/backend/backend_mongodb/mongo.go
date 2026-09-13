@@ -33,7 +33,8 @@ type BackendMongoDB struct {
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
 	// 单位为s
-	resultExpire int64
+	resultExpire   int64
+	resultExpireMu sync.RWMutex
 	// taskTable taskTable
 	taskTable *mongo.Collection
 	// groupTable groupTable
@@ -48,11 +49,13 @@ type BackendMongoDB struct {
 // It does not rebuild TTL indexes online because this method cannot report
 // index-creation errors; configure retention through the constructor instead.
 func (b *BackendMongoDB) SetResultExpire(expire int64) {
+	b.resultExpireMu.Lock()
 	b.resultExpire = normalizeResultExpire(expire)
+	b.resultExpireMu.Unlock()
 }
 
 func (b *BackendMongoDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
-	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
+	group := task.InitGroupMeta(groupID, name, b.configuredResultExpire(), taskIDs...)
 	// GroupMeta stores GroupID as the document _id, so MongoDB's implicit
 	// unique index on _id rejects a second takeover with a duplicate key
 	// error. Normalize it to the shared sentinel so callers can tolerate
@@ -418,4 +421,10 @@ func NewBackendMongoDBE(client *mongo.Client, resultExpire int64, options ...opt
 		}
 	}
 	return &b, nil
+}
+
+func (b *BackendMongoDB) configuredResultExpire() int64 {
+	b.resultExpireMu.RLock()
+	defer b.resultExpireMu.RUnlock()
+	return b.resultExpire
 }

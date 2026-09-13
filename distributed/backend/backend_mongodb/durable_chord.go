@@ -159,7 +159,7 @@ func (b *BackendMongoDB) ReconcileChord(ctx context.Context, deliveryKey string)
 	for index := range delivery.Members {
 		ids[index] = delivery.Members[index].TaskID
 	}
-	group := task.InitGroupMeta(delivery.GroupID, delivery.GroupName, b.resultExpire, ids...)
+	group := task.InitGroupMeta(delivery.GroupID, delivery.GroupName, b.configuredResultExpire(), ids...)
 	if _, err := b.groupTable.UpdateOne(ctx, bson.M{"_id": delivery.GroupID}, bson.M{"$setOnInsert": group}, options.Update().SetUpsert(true)); err != nil {
 		return err
 	}

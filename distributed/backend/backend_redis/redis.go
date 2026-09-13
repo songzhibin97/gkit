@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -75,7 +76,8 @@ type BackendRedis struct {
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
 	// 单位为s
-	resultExpire int64
+	resultExpire   int64
+	resultExpireMu sync.RWMutex
 }
 
 // SetHelper installs the structured-log helper. Defaults to log.DefaultLogger
@@ -105,19 +107,21 @@ func (b *BackendRedis) SetResultExpire(expire int64) {
 	if expire == 0 {
 		expire = defaultResultExpire
 	}
+	b.resultExpireMu.Lock()
 	b.resultExpire = expire
+	b.resultExpireMu.Unlock()
 }
 
 func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
 	if err := validateRedisUserKey("group", groupID); err != nil {
 		return err
 	}
-	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
+	expire := b.configuredResultExpire()
+	group := task.InitGroupMeta(groupID, name, expire, taskIDs...)
 	body, err := json.Marshal(group)
 	if err != nil {
 		return err
 	}
-	expire := b.resultExpire
 	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
@@ -214,7 +218,7 @@ func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	}
 	group.TriggerCompleted = true
 	body, _ := json.Marshal(group)
-	expire := b.resultExpire
+	expire := b.configuredResultExpire()
 	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
@@ -389,7 +393,7 @@ func (b *BackendRedis) updateStatusWithAttempt(status *task.Status, attemptID st
 	if err != nil {
 		return err
 	}
-	expire := b.resultExpire
+	expire := b.configuredResultExpire()
 	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
@@ -436,4 +440,10 @@ func validateRedisUserKey(kind, key string) error {
 		return fmt.Errorf("%w: redis %s id %q uses reserved key prefix %q", backend.ErrChordInvalidInput, kind, key, redisChordKeyPrefix)
 	}
 	return nil
+}
+
+func (b *BackendRedis) configuredResultExpire() int64 {
+	b.resultExpireMu.RLock()
+	defer b.resultExpireMu.RUnlock()
+	return b.resultExpire
 }
