@@ -44,13 +44,13 @@ func ClientIP(req *http.Request) string {
 }
 
 func ClientPublicIP(req *http.Request) string {
-	if ip := strings.TrimSpace(strings.Split(req.Header.Get(xForwardedFor), ",")[0]); ip != "" && !HasLocalIPAddr(ip) {
+	if ip := strings.TrimSpace(strings.Split(req.Header.Get(xForwardedFor), ",")[0]); net.ParseIP(ip) != nil && !HasLocalIPAddr(ip) {
 		return ip
 	}
-	if ip := strings.TrimSpace(req.Header.Get(xRealIP)); ip != "" && !HasLocalIPAddr(ip) {
+	if ip := strings.TrimSpace(req.Header.Get(xRealIP)); net.ParseIP(ip) != nil && !HasLocalIPAddr(ip) {
 		return ip
 	}
-	if ip := RemoteIP(req); ip != "" && !HasLocalIPAddr(ip) {
+	if ip := RemoteIP(req); net.ParseIP(ip) != nil && !HasLocalIPAddr(ip) {
 		return ip
 	}
 	return ""
