@@ -152,14 +152,12 @@ func (s *ByteMap) Store(key byte, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -317,13 +315,11 @@ func (s *ByteMap) LoadOrStore(key byte, value interface{}) (actual interface{}, 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -387,13 +383,11 @@ func (s *ByteMap) LoadOrStoreLazy(key byte, f func() interface{}) (actual interf
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -667,14 +661,12 @@ func (s *ByteMapDesc) Store(key byte, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -832,13 +824,11 @@ func (s *ByteMapDesc) LoadOrStore(key byte, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -902,13 +892,11 @@ func (s *ByteMapDesc) LoadOrStoreLazy(key byte, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -1186,14 +1174,12 @@ func (s *Float32Map) Store(key float32, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -1355,13 +1341,11 @@ func (s *Float32Map) LoadOrStore(key float32, value interface{}) (actual interfa
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -1429,13 +1413,11 @@ func (s *Float32Map) LoadOrStoreLazy(key float32, f func() interface{}) (actual 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -1713,14 +1695,12 @@ func (s *Float32MapDesc) Store(key float32, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -1882,13 +1862,11 @@ func (s *Float32MapDesc) LoadOrStore(key float32, value interface{}) (actual int
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -1956,13 +1934,11 @@ func (s *Float32MapDesc) LoadOrStoreLazy(key float32, f func() interface{}) (act
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -2240,14 +2216,12 @@ func (s *Float64Map) Store(key float64, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -2409,13 +2383,11 @@ func (s *Float64Map) LoadOrStore(key float64, value interface{}) (actual interfa
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -2483,13 +2455,11 @@ func (s *Float64Map) LoadOrStoreLazy(key float64, f func() interface{}) (actual 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -2767,14 +2737,12 @@ func (s *Float64MapDesc) Store(key float64, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -2936,13 +2904,11 @@ func (s *Float64MapDesc) LoadOrStore(key float64, value interface{}) (actual int
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -3010,13 +2976,11 @@ func (s *Float64MapDesc) LoadOrStoreLazy(key float64, f func() interface{}) (act
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -3290,14 +3254,12 @@ func (s *IntMap) Store(key int, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -3455,13 +3417,11 @@ func (s *IntMap) LoadOrStore(key int, value interface{}) (actual interface{}, lo
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -3525,13 +3485,11 @@ func (s *IntMap) LoadOrStoreLazy(key int, f func() interface{}) (actual interfac
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -3805,14 +3763,12 @@ func (s *IntMapDesc) Store(key int, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -3970,13 +3926,11 @@ func (s *IntMapDesc) LoadOrStore(key int, value interface{}) (actual interface{}
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -4040,13 +3994,11 @@ func (s *IntMapDesc) LoadOrStoreLazy(key int, f func() interface{}) (actual inte
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -4320,14 +4272,12 @@ func (s *Int8Map) Store(key int8, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -4485,13 +4435,11 @@ func (s *Int8Map) LoadOrStore(key int8, value interface{}) (actual interface{}, 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -4555,13 +4503,11 @@ func (s *Int8Map) LoadOrStoreLazy(key int8, f func() interface{}) (actual interf
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -4835,14 +4781,12 @@ func (s *Int8MapDesc) Store(key int8, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -5000,13 +4944,11 @@ func (s *Int8MapDesc) LoadOrStore(key int8, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -5070,13 +5012,11 @@ func (s *Int8MapDesc) LoadOrStoreLazy(key int8, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -5350,14 +5290,12 @@ func (s *Int16Map) Store(key int16, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -5515,13 +5453,11 @@ func (s *Int16Map) LoadOrStore(key int16, value interface{}) (actual interface{}
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -5585,13 +5521,11 @@ func (s *Int16Map) LoadOrStoreLazy(key int16, f func() interface{}) (actual inte
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -5865,14 +5799,12 @@ func (s *Int16MapDesc) Store(key int16, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -6030,13 +5962,11 @@ func (s *Int16MapDesc) LoadOrStore(key int16, value interface{}) (actual interfa
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -6100,13 +6030,11 @@ func (s *Int16MapDesc) LoadOrStoreLazy(key int16, f func() interface{}) (actual 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -6380,14 +6308,12 @@ func (s *Int32Map) Store(key int32, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -6545,13 +6471,11 @@ func (s *Int32Map) LoadOrStore(key int32, value interface{}) (actual interface{}
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -6615,13 +6539,11 @@ func (s *Int32Map) LoadOrStoreLazy(key int32, f func() interface{}) (actual inte
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -6895,14 +6817,12 @@ func (s *Int32MapDesc) Store(key int32, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -7060,13 +6980,11 @@ func (s *Int32MapDesc) LoadOrStore(key int32, value interface{}) (actual interfa
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -7130,13 +7048,11 @@ func (s *Int32MapDesc) LoadOrStoreLazy(key int32, f func() interface{}) (actual 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -7410,14 +7326,12 @@ func (s *RuneMap) Store(key rune, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -7575,13 +7489,11 @@ func (s *RuneMap) LoadOrStore(key rune, value interface{}) (actual interface{}, 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -7645,13 +7557,11 @@ func (s *RuneMap) LoadOrStoreLazy(key rune, f func() interface{}) (actual interf
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -7925,14 +7835,12 @@ func (s *RuneMapDesc) Store(key rune, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -8090,13 +7998,11 @@ func (s *RuneMapDesc) LoadOrStore(key rune, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -8160,13 +8066,11 @@ func (s *RuneMapDesc) LoadOrStoreLazy(key rune, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -8440,14 +8344,12 @@ func (s *UintMap) Store(key uint, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -8605,13 +8507,11 @@ func (s *UintMap) LoadOrStore(key uint, value interface{}) (actual interface{}, 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -8675,13 +8575,11 @@ func (s *UintMap) LoadOrStoreLazy(key uint, f func() interface{}) (actual interf
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -8955,14 +8853,12 @@ func (s *UintMapDesc) Store(key uint, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -9120,13 +9016,11 @@ func (s *UintMapDesc) LoadOrStore(key uint, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -9190,13 +9084,11 @@ func (s *UintMapDesc) LoadOrStoreLazy(key uint, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -9470,14 +9362,12 @@ func (s *Uint8Map) Store(key uint8, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -9635,13 +9525,11 @@ func (s *Uint8Map) LoadOrStore(key uint8, value interface{}) (actual interface{}
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -9705,13 +9593,11 @@ func (s *Uint8Map) LoadOrStoreLazy(key uint8, f func() interface{}) (actual inte
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -9985,14 +9871,12 @@ func (s *Uint8MapDesc) Store(key uint8, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -10150,13 +10034,11 @@ func (s *Uint8MapDesc) LoadOrStore(key uint8, value interface{}) (actual interfa
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -10220,13 +10102,11 @@ func (s *Uint8MapDesc) LoadOrStoreLazy(key uint8, f func() interface{}) (actual 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -10500,14 +10380,12 @@ func (s *Uint16Map) Store(key uint16, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -10665,13 +10543,11 @@ func (s *Uint16Map) LoadOrStore(key uint16, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -10735,13 +10611,11 @@ func (s *Uint16Map) LoadOrStoreLazy(key uint16, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -11015,14 +10889,12 @@ func (s *Uint16MapDesc) Store(key uint16, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -11180,13 +11052,11 @@ func (s *Uint16MapDesc) LoadOrStore(key uint16, value interface{}) (actual inter
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -11250,13 +11120,11 @@ func (s *Uint16MapDesc) LoadOrStoreLazy(key uint16, f func() interface{}) (actua
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -11530,14 +11398,12 @@ func (s *Uint32Map) Store(key uint32, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -11695,13 +11561,11 @@ func (s *Uint32Map) LoadOrStore(key uint32, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -11765,13 +11629,11 @@ func (s *Uint32Map) LoadOrStoreLazy(key uint32, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -12045,14 +11907,12 @@ func (s *Uint32MapDesc) Store(key uint32, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -12210,13 +12070,11 @@ func (s *Uint32MapDesc) LoadOrStore(key uint32, value interface{}) (actual inter
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -12280,13 +12138,11 @@ func (s *Uint32MapDesc) LoadOrStoreLazy(key uint32, f func() interface{}) (actua
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -12560,14 +12416,12 @@ func (s *Uint64Map) Store(key uint64, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -12725,13 +12579,11 @@ func (s *Uint64Map) LoadOrStore(key uint64, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -12795,13 +12647,11 @@ func (s *Uint64Map) LoadOrStoreLazy(key uint64, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -13075,14 +12925,12 @@ func (s *Uint64MapDesc) Store(key uint64, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -13240,13 +13088,11 @@ func (s *Uint64MapDesc) LoadOrStore(key uint64, value interface{}) (actual inter
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -13310,13 +13156,11 @@ func (s *Uint64MapDesc) LoadOrStoreLazy(key uint64, f func() interface{}) (actua
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -13590,14 +13434,12 @@ func (s *UintptrMap) Store(key uintptr, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -13755,13 +13597,11 @@ func (s *UintptrMap) LoadOrStore(key uintptr, value interface{}) (actual interfa
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -13825,13 +13665,11 @@ func (s *UintptrMap) LoadOrStoreLazy(key uintptr, f func() interface{}) (actual 
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -14105,14 +13943,12 @@ func (s *UintptrMapDesc) Store(key uintptr, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -14270,13 +14106,11 @@ func (s *UintptrMapDesc) LoadOrStore(key uintptr, value interface{}) (actual int
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -14340,13 +14174,11 @@ func (s *UintptrMapDesc) LoadOrStoreLazy(key uintptr, f func() interface{}) (act
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -14616,14 +14448,12 @@ func (s *StringMap) Store(key string, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -14782,13 +14612,11 @@ func (s *StringMap) LoadOrStore(key string, value interface{}) (actual interface
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -14852,13 +14680,11 @@ func (s *StringMap) LoadOrStoreLazy(key string, f func() interface{}) (actual in
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
