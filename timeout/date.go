@@ -2,8 +2,8 @@ package timeout
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -12,7 +12,11 @@ type Date time.Time
 const DateFormat = "2006-01-02"
 
 func (d *Date) UnmarshalJSON(src []byte) error {
-	return d.UnmarshalText(strings.Replace(string(src), "\"", "", -1))
+	var value string
+	if err := json.Unmarshal(src, &value); err != nil {
+		return err
+	}
+	return d.UnmarshalText(value)
 }
 
 func (d Date) MarshalJSON() ([]byte, error) {

@@ -2,8 +2,8 @@ package timeout
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -45,7 +45,11 @@ func (m *DateTimeStruct) ToDate() *DateStruct {
 // UnmarshalJSON 反序列化
 // Author [SliverHorn](https://github.com/SliverHorn)
 func (m *DateTimeStruct) UnmarshalJSON(src []byte) error {
-	return m.UnmarshalText(strings.Replace(string(src), "\"", "", -1))
+	var value string
+	if err := json.Unmarshal(src, &value); err != nil {
+		return err
+	}
+	return m.UnmarshalText(value)
 }
 
 // MarshalJSON 序列化
