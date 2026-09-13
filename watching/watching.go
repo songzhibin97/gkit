@@ -527,7 +527,7 @@ func (w *Watching) reportProfile(pType string, buf []byte, reason string, eventI
 	// Attempt to send
 	case ch <- rptEvent{
 		pType,
-		buf,
+		append([]byte(nil), buf...), // the producer may reuse its buffer after enqueueing
 		reason,
 		eventID,
 	}:
