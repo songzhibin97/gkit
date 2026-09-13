@@ -51,6 +51,22 @@ func TestGCNotificationAndStopAreSynchronized(t *testing.T) {
 		}
 	})
 
+	t.Run("stop_intent_before_channel_teardown", func(t *testing.T) {
+		w, gc, ch := makeFixture(t)
+		// Stop sets the atomic flag before acquiring the teardown mutex.
+		// The callback can acquire that mutex first, with ch still installed.
+		atomic.StoreInt64(&w.stopped, 1)
+		finalizerCallback(gc)
+		select {
+		case <-ch:
+			t.Error("GC callback admitted a notification after stop was requested")
+		default:
+		}
+		// Finish teardown of this deliberately paused Stop-state fixture.
+		atomic.StoreInt64(&w.stopped, 0)
+		w.Stop()
+	})
+
 	// The race detector must also observe field access and send/close;
 	// successful functional assertions alone do not prove synchronization.
 	t.Run("concurrent", func(t *testing.T) {
