@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/songzhibin97/gkit/cache/buffer"
@@ -20,6 +21,10 @@ type Conn struct {
 
 	// reader: 用于读取conn缓冲区
 	reader *bufio.Reader
+
+	// deadlineMu serializes underlying deadline changes with local state.
+	// Never hold it across Read or Write.
+	deadlineMu sync.Mutex
 
 	// sendTimeout: 发送超时时间
 	sendTimeout time.Time
@@ -177,13 +182,15 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		return bf[:n], err
 	}
 
-	previousDeadline := c.recvTimeout
 	deadlineChanged := false
 	defer func() {
 		if !deadlineChanged {
 			return
 		}
-		if err := c.Conn.SetReadDeadline(previousDeadline); err != nil {
+		c.deadlineMu.Lock()
+		err := c.Conn.SetReadDeadline(c.recvTimeout)
+		c.deadlineMu.Unlock()
+		if err != nil {
 			restoreErr := fmt.Errorf("tcp receive: restore read deadline: %w", err)
 			if retErr == nil {
 				retErr = restoreErr
@@ -212,11 +219,14 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		if n == 0 {
 			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, io.ErrNoProgress)
 		}
+		c.deadlineMu.Lock()
 		idleDeadline := time.Now().Add(c.recvBufferInterval)
-		if !previousDeadline.IsZero() && previousDeadline.Before(idleDeadline) {
-			idleDeadline = previousDeadline
+		if !c.recvTimeout.IsZero() && c.recvTimeout.Before(idleDeadline) {
+			idleDeadline = c.recvTimeout
 		}
-		if err := c.Conn.SetReadDeadline(idleDeadline); err != nil {
+		err = c.Conn.SetReadDeadline(idleDeadline)
+		c.deadlineMu.Unlock()
+		if err != nil {
 			return bf[:index], fmt.Errorf("tcp receive stream: set idle deadline: %w", err)
 		}
 		deadlineChanged = true
@@ -295,6 +305,8 @@ func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length in
 }
 
 func (c *Conn) SetDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	err := c.Conn.SetDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
@@ -304,6 +316,8 @@ func (c *Conn) SetDeadline(t time.Time) error {
 }
 
 func (c *Conn) SetReadDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	err := c.Conn.SetReadDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
@@ -312,6 +326,8 @@ func (c *Conn) SetReadDeadline(t time.Time) error {
 }
 
 func (c *Conn) SetWriteDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	err := c.Conn.SetWriteDeadline(t)
 	if err == nil {
 		c.sendTimeout = t
@@ -348,6 +364,8 @@ func RecoveryBuffer(data *[]byte) {
 
 // SetRecvBufferInterval 读取缓存间隔时间
 func (c *Conn) SetRecvBufferInterval(t time.Duration) {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	c.recvBufferInterval = t
 }
 
