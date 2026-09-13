@@ -153,3 +153,79 @@ func TestStreamRetryWaitPreservesOverallTimeout(t *testing.T) {
 		}
 	}
 }
+
+type firstReadSignalConn struct {
+	net.Conn
+	firstRead chan struct{}
+}
+
+func (c *firstReadSignalConn) Read(p []byte) (int, error) {
+	if c.firstRead != nil {
+		close(c.firstRead)
+		c.firstRead = nil
+	}
+	return c.Conn.Read(p)
+}
+
+func TestStreamRetryWaitErrorSurvivesExternalDeadlineExtension(t *testing.T) {
+	for _, exchange := range []bool{false, true} {
+		name := "receive"
+		if exchange {
+			name = "send-receive"
+		}
+		t.Run(name, func(t *testing.T) {
+			a, b := net.Pipe()
+			defer a.Close()
+			defer b.Close()
+			reading := make(chan struct{})
+			c := NewConnByNetConn(&firstReadSignalConn{Conn: a, firstRead: reading})
+			c.SetRecvBufferInterval(5 * time.Millisecond)
+			retry := &Retry{Count: 1, Interval: time.Hour}
+			done := make(chan sendRecvResult, 1)
+			go func() {
+				var data []byte
+				var err error
+				if exchange {
+					data, err = c.SendRecvWithTimeout([]byte("request"), 100*time.Millisecond, -1, retry)
+				} else {
+					data, err = c.RecvWithTimeout(-1, 100*time.Millisecond, retry)
+				}
+				done <- sendRecvResult{data: data, err: err}
+			}()
+			if exchange {
+				request := make([]byte, len("request"))
+				if _, err := io.ReadFull(b, request); err != nil {
+					t.Fatal(err)
+				}
+				if string(request) != "request" {
+					t.Fatalf("request=%q", request)
+				}
+			}
+			// The helper's original budget is installed before its first Read.
+			// Replace the external deadline before delivering the first segment,
+			// so the later idle probe snapshots the replacement's generation.
+			select {
+			case <-reading:
+			case <-time.After(time.Second):
+				t.Fatal("first Read not reached")
+			}
+			if err := c.SetReadDeadline(time.Now().Add(time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := b.Write([]byte("partial")); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case got := <-done:
+				if string(got.data) != "partial" || !errors.Is(got.err, os.ErrDeadlineExceeded) {
+					t.Fatalf("Recv=(%q,%v), want partial and original budget timeout", got.data, got.err)
+				}
+				if retry.Count != 0 {
+					t.Fatalf("retry count=%d want consumed retry", retry.Count)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("retry wait did not honor its original budget")
+			}
+		})
+	}
+}

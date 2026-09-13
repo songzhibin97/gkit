@@ -124,7 +124,9 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		var local Retry
 		retry = &local
 	}
+	var retryWaitFailed bool
 	readWithRetry := func(dst []byte) (int, error) {
+		retryWaitFailed = false
 		for {
 			n, err := c.reader.Read(dst)
 			if err == nil || errors.Is(err, io.EOF) || retry.Count == 0 {
@@ -135,6 +137,7 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 				retry.Interval = DefaultRetryInterval
 			}
 			if waitErr := wait(retry.Interval); waitErr != nil {
+				retryWaitFailed = true
 				return n, waitErr
 			}
 			if n > 0 {
@@ -211,6 +214,11 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		}
 		n, err := readWithRetry(bf[index:])
 		index += n
+		// Retry waits use their own budget; their failures are never idle completion,
+		// even if an external setter has since extended the connection deadline.
+		if retryWaitFailed {
+			return bf[:index], fmt.Errorf("tcp receive stream retry wait after %d bytes: %w", index, err)
+		}
 		if errors.Is(err, io.EOF) {
 			return bf[:index], nil
 		}
