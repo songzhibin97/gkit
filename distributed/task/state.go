@@ -113,9 +113,14 @@ func NewFailureState(task *Signature, err string) *Status {
 type Results []*Result
 
 func (s *Results) Scan(src interface{}) error {
-	str, ok := src.([]byte)
-	if !ok {
-		return errors.New("failed to scan Results field - source is not a string")
+	var str []byte
+	switch value := src.(type) {
+	case []byte:
+		str = value
+	case string:
+		str = []byte(value)
+	default:
+		return errors.New("failed to scan Results field - source is not a string or byte slice")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(str))
 	decoder.UseNumber()
