@@ -432,6 +432,13 @@ func (b *BackendSQLDB) autoMigrate() error {
 	); err != nil {
 		return err
 	}
+	if b.gClient.Dialector.Name() == "postgres" {
+		for _, model := range []interface{}{&task.GroupMeta{}, &task.Status{}} {
+			if err := b.ensurePostgresUniqueID(model); err != nil {
+				return err
+			}
+		}
+	}
 	stmt := &gorm.Statement{DB: b.gClient}
 	if err := stmt.Parse(&task.Status{}); err != nil {
 		return err
@@ -443,6 +450,49 @@ func (b *BackendSQLDB) autoMigrate() error {
 		}
 	}
 	return b.migrateDurableChord()
+}
+
+// PostgreSQL index names are schema-wide. GORM may see the legacy fixed
+// name on another table and silently omit a prefixed table's unique key.
+// Check the actual relation, retaining all existing indexes and data.
+func (b *BackendSQLDB) ensurePostgresUniqueID(model interface{}) error {
+	stmt := &gorm.Statement{DB: b.gClient}
+	if err := stmt.Parse(model); err != nil {
+		return err
+	}
+	table := stmt.Quote(stmt.Schema.Table)
+	const query = `SELECT EXISTS (
+ SELECT 1 FROM pg_index i JOIN pg_attribute a
+ ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+ WHERE i.indrelid = to_regclass(?) AND i.indisunique AND i.indisvalid
+ AND i.indpred IS NULL AND i.indexprs IS NULL AND i.indnkeyatts = 1 AND a.attname = 'id'
+)`
+	var exists bool
+	if err := b.gClient.Raw(query, table).Scan(&exists).Error; err != nil {
+		return fmt.Errorf("inspect unique id on %s: %w", table, err)
+	}
+	if exists {
+		return nil
+	}
+	name := b.gClient.NamingStrategy.IndexName(stmt.Schema.Table, "gkit_unique_id")
+	if err := b.gClient.Exec("CREATE UNIQUE INDEX " + stmt.Quote(name) + " ON " + table + " (" + stmt.Quote("id") + ")").Error; err != nil {
+		// Another initializer may have created the same key after our read.
+		// Only a valid key on this relation can turn that failure into success.
+		if checkErr := b.gClient.Raw(query, table).Scan(&exists).Error; checkErr != nil {
+			return errors.Join(fmt.Errorf("create unique id on %s: %w", table, err), fmt.Errorf("recheck unique id on %s: %w", table, checkErr))
+		}
+		if exists {
+			return nil
+		}
+		return fmt.Errorf("create unique id on %s: %w", table, err)
+	}
+	if err := b.gClient.Raw(query, table).Scan(&exists).Error; err != nil {
+		return fmt.Errorf("verify unique id on %s: %w", table, err)
+	}
+	if !exists {
+		return fmt.Errorf("unique id on %s missing after migration", table)
+	}
+	return nil
 }
 
 // NewBackendSQLDB constructs a SQL-backed Backend. Returns nil on failure
