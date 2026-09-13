@@ -212,9 +212,8 @@ func (l *float64List) Rank(score float64, value string) int {
 			next = x.loadNext(i)
 		}
 
-		// x might be equal to l->header, so test if obj is non-nil
-		// TODO: Why not use if x != l.header?
-		if x.equal(score, value) {
+		// The header's score and value are also legal member input.
+		if x != l.header && x.equal(score, value) {
 			return rank
 		}
 	}
