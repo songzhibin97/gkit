@@ -49,5 +49,6 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.parseEnum(v, "")
 		}
 	}
+	ret.breakRecursiveValues()
 	return ret, nil
 }
