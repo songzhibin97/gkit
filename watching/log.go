@@ -127,6 +127,12 @@ func (w *Watching) writeString(content string) {
 // again off a retired handle's size would rotate the new (possibly nearly
 // empty) active file. Only the holder of the still-current handle rotates.
 func (w *Watching) rotate(ref *loggerRef) {
+	// Stdout belongs to the caller, even when redirected to a regular file.
+	// Start can log before initEnvironment disables stdout rotation.
+	if ref.file == os.Stdout {
+		return
+	}
+
 	w.config.L.RLock()
 	stale := w.config.activeLog != ref
 	w.config.L.RUnlock()
