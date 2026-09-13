@@ -460,7 +460,7 @@ message {{.Name}}{
 {{end}}}
 {{end}}
 
-// server
+{{if or .Server .Metas.ServerName}}// server
 service {{.Metas.ServerName}}{
 {{range .Server}}  rpc {{.Name }} ({{.InputParameter}}) returns ({{.OutputParameter}}) {
     option (google.api.http) = {
@@ -468,7 +468,7 @@ service {{.Metas.ServerName}}{
     };
   }
 {{end}}}
-`
+{{end}}`
 	tmpl, err := template.New("GeneratePB").Funcs(template.FuncMap{"addOne": addOne}).Parse(temp)
 	if err != nil {
 		return ""
