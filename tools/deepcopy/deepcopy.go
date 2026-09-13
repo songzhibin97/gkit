@@ -166,7 +166,10 @@ func DeepCopy(dst, src interface{}) error {
 	if !dstV.IsValid() || !srcV.IsValid() {
 		return tools.ErrorInvalidValue
 	}
-	deepCopy(dstV, srcV, map[visitKey]reflect.Value{})
+	visited := map[visitKey]reflect.Value{
+		{typ: srcT, ptr: reflect.ValueOf(src).Pointer()}: reflect.ValueOf(dst),
+	}
+	deepCopy(dstV, srcV, visited)
 	return nil
 }
 
