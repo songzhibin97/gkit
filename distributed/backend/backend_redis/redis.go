@@ -300,7 +300,7 @@ func (b *BackendRedis) ResetTask(taskIDs ...string) error {
 	if err := validateRedisUserKeys("task", taskIDs); err != nil {
 		return err
 	}
-	return b.client.Del(context.Background(), taskIDs...).Err()
+	return b.resetKeys(taskIDs)
 }
 
 func (b *BackendRedis) ResetGroup(groupIDs ...string) error {
@@ -310,7 +310,24 @@ func (b *BackendRedis) ResetGroup(groupIDs ...string) error {
 	if err := validateRedisUserKeys("group", groupIDs); err != nil {
 		return err
 	}
-	return b.client.Del(context.Background(), groupIDs...).Err()
+	return b.resetKeys(groupIDs)
+}
+
+// resetKeys uses one DEL per key so a batch can span Redis Cluster slots.
+func (b *BackendRedis) resetKeys(keys []string) error {
+	ctx := context.Background()
+	commands, err := b.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, key := range keys {
+			pipe.Del(ctx, key)
+		}
+		return nil
+	})
+	for _, command := range commands {
+		if commandErr := command.Err(); commandErr != nil && !errors.Is(err, commandErr) {
+			err = errors.Join(err, commandErr)
+		}
+	}
+	return err
 }
 
 // shouldAndBind 批量获取对应key的group信息
