@@ -22,14 +22,9 @@ func TestStartPreservesRedirectedStdout(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := os.Stdout
+		// Keep this process-owned handle installed until the subprocess exits:
+		// Stop does not join background diagnostics that can still use stdout.
 		os.Stdout = f
-		defer func() {
-			os.Stdout = original
-			if err := f.Close(); err != nil {
-				t.Error(err)
-			}
-		}()
 		w := watching.NewWatching(watching.WithLoggerSplit(true, "1KB"), watching.WithCollectInterval("1h"))
 		w.Start()
 		w.Start() // The public repeated-start path must log to the same sink.
