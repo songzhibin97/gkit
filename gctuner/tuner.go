@@ -106,8 +106,10 @@ func SetMinGCPercent(n uint32) uint32 {
 // only allow one gc tuner in one process
 var globalTuner *tuner = nil
 
-/* Heap
- _______________  => limit: host/cgroup memory hard limit
+/*
+	Heap
+	_______________  => limit: host/cgroup memory hard limit
+
 |               |
 |---------------| => threshold: increase GCPercent when gc_trigger < threshold
 |               |
@@ -159,13 +161,13 @@ func calcGCPercent(inuse, threshold uint64) uint32 {
 	if threshold <= inuse {
 		return minGCPercent
 	}
-	gcPercent := uint32(math.Floor(float64(threshold-inuse) / float64(inuse) * 100))
-	if gcPercent < minGCPercent {
+	gcPercent := math.Floor(float64(threshold-inuse) / float64(inuse) * 100)
+	if gcPercent < float64(minGCPercent) {
 		return minGCPercent
-	} else if gcPercent > maxGCPercent {
+	} else if gcPercent > float64(maxGCPercent) {
 		return maxGCPercent
 	}
-	return gcPercent
+	return uint32(gcPercent)
 }
 
 func newTuner(threshold uint64) *tuner {
