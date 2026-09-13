@@ -52,8 +52,10 @@ func compareAndSwapSCQNodeUint64(addr *scqNodeUint64, old, new scqNodeUint64) (s
 
 func runtimeEnableWriteBarrier() bool
 
+// This declaration must allow new to escape: the pointer CAS stores it after
+// converting it to integer bits, which otherwise hides its lifetime from the compiler.
+//
 //go:linkname runtimeatomicwb runtime.atomicwb
-//go:noescape
 func runtimeatomicwb(ptr *unsafe.Pointer, new unsafe.Pointer)
 
 //go:linkname runtimenoescape runtime.noescape
