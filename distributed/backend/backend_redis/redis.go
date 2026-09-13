@@ -404,7 +404,12 @@ func (b *BackendRedis) updateStatusWithAttempt(status *task.Status, attemptID st
 
 // getStatus 获取任务状态
 func (b *BackendRedis) getStatus(taskID string) (*task.Status, error) {
-	body, err := b.client.Get(context.Background(), taskID).Bytes()
+	return b.GetStatusContext(context.Background(), taskID)
+}
+
+// GetStatusContext reads a status using the caller's deadline.
+func (b *BackendRedis) GetStatusContext(ctx context.Context, taskID string) (*task.Status, error) {
+	body, err := b.client.Get(ctx, taskID).Bytes()
 	if err != nil {
 		return nil, err
 	}

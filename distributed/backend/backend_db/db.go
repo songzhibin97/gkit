@@ -1,6 +1,7 @@
 package backend_db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -277,14 +278,20 @@ func (b *BackendSQLDB) SetStateFailure(signature *task.Signature, err string) er
 }
 
 func (b *BackendSQLDB) GetStatus(taskID string) (*task.Status, error) {
+	return b.GetStatusContext(context.Background(), taskID)
+}
+
+// GetStatusContext includes both the read and expired-row cleanup in ctx.
+func (b *BackendSQLDB) GetStatusContext(ctx context.Context, taskID string) (*task.Status, error) {
+	db := b.gClient.WithContext(ctx)
 	for attempt := 0; attempt < expiryReadRetryLimit; attempt++ {
 		var status task.Status
-		err := b.gClient.Where("id = ?", taskID).First(&status).Error
+		err := db.Where("id = ?", taskID).First(&status).Error
 		if err != nil {
 			return nil, err
 		}
 		now := b.currentTime()
-		deleted, err := b.deleteExpiredStatusSnapshot(&status, now)
+		deleted, err := b.deleteExpiredStatusSnapshotWithDB(db, &status, now)
 		if err != nil {
 			return nil, err
 		}
@@ -368,10 +375,14 @@ func (b *BackendSQLDB) deleteExpiredStatusByTaskID(taskID string, now time.Time)
 }
 
 func (b *BackendSQLDB) deleteExpiredStatusSnapshot(status *task.Status, now time.Time) (bool, error) {
+	return b.deleteExpiredStatusSnapshotWithDB(b.gClient, status, now)
+}
+
+func (b *BackendSQLDB) deleteExpiredStatusSnapshotWithDB(db *gorm.DB, status *task.Status, now time.Time) (bool, error) {
 	if status == nil || !b.isStatusExpired(status, now) {
 		return false, nil
 	}
-	result := b.gClient.Unscoped().Where("_id = ? AND id = ?", status.ID, status.TaskID).Delete(&task.Status{})
+	result := db.Unscoped().Where("_id = ? AND id = ?", status.ID, status.TaskID).Delete(&task.Status{})
 	if result.Error != nil {
 		return false, fmt.Errorf("backend_db: delete expired task %q: %w", status.TaskID, result.Error)
 	}

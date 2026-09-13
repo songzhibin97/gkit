@@ -271,11 +271,16 @@ func (b *BackendMongoDB) SetStateFailure(signature *task.Signature, err string) 
 }
 
 func (b *BackendMongoDB) GetStatus(taskID string) (*task.Status, error) {
+	return b.GetStatusContext(context.Background(), taskID)
+}
+
+// GetStatusContext reads a status using the caller's deadline.
+func (b *BackendMongoDB) GetStatusContext(ctx context.Context, taskID string) (*task.Status, error) {
 	var status task.Status
 	query := bson.M{
 		"_id": taskID,
 	}
-	err := b.taskTable.FindOne(context.Background(), query).Decode(&status)
+	err := b.taskTable.FindOne(ctx, query).Decode(&status)
 	if err != nil {
 		return nil, err
 	}

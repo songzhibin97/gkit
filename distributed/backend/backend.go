@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"context"
 	"errors"
 
 	"github.com/songzhibin97/gkit/distributed/task"
@@ -72,4 +73,13 @@ type PublicationAttemptBackend interface {
 	// changed is false when the task is missing, belongs to another attempt, or
 	// has already advanced to another state.
 	FailPendingAttempt(signature *task.Signature, attemptID, reason string) (changed bool, err error)
+}
+
+// ContextStatusBackend optionally makes status reads cancelable. Implementations
+// must propagate ctx through all I/O, including expiry cleanup. Result timeout
+// APIs use this extension without changing the legacy Backend interface.
+// Legacy GetStatus calls remain synchronous and can return after the timeout;
+// result APIs discard their late results rather than leaking background reads.
+type ContextStatusBackend interface {
+	GetStatusContext(ctx context.Context, taskID string) (*task.Status, error)
 }
