@@ -437,6 +437,14 @@ func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
 // their indexes under utf8mb4; without a size GORM maps strings to LONGTEXT,
 // which MySQL rejects as an index key without an explicit prefix length.
 func (b *BackendSQLDB) autoMigrate() error {
+	// Reject unusable status arbiters before GORM can remove or replace any
+	// existing constraints. Adding an immediate key does not make a matching
+	// deferrable key usable by PostgreSQL ON CONFLICT(id).
+	if b.gClient.Dialector.Name() == "postgres" {
+		if err := b.checkPostgresStatusArbiters(); err != nil {
+			return err
+		}
+	}
 	if err := b.gClient.AutoMigrate(
 		task.GroupMeta{},
 		task.Status{},
@@ -461,6 +469,29 @@ func (b *BackendSQLDB) autoMigrate() error {
 		}
 	}
 	return b.migrateDurableChord()
+}
+
+func (b *BackendSQLDB) checkPostgresStatusArbiters() error {
+	stmt := &gorm.Statement{DB: b.gClient}
+	if err := stmt.Parse(&task.Status{}); err != nil {
+		return err
+	}
+	table := stmt.Quote(stmt.Schema.Table)
+	var deferrable bool
+	const query = `SELECT EXISTS (
+ SELECT 1 FROM pg_index i JOIN pg_attribute a
+ ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+ WHERE i.indrelid = to_regclass(?) AND i.indisunique AND i.indisvalid
+ AND NOT i.indimmediate AND i.indpred IS NULL AND i.indexprs IS NULL
+ AND i.indnkeyatts = 1 AND a.attname = 'id'
+)`
+	if err := b.gClient.Raw(query, table).Scan(&deferrable).Error; err != nil {
+		return fmt.Errorf("inspect PostgreSQL status arbiters on %s: %w", table, err)
+	}
+	if deferrable {
+		return fmt.Errorf("backend_db: %s has a deferrable unique id constraint incompatible with ON CONFLICT(id); reconcile the constraint before migration", table)
+	}
+	return nil
 }
 
 // PostgreSQL index names are schema-wide. GORM may see the legacy fixed
