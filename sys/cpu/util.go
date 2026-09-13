@@ -2,6 +2,7 @@ package cpu
 
 import (
 	"bufio"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -94,8 +95,9 @@ func readLines(filename string) ([]string, error) {
 }
 
 // readLinesOffsetN 读取行数据
-//   n >= 0: at most n lines
-//   n < 0: whole file
+//
+//	n >= 0: at most n lines
+//	n < 0: whole file
 func readLinesOffsetN(filename string, offset uint, n int) ([]string, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -108,13 +110,15 @@ func readLinesOffsetN(filename string, offset uint, n int) ([]string, error) {
 	r := bufio.NewReader(f)
 	for i := 0; i < n+int(offset) || n < 0; i++ {
 		line, err := r.ReadString('\n')
-		if err != nil {
+		if line != "" && i >= int(offset) {
+			ret = append(ret, strings.Trim(line, "\n"))
+		}
+		if err == io.EOF {
 			break
 		}
-		if i < int(offset) {
-			continue
+		if err != nil {
+			return ret, errors.Wrapf(err, "read lines from %s", filename)
 		}
-		ret = append(ret, strings.Trim(line, "\n"))
 	}
 
 	return ret, nil
