@@ -270,12 +270,12 @@ func NewTicker(d time.Duration) Ticker {
 
 // FormatTimeMillis 将Unix时间戳(ms)格式化为时间字符串
 func FormatTimeMillis(tsMillis uint64) string {
-	return time.Unix(0, int64(tsMillis*UnixTimeUnitOffset)).Format(TimeFormat)
+	return time.Unix(int64(tsMillis/1000), int64(tsMillis%1000)*int64(UnixTimeUnitOffset)).Format(TimeFormat)
 }
 
 // FormatDate 将Unix时间戳(ms)格式化为日期字符串
 func FormatDate(tsMillis uint64) string {
-	return time.Unix(0, int64(tsMillis*UnixTimeUnitOffset)).Format(DateFormat)
+	return time.Unix(int64(tsMillis/1000), int64(tsMillis%1000)*int64(UnixTimeUnitOffset)).Format(DateFormat)
 }
 
 // GetTimeMillis 返回当前的Unix时间戳(ms)
