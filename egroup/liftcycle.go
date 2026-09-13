@@ -125,8 +125,11 @@ func (l *LifeAdmin) goController(f func() error) {
 	accepted := g.goroutine.AddTaskN(g.ctx, func() {
 		go func() {
 			defer g.wg.Done()
+			completed := false
 			defer func() {
-				if value := recover(); value != nil {
+				value := recover()
+				// On Go 1.20, panic(nil) also makes recover return nil.
+				if !completed {
 					err, ok := value.(error)
 					if !ok {
 						err = fmt.Errorf("lifecycle panic: %v", value)
@@ -135,6 +138,7 @@ func (l *LifeAdmin) goController(f func() error) {
 				}
 			}()
 			g.recordError(f())
+			completed = true
 		}()
 	})
 	if !accepted {

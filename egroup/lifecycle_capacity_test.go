@@ -149,40 +149,54 @@ func TestLifeAdminRejectedControllerReleasesWaitCount(t *testing.T) {
 }
 
 func TestLifeAdminSignalHandlerPanicIsContained(t *testing.T) {
-	backend := &lifecycleObservedPool{
-		GGroup:     goroutine.NewGoroutine(context.Background(), goroutine.SetMax(1), goroutine.SetIdle(1)),
-		registered: make(chan struct{}, 2),
-	}
-	group := WithContextGroup(context.Background(), backend)
 	wantErr := errors.New("synthetic signal handler panic")
-	admin := NewLifeAdmin(SetGroup(group), SetSignal(func(*LifeAdmin, os.Signal) { panic(wantErr) }, syscall.SIGUSR1))
-	stopped := make(chan struct{})
-	admin.Add(Member{Shutdown: func(context.Context) error { close(stopped); return nil }})
-	result, finished := make(chan error, 1), make(chan struct{})
-	go func() { defer close(finished); result <- admin.Start() }()
-	t.Cleanup(func() {
-		admin.Shutdown()
-		waitIssue80Signal(t, finished, "signal panic cleanup")
-		if err := group.Shutdown(); err != nil {
-			t.Error(err)
-		}
-	})
-	// The second accepted submission follows signal.Notify, so sending the
-	// signal to this test process cannot precede handler registration.
-	for i := 0; i < 2; i++ {
-		waitIssue80Signal(t, backend.registered, "signal handler registration")
+	for _, test := range []struct {
+		name  string
+		value interface{}
+	}{
+		{"nil", nil},
+		{"error", wantErr},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			backend := &lifecycleObservedPool{
+				GGroup:     goroutine.NewGoroutine(context.Background(), goroutine.SetMax(1), goroutine.SetIdle(1)),
+				registered: make(chan struct{}, 2),
+			}
+			group := WithContextGroup(context.Background(), backend)
+			admin := NewLifeAdmin(SetGroup(group), SetSignal(func(*LifeAdmin, os.Signal) { panic(test.value) }, syscall.SIGUSR1))
+			stopped := make(chan struct{})
+			admin.Add(Member{Shutdown: func(context.Context) error { close(stopped); return nil }})
+			result, finished := make(chan error, 1), make(chan struct{})
+			go func() { defer close(finished); result <- admin.Start() }()
+			t.Cleanup(func() {
+				admin.Shutdown()
+				waitIssue80Signal(t, finished, "signal panic cleanup")
+				if err := group.Shutdown(); err != nil {
+					t.Error(err)
+				}
+			})
+			// The second accepted submission follows signal.Notify, so sending the
+			// signal to this test process cannot precede handler registration.
+			for i := 0; i < 2; i++ {
+				waitIssue80Signal(t, backend.registered, "signal handler registration")
+			}
+			process, err := os.FindProcess(os.Getpid())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := process.Signal(syscall.SIGUSR1); err != nil {
+				t.Fatal(err)
+			}
+			err = waitIssue80Value(t, result, "signal panic result")
+			if err == nil {
+				t.Fatal("Start swallowed the signal handler panic")
+			}
+			if test.value != nil && !errors.Is(err, wantErr) {
+				t.Fatalf("Start after handler panic = %v, want %v", err, wantErr)
+			}
+			waitIssue80Signal(t, stopped, "Shutdown after signal panic")
+		})
 	}
-	process, err := os.FindProcess(os.Getpid())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := process.Signal(syscall.SIGUSR1); err != nil {
-		t.Fatal(err)
-	}
-	if err := waitIssue80Value(t, result, "signal panic result"); !errors.Is(err, wantErr) {
-		t.Fatalf("Start after handler panic = %v, want %v", err, wantErr)
-	}
-	waitIssue80Signal(t, stopped, "Shutdown after signal panic")
 }
 
 func TestLifeAdminStartCallbacksKeepPoolConcurrencyLimit(t *testing.T) {
