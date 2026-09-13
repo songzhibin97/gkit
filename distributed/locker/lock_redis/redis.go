@@ -53,16 +53,20 @@ func (l *Lock) Lock(key string, expire int, mark string) error {
 }
 
 func (l *Lock) LockContext(ctx context.Context, key string, expire int, mark string) error {
-	var err error
-	for i := 0; i < l.retries+1; i++ {
+	for i := 0; ; i++ {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
 		}
-		err = l.lock(ctx, key, expire, mark)
+		err := l.lock(ctx, key, expire, mark)
 		if err == nil {
 			return nil
 		}
-		if l.interval > 0 && i < l.retries {
+		// Check before incrementing: retries can be MaxInt, so retries+1
+		// (or incrementing past the final attempt) would overflow.
+		if i >= l.retries {
+			return err
+		}
+		if l.interval > 0 {
 			timer := time.NewTimer(l.interval)
 			select {
 			case <-timer.C:
@@ -77,7 +81,6 @@ func (l *Lock) LockContext(ctx context.Context, key string, expire int, mark str
 			}
 		}
 	}
-	return err
 }
 
 func (l *Lock) UnLock(key string, mark string) error {
@@ -122,6 +125,10 @@ func NewRedisLock(client redis.UniversalClient, opts ...options.Option) locker.L
 	}
 	for _, opt := range opts {
 		opt(o)
+	}
+	// Negative retry counts mean no retries, not no acquisition attempt.
+	if o.retries < 0 {
+		o.retries = 0
 	}
 	// 如果 interval < 0, 则禁用重试
 	if o.interval < 0 {
