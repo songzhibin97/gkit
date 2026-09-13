@@ -37,10 +37,11 @@ type BackendMongoDB struct {
 	// taskTable taskTable
 	taskTable *mongo.Collection
 	// groupTable groupTable
-	groupTable     *mongo.Collection
-	chordTable     *mongo.Collection
-	chordIndexOnce sync.Once
-	chordIndexErr  error
+	groupTable        *mongo.Collection
+	chordTable        *mongo.Collection
+	chordIndexMu      sync.Mutex
+	chordIndexesReady bool
+	chordIndexWait    chan struct{}
 }
 
 // SetResultExpire normalizes and stores the retention value for compatibility.

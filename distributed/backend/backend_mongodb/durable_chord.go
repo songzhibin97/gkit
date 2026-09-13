@@ -336,8 +336,33 @@ func (b *BackendMongoDB) createChordIndexes(ctx context.Context) error {
 }
 
 func (b *BackendMongoDB) ensureChordIndexes(ctx context.Context) error {
-	b.chordIndexOnce.Do(func() {
-		b.chordIndexErr = b.createChordIndexes(ctx)
-	})
-	return b.chordIndexErr
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		b.chordIndexMu.Lock()
+		if b.chordIndexesReady {
+			b.chordIndexMu.Unlock()
+			return nil
+		}
+		if wait := b.chordIndexWait; wait != nil {
+			b.chordIndexMu.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-wait:
+				continue
+			}
+		}
+		wait := make(chan struct{})
+		b.chordIndexWait = wait
+		b.chordIndexMu.Unlock()
+		err := b.createChordIndexes(ctx)
+		b.chordIndexMu.Lock()
+		b.chordIndexesReady = err == nil
+		b.chordIndexWait = nil
+		close(wait)
+		b.chordIndexMu.Unlock()
+		return err
+	}
 }
