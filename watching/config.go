@@ -3,6 +3,7 @@ package watching
 import (
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -254,5 +255,8 @@ func (c *configs) GetGcHeapConfigs() typeConfig {
 func (c *configs) GetReporterConfigs() ReporterConfigs {
 	c.L.RLock()
 	defer c.L.RUnlock()
-	return *c.rptConfigs
+	return ReporterConfigs{
+		reporter: c.rptConfigs.reporter,
+		active:   atomic.LoadInt32(&c.rptConfigs.active),
+	}
 }
