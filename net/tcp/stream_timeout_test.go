@@ -2,7 +2,9 @@ package tcp
 
 import (
 	"errors"
+	"io"
 	"net"
+	"os"
 	"testing"
 	"time"
 )
@@ -80,5 +82,74 @@ func TestStreamPreservesTimeoutBeforeIdleDeadline(t *testing.T) {
 	var ne net.Error
 	if string(data) != "partial" || !errors.As(err, &ne) || !ne.Timeout() {
 		t.Fatalf("Recv=(%q,%v), want partial and early timeout", data, err)
+	}
+}
+
+func TestStreamRetryWaitPreservesOverallTimeout(t *testing.T) {
+	for _, exchange := range []bool{false, true} {
+		for _, exhaust := range []bool{false, true} {
+			name := "receive"
+			if exchange {
+				name = "send-receive"
+			}
+			if exhaust {
+				name += "/exhausted"
+			} else {
+				name += "/idle"
+			}
+			t.Run(name, func(t *testing.T) {
+				a, b := net.Pipe()
+				defer a.Close()
+				defer b.Close()
+				c := NewConnByNetConn(a)
+				c.SetRecvBufferInterval(5 * time.Millisecond)
+				peerDone := make(chan error, 1)
+				go func() {
+					if exchange {
+						request := make([]byte, len("request"))
+						if _, err := io.ReadFull(b, request); err != nil {
+							peerDone <- err
+							return
+						}
+						if string(request) != "request" {
+							peerDone <- errors.New("unexpected request payload")
+							return
+						}
+					}
+					_, err := b.Write([]byte("partial"))
+					peerDone <- err
+				}()
+				total := time.Second
+				interval := time.Millisecond
+				if exhaust {
+					total = 100 * time.Millisecond
+					interval = time.Hour
+				}
+				retry := &Retry{Count: 1, Interval: interval}
+				var data []byte
+				var err error
+				if exchange {
+					data, err = c.SendRecvWithTimeout([]byte("request"), total, -1, retry)
+				} else {
+					data, err = c.RecvWithTimeout(-1, total, retry)
+				}
+				if peerErr := <-peerDone; peerErr != nil {
+					t.Fatal(peerErr)
+				}
+				if string(data) != "partial" {
+					t.Fatalf("data=%q want partial", data)
+				}
+				if retry.Count != 0 {
+					t.Fatalf("retry count=%d want 0 after retry wait", retry.Count)
+				}
+				if exhaust {
+					if !errors.Is(err, os.ErrDeadlineExceeded) {
+						t.Fatalf("error=%v want exhausted total deadline", err)
+					}
+				} else if err != nil {
+					t.Fatalf("idle with short retry wait error=%v", err)
+				}
+			})
+		}
 	}
 }

@@ -216,7 +216,11 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		}
 		if err != nil {
 			c.deadlineMu.Lock()
-			idleExpired := idleApplied && probeVersion == c.readDeadlineVersion && !time.Now().Before(idleDeadline)
+			now := time.Now()
+			// A retry wait may exhaust the overall budget after the idle probe
+			// expires. That timeout must remain an error with the partial bytes.
+			idleExpired := idleApplied && probeVersion == c.readDeadlineVersion && !now.Before(idleDeadline) &&
+				(c.recvTimeout.IsZero() || now.Before(c.recvTimeout))
 			c.deadlineMu.Unlock()
 			if idleExpired && isTimeout(err) {
 				return bf[:index], nil
