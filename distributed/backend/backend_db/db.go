@@ -149,7 +149,17 @@ func (b *BackendSQLDB) getTaskStatus(taskIDs []string) ([]*task.Status, error) {
 		}
 		live = append(live, status)
 	}
-	return live, nil
+	byID := make(map[string]*task.Status, len(live))
+	for _, status := range live {
+		byID[status.TaskID] = status
+	}
+	ordered := make([]*task.Status, 0, len(live))
+	for _, id := range taskIDs {
+		if status, ok := byID[id]; ok {
+			ordered = append(ordered, status)
+		}
+	}
+	return ordered, nil
 }
 
 func (b *BackendSQLDB) GroupTaskStatus(groupID string) ([]*task.Status, error) {

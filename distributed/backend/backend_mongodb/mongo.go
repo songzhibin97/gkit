@@ -102,7 +102,21 @@ func (b *BackendMongoDB) getTaskStatus(taskIDs []string) ([]*task.Status, error)
 	if err != nil {
 		return nil, err
 	}
-	return collectTaskStatuses(ctx, result, len(taskIDs))
+	statuses, err := collectTaskStatuses(ctx, result, len(taskIDs))
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]*task.Status, len(statuses))
+	for _, status := range statuses {
+		byID[status.TaskID] = status
+	}
+	ordered := make([]*task.Status, 0, len(statuses))
+	for _, id := range taskIDs {
+		if status, ok := byID[id]; ok {
+			ordered = append(ordered, status)
+		}
+	}
+	return ordered, nil
 }
 
 type taskStatusCursor interface {
