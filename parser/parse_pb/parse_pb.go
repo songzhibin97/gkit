@@ -30,8 +30,8 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.PkgName = pkg.Name
 		}
 	}
-	ret.typeNames = make(map[string]string)
-	ret.indexTypes(definition.Elements, ret.PkgName, "")
+	names := make(map[string]string)
+	indexTypes(definition.Elements, ret.PkgName, "", names)
 	for _, element := range definition.Elements {
 		switch v := element.(type) {
 		case *proto.Package:
@@ -41,12 +41,12 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.AddNode(&Note{Comment: v})
 		case *proto.Message:
 			// message
-			if err := ret.parseMessage(v, "", ret.PkgName); err != nil {
+			if err := ret.parseMessage(v, "", ret.PkgName, names); err != nil {
 				return nil, err
 			}
 		case *proto.Service:
 			// service
-			if err := ret.parseService(v); err != nil {
+			if err := ret.parseService(v, names); err != nil {
 				return nil, err
 			}
 		case *proto.Enum:

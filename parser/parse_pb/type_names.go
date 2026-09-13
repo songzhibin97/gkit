@@ -8,29 +8,29 @@ import (
 
 // Index declarations before fields so forward and nested references use the
 // same flattened names as their generated Go declarations.
-func (p *PbParseGo) indexTypes(elements []proto.Visitee, scope, prefix string) {
+func indexTypes(elements []proto.Visitee, scope, prefix string, names map[string]string) {
 	for _, element := range elements {
 		switch v := element.(type) {
 		case *proto.Message:
 			name := strings.TrimPrefix(scope+"."+v.Name, ".")
-			p.typeNames[name] = prefix + v.Name
-			p.indexTypes(v.Elements, name, prefix+v.Name)
+			names[name] = prefix + v.Name
+			indexTypes(v.Elements, name, prefix+v.Name, names)
 		case *proto.Enum:
-			p.typeNames[strings.TrimPrefix(scope+"."+v.Name, ".")] = prefix + v.Name
+			names[strings.TrimPrefix(scope+"."+v.Name, ".")] = prefix + v.Name
 		}
 	}
 }
 
-func (p *PbParseGo) resolveType(name, scope string) string {
+func resolveType(name, scope string, names map[string]string) string {
 	if strings.HasPrefix(name, ".") {
-		if resolved, ok := p.typeNames[strings.TrimPrefix(name, ".")]; ok {
+		if resolved, ok := names[strings.TrimPrefix(name, ".")]; ok {
 			return resolved
 		}
 		return PbTypeToGo(name)
 	}
 	for {
 		candidate := strings.TrimPrefix(scope+"."+name, ".")
-		if resolved, ok := p.typeNames[candidate]; ok {
+		if resolved, ok := names[candidate]; ok {
 			return resolved
 		}
 		if scope == "" {
