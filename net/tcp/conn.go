@@ -264,22 +264,30 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 }
 
 // RecvWithTimeout 读取已经超时的链接
-func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) {
+func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) (result []byte, retErr error) {
 	deadline := time.Now().Add(timeout)
 	if err := c.SetRecvDeadline(deadline); err != nil {
 		return nil, err
 	}
-	defer c.SetRecvDeadline(time.Time{})
+	defer func() {
+		if err := c.SetRecvDeadline(time.Time{}); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("tcp receive: clear deadline: %w", err))
+		}
+	}()
 	return c.recv(length, retry, sleepForRetryUntil(deadline))
 }
 
 // SendWithTimeout 写入数据给已经超时的链接
-func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error {
+func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) (retErr error) {
 	deadline := time.Now().Add(timeout)
 	if err := c.SetSendDeadline(deadline); err != nil {
 		return err
 	}
-	defer c.SetSendDeadline(time.Time{})
+	defer func() {
+		if err := c.SetSendDeadline(time.Time{}); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("tcp send: clear deadline: %w", err))
+		}
+	}()
 	return c.send(data, retry, sleepForRetryUntil(deadline))
 }
 
