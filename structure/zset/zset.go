@@ -432,12 +432,9 @@ func (z *Float64Set) RemoveRangeByRank(start, stop int) []Float64Node {
 	z.mu.Lock()
 	defer z.mu.Unlock()
 
-	// Convert negative rank to positive.
-	if start < 0 {
-		start = z.list.length + start
-	}
-	if stop < 0 {
-		stop = z.list.length + stop
+	start, stop, ok := normalizeRankRange(z.list.length, start, stop)
+	if !ok {
+		return nil
 	}
 
 	return z.list.DeleteRangeByRank(start+1, stop+1, z.dict) // 0-based rank -> 1-based rank

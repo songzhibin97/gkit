@@ -154,14 +154,12 @@ func (s *Int64Map) Store(key int64, value interface{}) {
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just replace the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before a completed write can be loaded.
 				nodeFound.storeVal(value)
 				return
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -319,13 +317,11 @@ func (s *Int64Map) LoadOrStore(key int64, value interface{}) (actual interface{}
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
@@ -389,13 +385,11 @@ func (s *Int64Map) LoadOrStoreLazy(key int64, f func() interface{}) (actual inte
 	for {
 		nodeFound := s.findNode(key, &preds, &succs)
 		if nodeFound != nil { // indicating the key is already in the skip-list
-			if !nodeFound.flags.Get(marked) {
-				// We don't need to care about whether or not the node is fully linked,
-				// just return the value.
+			if nodeFound.flags.MGet(fullyLinked|marked, fullyLinked) {
+				// Publication must finish before returning an existing value.
 				return nodeFound.loadVal(), true
 			}
-			// If the node is marked, represents some other goroutines is in the process of deleting this node,
-			// we need to add this node in next loop.
+			// Retry while insertion is publishing or deletion is removing the node.
 			continue
 		}
 
