@@ -43,12 +43,14 @@ func (t *Task) TransformArgs(args []Arg) error {
 
 // Call 调用方法
 func (t *Task) Call() (taskResults []*Result, err error) {
+	invocationCompleted := false
 	// 防止意外panic. Capture the original panic value when the default
 	// branch fires; the previous code coerced every non-error, non-string
 	// panic into the bare ErrDispatching sentinel and dropped the actual
 	// value, leaving operators without any diagnostic.
 	defer func() {
-		if e := recover(); e != nil {
+		// Go 1.20 also returns nil from recover after panic(nil).
+		if e := recover(); e != nil || !invocationCompleted {
 			switch er := e.(type) {
 			default:
 				err = fmt.Errorf("%w: %v", ErrDispatching, e)
@@ -68,6 +70,7 @@ func (t *Task) Call() (taskResults []*Result, err error) {
 
 	// 调用任务
 	results := t.TaskFunc.Call(args)
+	invocationCompleted = true
 
 	if len(results) == 0 {
 		return nil, ErrTaskReturnNoValue
