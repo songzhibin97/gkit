@@ -33,25 +33,29 @@ type BackendMongoDB struct {
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
 	// 单位为s
-	resultExpire int64
+	resultExpire   int64
+	resultExpireMu sync.RWMutex
 	// taskTable taskTable
 	taskTable *mongo.Collection
 	// groupTable groupTable
-	groupTable     *mongo.Collection
-	chordTable     *mongo.Collection
-	chordIndexOnce sync.Once
-	chordIndexErr  error
+	groupTable        *mongo.Collection
+	chordTable        *mongo.Collection
+	chordIndexMu      sync.Mutex
+	chordIndexesReady bool
+	chordIndexWait    chan struct{}
 }
 
 // SetResultExpire normalizes and stores the retention value for compatibility.
 // It does not rebuild TTL indexes online because this method cannot report
 // index-creation errors; configure retention through the constructor instead.
 func (b *BackendMongoDB) SetResultExpire(expire int64) {
+	b.resultExpireMu.Lock()
 	b.resultExpire = normalizeResultExpire(expire)
+	b.resultExpireMu.Unlock()
 }
 
 func (b *BackendMongoDB) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
-	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
+	group := task.InitGroupMeta(groupID, name, b.configuredResultExpire(), taskIDs...)
 	// GroupMeta stores GroupID as the document _id, so MongoDB's implicit
 	// unique index on _id rejects a second takeover with a duplicate key
 	// error. Normalize it to the shared sentinel so callers can tolerate
@@ -102,7 +106,21 @@ func (b *BackendMongoDB) getTaskStatus(taskIDs []string) ([]*task.Status, error)
 	if err != nil {
 		return nil, err
 	}
-	return collectTaskStatuses(ctx, result, len(taskIDs))
+	statuses, err := collectTaskStatuses(ctx, result, len(taskIDs))
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]*task.Status, len(statuses))
+	for _, status := range statuses {
+		byID[status.TaskID] = status
+	}
+	ordered := make([]*task.Status, 0, len(statuses))
+	for _, id := range taskIDs {
+		if status, ok := byID[id]; ok {
+			ordered = append(ordered, status)
+		}
+	}
+	return ordered, nil
 }
 
 type taskStatusCursor interface {
@@ -253,11 +271,16 @@ func (b *BackendMongoDB) SetStateFailure(signature *task.Signature, err string) 
 }
 
 func (b *BackendMongoDB) GetStatus(taskID string) (*task.Status, error) {
+	return b.GetStatusContext(context.Background(), taskID)
+}
+
+// GetStatusContext reads a status using the caller's deadline.
+func (b *BackendMongoDB) GetStatusContext(ctx context.Context, taskID string) (*task.Status, error) {
 	var status task.Status
 	query := bson.M{
 		"_id": taskID,
 	}
-	err := b.taskTable.FindOne(context.Background(), query).Decode(&status)
+	err := b.taskTable.FindOne(ctx, query).Decode(&status)
 	if err != nil {
 		return nil, err
 	}
@@ -403,4 +426,10 @@ func NewBackendMongoDBE(client *mongo.Client, resultExpire int64, options ...opt
 		}
 	}
 	return &b, nil
+}
+
+func (b *BackendMongoDB) configuredResultExpire() int64 {
+	b.resultExpireMu.RLock()
+	defer b.resultExpireMu.RUnlock()
+	return b.resultExpire
 }

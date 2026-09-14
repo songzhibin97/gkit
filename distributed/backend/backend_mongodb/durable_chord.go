@@ -159,7 +159,7 @@ func (b *BackendMongoDB) ReconcileChord(ctx context.Context, deliveryKey string)
 	for index := range delivery.Members {
 		ids[index] = delivery.Members[index].TaskID
 	}
-	group := task.InitGroupMeta(delivery.GroupID, delivery.GroupName, b.resultExpire, ids...)
+	group := task.InitGroupMeta(delivery.GroupID, delivery.GroupName, b.configuredResultExpire(), ids...)
 	if _, err := b.groupTable.UpdateOne(ctx, bson.M{"_id": delivery.GroupID}, bson.M{"$setOnInsert": group}, options.Update().SetUpsert(true)); err != nil {
 		return err
 	}
@@ -336,8 +336,33 @@ func (b *BackendMongoDB) createChordIndexes(ctx context.Context) error {
 }
 
 func (b *BackendMongoDB) ensureChordIndexes(ctx context.Context) error {
-	b.chordIndexOnce.Do(func() {
-		b.chordIndexErr = b.createChordIndexes(ctx)
-	})
-	return b.chordIndexErr
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		b.chordIndexMu.Lock()
+		if b.chordIndexesReady {
+			b.chordIndexMu.Unlock()
+			return nil
+		}
+		if wait := b.chordIndexWait; wait != nil {
+			b.chordIndexMu.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-wait:
+				continue
+			}
+		}
+		wait := make(chan struct{})
+		b.chordIndexWait = wait
+		b.chordIndexMu.Unlock()
+		err := b.createChordIndexes(ctx)
+		b.chordIndexMu.Lock()
+		b.chordIndexesReady = err == nil
+		b.chordIndexWait = nil
+		close(wait)
+		b.chordIndexMu.Unlock()
+		return err
+	}
 }

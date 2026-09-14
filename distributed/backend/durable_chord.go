@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -617,6 +618,12 @@ func setChordTerminalTime(delivery *ChordDelivery, now time.Time) {
 		delivery.TerminalExpireAt = nil
 		return
 	}
-	expires := now.Add(time.Duration(NormalizeChordRetention(delivery.Retention)) * time.Second)
+	seconds := NormalizeChordRetention(delivery.Retention)
+	// Saturate at the largest whole-second duration, including old persisted
+	// registrations, so large positive retention can never expire in the past.
+	if seconds > math.MaxInt64/int64(time.Second) {
+		seconds = math.MaxInt64 / int64(time.Second)
+	}
+	expires := now.Add(time.Duration(seconds) * time.Second)
 	delivery.TerminalExpireAt = &expires
 }

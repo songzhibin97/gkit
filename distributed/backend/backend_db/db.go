@@ -1,6 +1,7 @@
 package backend_db
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -149,7 +150,17 @@ func (b *BackendSQLDB) getTaskStatus(taskIDs []string) ([]*task.Status, error) {
 		}
 		live = append(live, status)
 	}
-	return live, nil
+	byID := make(map[string]*task.Status, len(live))
+	for _, status := range live {
+		byID[status.TaskID] = status
+	}
+	ordered := make([]*task.Status, 0, len(live))
+	for _, id := range taskIDs {
+		if status, ok := byID[id]; ok {
+			ordered = append(ordered, status)
+		}
+	}
+	return ordered, nil
 }
 
 func (b *BackendSQLDB) GroupTaskStatus(groupID string) ([]*task.Status, error) {
@@ -267,14 +278,20 @@ func (b *BackendSQLDB) SetStateFailure(signature *task.Signature, err string) er
 }
 
 func (b *BackendSQLDB) GetStatus(taskID string) (*task.Status, error) {
+	return b.GetStatusContext(context.Background(), taskID)
+}
+
+// GetStatusContext includes both the read and expired-row cleanup in ctx.
+func (b *BackendSQLDB) GetStatusContext(ctx context.Context, taskID string) (*task.Status, error) {
+	db := b.gClient.WithContext(ctx)
 	for attempt := 0; attempt < expiryReadRetryLimit; attempt++ {
 		var status task.Status
-		err := b.gClient.Where("id = ?", taskID).First(&status).Error
+		err := db.Where("id = ?", taskID).First(&status).Error
 		if err != nil {
 			return nil, err
 		}
 		now := b.currentTime()
-		deleted, err := b.deleteExpiredStatusSnapshot(&status, now)
+		deleted, err := b.deleteExpiredStatusSnapshotWithDB(db, &status, now)
 		if err != nil {
 			return nil, err
 		}
@@ -358,10 +375,14 @@ func (b *BackendSQLDB) deleteExpiredStatusByTaskID(taskID string, now time.Time)
 }
 
 func (b *BackendSQLDB) deleteExpiredStatusSnapshot(status *task.Status, now time.Time) (bool, error) {
+	return b.deleteExpiredStatusSnapshotWithDB(b.gClient, status, now)
+}
+
+func (b *BackendSQLDB) deleteExpiredStatusSnapshotWithDB(db *gorm.DB, status *task.Status, now time.Time) (bool, error) {
 	if status == nil || !b.isStatusExpired(status, now) {
 		return false, nil
 	}
-	result := b.gClient.Unscoped().Where("_id = ? AND id = ?", status.ID, status.TaskID).Delete(&task.Status{})
+	result := db.Unscoped().Where("_id = ? AND id = ?", status.ID, status.TaskID).Delete(&task.Status{})
 	if result.Error != nil {
 		return false, fmt.Errorf("backend_db: delete expired task %q: %w", status.TaskID, result.Error)
 	}
@@ -416,11 +437,26 @@ func (b *BackendSQLDB) ResetGroup(groupIDs ...string) error {
 // their indexes under utf8mb4; without a size GORM maps strings to LONGTEXT,
 // which MySQL rejects as an index key without an explicit prefix length.
 func (b *BackendSQLDB) autoMigrate() error {
+	// Reject unusable status arbiters before GORM can remove or replace any
+	// existing constraints. Adding an immediate key does not make a matching
+	// deferrable key usable by PostgreSQL ON CONFLICT(id).
+	if b.gClient.Dialector.Name() == "postgres" {
+		if err := b.checkPostgresStatusArbiters(); err != nil {
+			return err
+		}
+	}
 	if err := b.gClient.AutoMigrate(
 		task.GroupMeta{},
 		task.Status{},
 	); err != nil {
 		return err
+	}
+	if b.gClient.Dialector.Name() == "postgres" {
+		for _, model := range []interface{}{&task.GroupMeta{}, &task.Status{}} {
+			if err := b.ensurePostgresUniqueID(model); err != nil {
+				return err
+			}
+		}
 	}
 	stmt := &gorm.Statement{DB: b.gClient}
 	if err := stmt.Parse(&task.Status{}); err != nil {
@@ -433,6 +469,72 @@ func (b *BackendSQLDB) autoMigrate() error {
 		}
 	}
 	return b.migrateDurableChord()
+}
+
+func (b *BackendSQLDB) checkPostgresStatusArbiters() error {
+	stmt := &gorm.Statement{DB: b.gClient}
+	if err := stmt.Parse(&task.Status{}); err != nil {
+		return err
+	}
+	table := stmt.Quote(stmt.Schema.Table)
+	var deferrable bool
+	const query = `SELECT EXISTS (
+ SELECT 1 FROM pg_index i JOIN pg_attribute a
+ ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+ WHERE i.indrelid = to_regclass(?) AND i.indisunique AND i.indisvalid
+ AND NOT i.indimmediate AND i.indpred IS NULL AND i.indexprs IS NULL
+ AND i.indnkeyatts = 1 AND a.attname = 'id'
+)`
+	if err := b.gClient.Raw(query, table).Scan(&deferrable).Error; err != nil {
+		return fmt.Errorf("inspect PostgreSQL status arbiters on %s: %w", table, err)
+	}
+	if deferrable {
+		return fmt.Errorf("backend_db: %s has a deferrable unique id constraint incompatible with ON CONFLICT(id); reconcile the constraint before migration", table)
+	}
+	return nil
+}
+
+// PostgreSQL index names are schema-wide. GORM may see the legacy fixed
+// name on another table and silently omit a prefixed table's unique key.
+// Check the actual relation, retaining all existing indexes and data.
+func (b *BackendSQLDB) ensurePostgresUniqueID(model interface{}) error {
+	stmt := &gorm.Statement{DB: b.gClient}
+	if err := stmt.Parse(model); err != nil {
+		return err
+	}
+	table := stmt.Quote(stmt.Schema.Table)
+	const query = `SELECT EXISTS (
+ SELECT 1 FROM pg_index i JOIN pg_attribute a
+ ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+ WHERE i.indrelid = to_regclass(?) AND i.indisunique AND i.indisvalid
+ AND i.indpred IS NULL AND i.indexprs IS NULL AND i.indnkeyatts = 1 AND a.attname = 'id'
+)`
+	var exists bool
+	if err := b.gClient.Raw(query, table).Scan(&exists).Error; err != nil {
+		return fmt.Errorf("inspect unique id on %s: %w", table, err)
+	}
+	if exists {
+		return nil
+	}
+	name := b.gClient.NamingStrategy.IndexName(stmt.Schema.Table, "gkit_unique_id")
+	if err := b.gClient.Exec("CREATE UNIQUE INDEX " + stmt.Quote(name) + " ON " + table + " (" + stmt.Quote("id") + ")").Error; err != nil {
+		// Another initializer may have created the same key after our read.
+		// Only a valid key on this relation can turn that failure into success.
+		if checkErr := b.gClient.Raw(query, table).Scan(&exists).Error; checkErr != nil {
+			return errors.Join(fmt.Errorf("create unique id on %s: %w", table, err), fmt.Errorf("recheck unique id on %s: %w", table, checkErr))
+		}
+		if exists {
+			return nil
+		}
+		return fmt.Errorf("create unique id on %s: %w", table, err)
+	}
+	if err := b.gClient.Raw(query, table).Scan(&exists).Error; err != nil {
+		return fmt.Errorf("verify unique id on %s: %w", table, err)
+	}
+	if !exists {
+		return fmt.Errorf("unique id on %s missing after migration", table)
+	}
+	return nil
 }
 
 // NewBackendSQLDB constructs a SQL-backed Backend. Returns nil on failure

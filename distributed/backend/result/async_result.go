@@ -68,8 +68,20 @@ func NewGroupCallbackAsyncResult(groupAsyncResult []*task.Signature, callbackAsy
 	}
 }
 
-func waitForPoll(ctx context.Context, duration time.Duration) error {
+// Socket deadlines can fire before the context timer updates Err. Observe the
+// deadline itself as well, without masking an earlier independent backend error.
+func contextError(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
+}
+
+func waitForPoll(ctx context.Context, duration time.Duration) error {
+	if err := contextError(ctx); err != nil {
 		return err
 	}
 	timer := time.NewTimer(duration)
@@ -78,7 +90,7 @@ func waitForPoll(ctx context.Context, duration time.Duration) error {
 		if !timer.Stop() {
 			<-timer.C
 		}
-		return ctx.Err()
+		return contextError(ctx)
 	case <-timer.C:
 		return nil
 	}
@@ -96,16 +108,19 @@ func (asyncResult *AsyncResult) Get(sleepDuration time.Duration) ([]reflect.Valu
 	}
 }
 
-// GetWithTimeout 返回结果 带有超时时间
+// GetWithTimeout returns results within the shared timeout budget when the
+// backend implements backend.ContextStatusBackend. Legacy GetStatus is
+// synchronous and may return late; any result arriving after the deadline is
+// discarded. No background read goroutine is started.
 func (asyncResult *AsyncResult) GetWithTimeout(timeoutDuration, sleepDuration time.Duration) ([]reflect.Value, error) {
 	ctx, cancer := context.WithTimeout(context.Background(), timeoutDuration)
 	defer cancer()
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, contextError(ctx)
 		default:
-			results, err := asyncResult.Monitor()
+			results, err := asyncResult.monitor(ctx)
 			if results == nil && err == nil {
 				if err := waitForPoll(ctx, sleepDuration); err != nil {
 					return nil, err
@@ -119,11 +134,23 @@ func (asyncResult *AsyncResult) GetWithTimeout(timeoutDuration, sleepDuration ti
 
 // Monitor 监视任务
 func (asyncResult *AsyncResult) Monitor() ([]reflect.Value, error) {
+	return asyncResult.monitor(context.Background())
+}
+
+func (asyncResult *AsyncResult) monitor(ctx context.Context) (values []reflect.Value, err error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if deadlineErr := contextError(ctx); deadlineErr != nil {
+			values, err = nil, deadlineErr
+		}
+	}()
 	if asyncResult.backend == nil {
 		return nil, ErrBackendEmpty
 	}
 
-	state, err := asyncResult.GetStateWithError()
+	state, err := asyncResult.getStateContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +166,29 @@ func (asyncResult *AsyncResult) Monitor() ([]reflect.Value, error) {
 // GetStateWithError gets the current task state and exposes backend read
 // failures with task context. The last cached state is preserved on failure.
 func (asyncResult *AsyncResult) GetStateWithError() (*task.Status, error) {
+	return asyncResult.getStateContext(context.Background())
+}
+
+func (asyncResult *AsyncResult) getStateContext(ctx context.Context) (*task.Status, error) {
+	if err := contextError(ctx); err != nil {
+		return asyncResult.state, err
+	}
 	if asyncResult.state.IsCompleted() {
 		return asyncResult.state, nil
 	}
 	if asyncResult.backend == nil {
 		return asyncResult.state, ErrBackendEmpty
 	}
-	taskState, err := asyncResult.backend.GetStatus(asyncResult.Signature.ID)
+	var taskState *task.Status
+	var err error
+	if reader, ok := asyncResult.backend.(backend.ContextStatusBackend); ok {
+		taskState, err = reader.GetStatusContext(ctx, asyncResult.Signature.ID)
+	} else {
+		taskState, err = asyncResult.backend.GetStatus(asyncResult.Signature.ID)
+	}
+	if deadlineErr := contextError(ctx); deadlineErr != nil {
+		return asyncResult.state, deadlineErr
+	}
 	if err != nil {
 		return asyncResult.state, fmt.Errorf(
 			"result: get state for task %q: %w",
@@ -183,7 +226,10 @@ func (chainAsyncResult *ChainAsyncResult) Get(sleepDuration time.Duration) ([]re
 	return results, err
 }
 
-// GetWithTimeout 返回结果 带有超时时间
+// GetWithTimeout returns results within the shared timeout budget when the
+// backend implements backend.ContextStatusBackend. Legacy GetStatus is
+// synchronous and may return late; any result arriving after the deadline is
+// discarded. No background read goroutine is started.
 func (chainAsyncResult *ChainAsyncResult) GetWithTimeout(timeoutDuration, sleepDuration time.Duration) ([]reflect.Value, error) {
 	if chainAsyncResult.backend == nil {
 		return nil, ErrBackendEmpty
@@ -199,15 +245,15 @@ func (chainAsyncResult *ChainAsyncResult) GetWithTimeout(timeoutDuration, sleepD
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, contextError(ctx)
 		default:
 			for _, result := range chainAsyncResult.asyncResult {
-				_, err = result.Monitor()
+				_, err = result.monitor(ctx)
 				if err != nil {
 					return nil, err
 				}
 			}
-			results, err = lastResult.Monitor()
+			results, err = lastResult.monitor(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -236,7 +282,10 @@ func (groupCallbackAsyncResult *GroupCallbackAsyncResult) Get(sleepDuration time
 	return groupCallbackAsyncResult.callbackAsyncResult.Get(sleepDuration)
 }
 
-// GetWithTimeout 返回结果 带有超时时间
+// GetWithTimeout returns results within the shared timeout budget when the
+// backend implements backend.ContextStatusBackend. Legacy GetStatus is
+// synchronous and may return late; any result arriving after the deadline is
+// discarded. No background read goroutine is started.
 func (groupCallbackAsyncResult *GroupCallbackAsyncResult) GetWithTimeout(timeoutDuration, sleepDuration time.Duration) ([]reflect.Value, error) {
 	if groupCallbackAsyncResult.backend == nil {
 		return nil, ErrBackendEmpty
@@ -250,15 +299,15 @@ func (groupCallbackAsyncResult *GroupCallbackAsyncResult) GetWithTimeout(timeout
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, contextError(ctx)
 		default:
 			for _, result := range groupCallbackAsyncResult.groupAsyncResult {
-				_, err = result.Monitor()
+				_, err = result.monitor(ctx)
 				if err != nil {
 					return nil, err
 				}
 			}
-			results, err = groupCallbackAsyncResult.callbackAsyncResult.Monitor()
+			results, err = groupCallbackAsyncResult.callbackAsyncResult.monitor(ctx)
 			if err != nil {
 				return nil, err
 			}

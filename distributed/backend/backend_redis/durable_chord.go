@@ -426,7 +426,7 @@ func (b *BackendRedis) ReconcileChord(ctx context.Context, deliveryKey string) e
 		if err != nil {
 			return err
 		}
-		expiration := b.resultExpire
+		expiration := b.configuredResultExpire()
 		if expiration < 0 {
 			expiration = 0
 		}
@@ -475,7 +475,7 @@ func (b *BackendRedis) ClaimCallbackPublication(ctx context.Context, claim backe
 		if err != nil {
 			return lease, false, err
 		}
-		expiration := b.resultExpire
+		expiration := b.configuredResultExpire()
 		if expiration < 0 {
 			expiration = 0
 		}

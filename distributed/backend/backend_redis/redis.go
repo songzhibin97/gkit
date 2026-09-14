@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -75,7 +76,8 @@ type BackendRedis struct {
 	// -1 代表永不过期
 	// 0 会设置默认过期时间
 	// 单位为s
-	resultExpire int64
+	resultExpire   int64
+	resultExpireMu sync.RWMutex
 }
 
 // SetHelper installs the structured-log helper. Defaults to log.DefaultLogger
@@ -105,19 +107,21 @@ func (b *BackendRedis) SetResultExpire(expire int64) {
 	if expire == 0 {
 		expire = defaultResultExpire
 	}
+	b.resultExpireMu.Lock()
 	b.resultExpire = expire
+	b.resultExpireMu.Unlock()
 }
 
 func (b *BackendRedis) GroupTakeOver(groupID string, name string, taskIDs ...string) error {
 	if err := validateRedisUserKey("group", groupID); err != nil {
 		return err
 	}
-	group := task.InitGroupMeta(groupID, name, b.resultExpire, taskIDs...)
+	expire := b.configuredResultExpire()
+	group := task.InitGroupMeta(groupID, name, expire, taskIDs...)
 	body, err := json.Marshal(group)
 	if err != nil {
 		return err
 	}
-	expire := b.resultExpire
 	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
@@ -214,7 +218,7 @@ func (b *BackendRedis) TriggerCompleted(groupID string) (bool, error) {
 	}
 	group.TriggerCompleted = true
 	body, _ := json.Marshal(group)
-	expire := b.resultExpire
+	expire := b.configuredResultExpire()
 	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
@@ -300,7 +304,7 @@ func (b *BackendRedis) ResetTask(taskIDs ...string) error {
 	if err := validateRedisUserKeys("task", taskIDs); err != nil {
 		return err
 	}
-	return b.client.Del(context.Background(), taskIDs...).Err()
+	return b.resetKeys(taskIDs)
 }
 
 func (b *BackendRedis) ResetGroup(groupIDs ...string) error {
@@ -310,7 +314,24 @@ func (b *BackendRedis) ResetGroup(groupIDs ...string) error {
 	if err := validateRedisUserKeys("group", groupIDs); err != nil {
 		return err
 	}
-	return b.client.Del(context.Background(), groupIDs...).Err()
+	return b.resetKeys(groupIDs)
+}
+
+// resetKeys uses one DEL per key so a batch can span Redis Cluster slots.
+func (b *BackendRedis) resetKeys(keys []string) error {
+	ctx := context.Background()
+	commands, err := b.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, key := range keys {
+			pipe.Del(ctx, key)
+		}
+		return nil
+	})
+	for _, command := range commands {
+		if commandErr := command.Err(); commandErr != nil && !errors.Is(err, commandErr) {
+			err = errors.Join(err, commandErr)
+		}
+	}
+	return err
 }
 
 // shouldAndBind 批量获取对应key的group信息
@@ -372,7 +393,7 @@ func (b *BackendRedis) updateStatusWithAttempt(status *task.Status, attemptID st
 	if err != nil {
 		return err
 	}
-	expire := b.resultExpire
+	expire := b.configuredResultExpire()
 	// resultExpire == -1 表示永不过期；go-redis 收到 0 即不设置 TTL
 	if expire < 0 {
 		expire = 0
@@ -383,7 +404,12 @@ func (b *BackendRedis) updateStatusWithAttempt(status *task.Status, attemptID st
 
 // getStatus 获取任务状态
 func (b *BackendRedis) getStatus(taskID string) (*task.Status, error) {
-	body, err := b.client.Get(context.Background(), taskID).Bytes()
+	return b.GetStatusContext(context.Background(), taskID)
+}
+
+// GetStatusContext reads a status using the caller's deadline.
+func (b *BackendRedis) GetStatusContext(ctx context.Context, taskID string) (*task.Status, error) {
+	body, err := b.client.Get(ctx, taskID).Bytes()
 	if err != nil {
 		return nil, err
 	}
@@ -419,4 +445,10 @@ func validateRedisUserKey(kind, key string) error {
 		return fmt.Errorf("%w: redis %s id %q uses reserved key prefix %q", backend.ErrChordInvalidInput, kind, key, redisChordKeyPrefix)
 	}
 	return nil
+}
+
+func (b *BackendRedis) configuredResultExpire() int64 {
+	b.resultExpireMu.RLock()
+	defer b.resultExpireMu.RUnlock()
+	return b.resultExpire
 }
