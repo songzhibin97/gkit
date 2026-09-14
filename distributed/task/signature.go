@@ -140,7 +140,9 @@ func cloneSignatureMeta(source, destination *Signature, visited map[*Signature]*
 		return
 	}
 	visited[source] = destination
-	destination.Meta = source.Meta.clone(source.MetaSafe)
+	// Keep the values already deep-copied with the signature. Cloning from
+	// source here would reintroduce shared nested maps and slices.
+	destination.Meta = destination.Meta.clone(source.MetaSafe)
 
 	for index, callback := range source.CallbackOnSuccess {
 		if index < len(destination.CallbackOnSuccess) {

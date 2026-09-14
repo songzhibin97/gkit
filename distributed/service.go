@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	stderrors "errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -246,6 +247,15 @@ func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, co
 	if err := ctx.Err(); err != nil {
 		return asyncResults, err
 	}
+	attemptBackend, supportsAttempts := s.backend.(backend.PublicationAttemptBackend)
+	var attemptID string
+	if supportsAttempts {
+		var err error
+		attemptID, err = s.nextPublicationAttemptID()
+		if err != nil {
+			return asyncResults, fmt.Errorf("generate group publication attempt ID: %w", err)
+		}
+	}
 
 	// 接管任务
 	if err := s.backend.GroupTakeOver(group.GroupID, group.Name, group.GetTaskIDs()...); err != nil {
@@ -260,7 +270,13 @@ func (s *Server) SendGroupWithContext(ctx context.Context, group *task.Group, co
 		if err := ctx.Err(); err != nil {
 			return asyncResults, s.withGroupInitializationCleanup(err, group.GroupID, initializedTaskIDs)
 		}
-		if err := s.backend.SetStatePending(signature); err != nil {
+		var err error
+		if supportsAttempts {
+			err = attemptBackend.SetStatePendingAttempt(signature, attemptID)
+		} else {
+			err = s.backend.SetStatePending(signature)
+		}
+		if err != nil {
 			primaryErr := errors.Wrapf(err, "set state pending task %s", signature.ID)
 			return asyncResults, s.withGroupInitializationCleanup(primaryErr, group.GroupID, initializedTaskIDs)
 		}
@@ -325,15 +341,15 @@ admission:
 		}
 	}
 	if primaryErr != nil {
-		// No call to Publish means no queue side effect can have occurred, so the
-		// complete initialization is safe to roll back and the caller can retry
-		// the same group ID. Once a publish attempt starts, retain the group and
-		// converge every unsuccessful or unadmitted member to a terminal failure;
-		// confirmed successful publishers are never touched.
+		// With no call to Publish, retain the existing initialization rollback
+		// so the caller can retry the same group ID. Once publication starts,
+		// retain the group and converge
+		// only PENDING states still owned by this attempt. Backends without this
+		// atomic operation retain their states rather than overwrite progress.
 		if startedPublishers == 0 {
 			return asyncResults, s.withGroupInitializationCleanup(primaryErr, group.GroupID, initializedTaskIDs)
 		}
-		if convergenceErr := s.convergeGroupPublicationFailures(group, publishErrs); convergenceErr != nil {
+		if convergenceErr := s.convergeGroupPublicationFailures(group, publishErrs, attemptBackend, attemptID, startedPublishers); convergenceErr != nil {
 			return asyncResults, stderrors.Join(primaryErr, convergenceErr)
 		}
 		return asyncResults, primaryErr
@@ -347,17 +363,25 @@ admission:
 	return asyncResults, nil
 }
 
-func (s *Server) convergeGroupPublicationFailures(group *task.Group, publishErrs []error) error {
+func (s *Server) convergeGroupPublicationFailures(group *task.Group, publishErrs []error, attemptBackend backend.PublicationAttemptBackend, attemptID string, startedPublishers int) error {
+	if attemptBackend == nil {
+		return nil
+	}
 	var convergenceErrs []error
 	for index, publishErr := range publishErrs {
 		if publishErr == nil {
 			continue
 		}
-		failureMessage := "group publication failed before task execution"
-		if stderrors.Is(publishErr, context.Canceled) || stderrors.Is(publishErr, context.DeadlineExceeded) {
-			failureMessage = "group publication canceled before task execution"
+		failureMessage := taskPublicationFailureMessage
+		// Admission is a prefix of group.Tasks. A called Publish can have
+		// succeeded remotely even when it returned a cancellation/error locally.
+		if index >= startedPublishers {
+			failureMessage = "group publication failed before task execution"
+			if stderrors.Is(publishErr, context.Canceled) || stderrors.Is(publishErr, context.DeadlineExceeded) {
+				failureMessage = "group publication canceled before task execution"
+			}
 		}
-		if err := s.backend.SetStateFailure(group.Tasks[index], failureMessage); err != nil {
+		if _, err := attemptBackend.FailPendingAttempt(group.Tasks[index], attemptID, failureMessage); err != nil {
 			convergenceErrs = append(convergenceErrs, fmt.Errorf(
 				"converge group task %s after publication failure: %w",
 				group.Tasks[index].ID,
@@ -474,10 +498,20 @@ func (s *Server) SendGroupCallback(groupCallback *task.GroupCallback, concurrenc
 	return s.SendGroupCallbackWithContext(context.Background(), groupCallback, concurrency)
 }
 
+func parseTimedSchedule(spec string) (cron.Schedule, error) {
+	if strings.HasPrefix(spec, "TZ=") || strings.HasPrefix(spec, "CRON_TZ=") {
+		separator := strings.Index(spec, " ")
+		if separator < 0 || strings.TrimSpace(spec[separator:]) == "" {
+			return nil, fmt.Errorf("timezone prefix requires a schedule")
+		}
+	}
+	return cron.ParseStandard(spec)
+}
+
 // RegisteredTimedTask 注册定时任务
 func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -497,7 +531,9 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 		defer s.lock.UnLock(key, mark)
 
 		// send task
-		_, err = s.SendTask(task.CopySignature(signature))
+		runtimeSignature := task.CopySignature(signature)
+		rekeyTimedSignature(runtimeSignature, rand_string.RandomLetter(timedRunSuffixLength), "task-0", make(map[*task.Signature]struct{}))
+		_, err = s.SendTask(runtimeSignature)
 		if err != nil {
 			s.helper.Errorf("timed task failed. task name is: %s. error is %s", name, err.Error())
 		}
@@ -509,7 +545,7 @@ func (s *Server) RegisteredTimedTask(spec, name string, signature *task.Signatur
 // RegisteredTimedChain 注册定时链式任务
 func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -517,7 +553,12 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 		return err
 	}
 	f := func() {
-		chain, _ := task.NewChain(name, task.CopySignatures(signatures...)...)
+		runtimeSignatures := task.CopySignatures(signatures...)
+		runSuffix := rand_string.RandomLetter(timedRunSuffixLength)
+		for index, signature := range runtimeSignatures {
+			rekeyTimedSignature(signature, runSuffix, fmt.Sprintf("task-%d", index), make(map[*task.Signature]struct{}))
+		}
+		chain, _ := task.NewChain(name, runtimeSignatures...)
 
 		// get lock
 		key := getLockName(name, spec)
@@ -542,7 +583,7 @@ func (s *Server) RegisteredTimedChain(spec, name string, signatures ...*task.Sig
 // RegisteredTimedGroup 注册定时任务组
 func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurrency int, signatures ...*task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -574,7 +615,7 @@ func (s *Server) RegisteredTimedGroup(spec, name string, groupID string, concurr
 // RegisteredTimedGroupCallback 注册具有回调的组任务
 func (s *Server) RegisteredTimedGroupCallback(spec, name string, groupID string, concurrency int, callback *task.Signature, signatures ...*task.Signature) error {
 	// 检查spec是否合法
-	schedule, err := cron.ParseStandard(spec)
+	schedule, err := parseTimedSchedule(spec)
 	if err != nil {
 		return err
 	}
@@ -747,9 +788,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) NewWorker(consumerTag string, concurrency int, queue string) *Worker {
 	return &Worker{
-		bindService: s,
-		Concurrency: concurrency,
-		ConsumerTag: consumerTag,
-		Queue:       queue,
+		NoUnixSignals: s.config != nil && s.config.NoUnixSignals,
+		bindService:   s,
+		Concurrency:   concurrency,
+		ConsumerTag:   consumerTag,
+		Queue:         queue,
 	}
 }

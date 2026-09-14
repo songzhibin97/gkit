@@ -77,13 +77,13 @@ func (t *Task) Call() (taskResults []*Result, err error) {
 	}
 	// 按照规定最后一个参数是 err
 	lastResult := results[len(results)-1]
-	if !lastResult.IsNil() {
+	isNilError := false
+	switch lastResult.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		isNilError = lastResult.IsNil()
+	}
+	if !isNilError {
 		// err 不为nil
-
-		// 如果该错误实现了 Retrievable 接口
-		if lastResult.Type().Implements(retrievableInterface) {
-			return nil, lastResult.Interface().(ErrRetryTaskLater)
-		}
 		// 如果该错实现了 error 接口
 		if lastResult.Type().Implements(errInterface) {
 			return nil, lastResult.Interface().(error)

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var typeOfMap = map[string]reflect.Type{
@@ -306,18 +309,11 @@ func getUintValue(theType string, value interface{}) (uint64, error) {
 	// We use https://golang.org/pkg/encoding/json/#Decoder.UseNumber when unmarshaling signatures.
 	// This is because JSON only supports 64-bit floating point numbers and we could lose precision
 	// when converting from float64 to unsigned integer
-	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") {
-		n, ok := value.(json.Number)
-		if !ok {
-			return 0, typeConversionError(value, typeOfMap[theType].String())
-		}
-
-		intVal, err := n.Int64()
-		if err != nil {
-			return 0, err
-		}
-
-		return uint64(intVal), nil
+	switch n := value.(type) {
+	case json.Number:
+		return strconv.ParseUint(n.String(), 10, 64)
+	case jsoniter.Number:
+		return strconv.ParseUint(n.String(), 10, 64)
 	}
 
 	var n uint64

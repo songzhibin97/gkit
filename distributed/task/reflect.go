@@ -7,6 +7,7 @@ import (
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -58,8 +59,6 @@ var (
 		"[]string": reflect.TypeOf(make([]string, 0)),
 	}
 	ctxTypeInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
-
-	retrievableInterface = reflect.TypeOf((*Retrievable)(nil)).Elem()
 
 	errInterface = reflect.TypeOf((*error)(nil)).Elem()
 
@@ -308,9 +307,9 @@ func getIntValue(theType string, value interface{}) (int64, error) {
 	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") || strings.HasPrefix(fmt.Sprintf("%T", value), "jsoniter.Number") {
 		switch n := value.(type) {
 		case json.Number:
-			return n.Int64()
+			return strconv.ParseInt(n.String(), 10, typeOfMap[theType].Bits())
 		case jsoniter.Number:
-			return n.Int64()
+			return strconv.ParseInt(n.String(), 10, typeOfMap[theType].Bits())
 		default:
 			return 0, typeConversionError(value, typeOfMap[theType].String())
 		}
@@ -331,6 +330,9 @@ func getIntValue(theType string, value interface{}) (int64, error) {
 	default:
 		return 0, typeConversionError(value, typeOfMap[theType].String())
 	}
+	if reflect.Zero(typeOfMap[theType]).OverflowInt(n) {
+		return 0, fmt.Errorf("%d overflows %s", n, theType)
+	}
 	return n, nil
 }
 
@@ -341,19 +343,9 @@ func getUintValue(theType string, value interface{}) (uint64, error) {
 	if strings.HasPrefix(fmt.Sprintf("%T", value), "json.Number") || strings.HasPrefix(fmt.Sprintf("%T", value), "jsoniter.Number") {
 		switch n := value.(type) {
 		case json.Number:
-			intVal, err := n.Int64()
-			if err != nil {
-				return 0, err
-			}
-
-			return uint64(intVal), nil
+			return strconv.ParseUint(n.String(), 10, typeOfMap[theType].Bits())
 		case jsoniter.Number:
-			intVal, err := n.Int64()
-			if err != nil {
-				return 0, err
-			}
-
-			return uint64(intVal), nil
+			return strconv.ParseUint(n.String(), 10, typeOfMap[theType].Bits())
 		default:
 			return 0, typeConversionError(value, typeOfMap[theType].String())
 		}
@@ -373,6 +365,9 @@ func getUintValue(theType string, value interface{}) (uint64, error) {
 		n = uint64(value)
 	default:
 		return 0, typeConversionError(value, typeOfMap[theType].String())
+	}
+	if reflect.Zero(typeOfMap[theType]).OverflowUint(n) {
+		return 0, fmt.Errorf("%d overflows %s", n, theType)
 	}
 	return n, nil
 }

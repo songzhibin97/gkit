@@ -28,6 +28,14 @@ func (b *failingGroupConvergenceBackend) SetStateFailure(*task.Signature, string
 	return b.failureErr
 }
 
+func (b *failingGroupConvergenceBackend) SetStatePendingAttempt(signature *task.Signature, _ string) error {
+	return b.SetStatePending(signature)
+}
+
+func (b *failingGroupConvergenceBackend) FailPendingAttempt(*task.Signature, string, string) (bool, error) {
+	return false, b.failureErr
+}
+
 func (b *cancelAfterPendingBackend) SetStatePending(signature *task.Signature) error {
 	if err := b.Backend.SetStatePending(signature); err != nil {
 		return err
