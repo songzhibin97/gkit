@@ -3,7 +3,6 @@ package local_cache
 import (
 	"context"
 	"encoding/gob"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -28,9 +27,6 @@ func NewCache(options ...options.Option) Cache {
 	c := &Config{
 		defaultExpire: 0,
 		interval:      0,
-		capture: func(k string, v interface{}) {
-			fmt.Printf("delete k:%s v:%v\n", k, v)
-		},
 	}
 	for _, option := range options {
 		option(c)
@@ -1126,7 +1122,9 @@ func (c *cache) Save(w io.Writer) (err error) {
 	}
 	c.RUnlock()
 	for _, iterator := range snapshot {
-		gob.Register(iterator.Val)
+		if iterator.Val != nil {
+			gob.Register(iterator.Val)
+		}
 	}
 	return enc.Encode(&snapshot)
 }
