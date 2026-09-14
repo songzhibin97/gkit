@@ -25,7 +25,7 @@ func SetInterval(duration time.Duration) options.Option {
 	}
 }
 
-// SetRetries 设置重试次数
+// SetRetries 设置重试次数。负值按0次重试处理，不跳过首次获取尝试。
 func SetRetries(retries int) options.Option {
 	return func(c interface{}) {
 		c.(*config).retries = retries
