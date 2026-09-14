@@ -191,9 +191,13 @@ func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) er
 	}
 	defer cancel()
 	go func() {
+		completed := false
 		defer func() {
-			if err := recover(); err != nil {
+			// Go 1.20 can recover panic(nil) with a nil value.
+			if err := recover(); !completed {
 				switch e := err.(type) {
+				case nil:
+					ch <- errors.New("delegate callback interrupted")
 				case string:
 					ch <- errors.New(e)
 				case error:
@@ -208,7 +212,9 @@ func Delegate(c context.Context, t time.Duration, f func(ctx context.Context) er
 		// caller-requested timeout. Previously fctx captured the un-shrunk
 		// context and the deadline was visible only on Delegate's outer
 		// select, letting f outlive its timeout.
-		ch <- f(c)
+		result := f(c)
+		completed = true
+		ch <- result
 	}()
 	select {
 	case <-c.Done():
