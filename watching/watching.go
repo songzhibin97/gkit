@@ -509,6 +509,10 @@ func (w *Watching) threadProfile(curThreadNum int, c typeConfig) bool {
 }
 
 func (w *Watching) reportProfile(pType string, buf []byte, reason string, eventID string) {
+	// Keep admission and the nonblocking send in the same critical section
+	// as Stop's channel close; the stopped check alone cannot protect a send.
+	w.Lock()
+	defer w.Unlock()
 	defer func() {
 		if r := recover(); r != nil {
 			w.logf("Panic during report profile: %v", r)
