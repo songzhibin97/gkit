@@ -217,3 +217,33 @@ func TestShuffle(t *testing.T) {
 		is.Equal(expected, actual)
 	}
 }
+
+func TestReverseUTF8Boundaries(t *testing.T) {
+	for _, tt := range []struct{ input, want string }{
+		{"", ""}, {"\uFFFD", "\uFFFD"}, {"a\uFFFDb", "b\uFFFDa"},
+		{"中\uFFFD🙂文", "文🙂\uFFFD中"},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := Reverse(tt.input)
+			if err != nil || got != tt.want {
+				t.Fatalf("Reverse(%q) = %q, %v; want %q, nil", tt.input, got, err, tt.want)
+			}
+			if got := MustReverse(tt.input); got != tt.want {
+				t.Fatalf("MustReverse(%q) = %q; want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+	for _, input := range []string{"\xff", "a\x80b", "\xe4\xb8"} {
+		t.Run("invalid_"+input, func(t *testing.T) {
+			if _, err := Reverse(input); err != ErrDecodeRune {
+				t.Fatalf("Reverse(%q) error = %v; want ErrDecodeRune", input, err)
+			}
+			defer func() {
+				if got := recover(); got != ErrDecodeRune {
+					t.Errorf("MustReverse(%q) panic = %v; want ErrDecodeRune", input, got)
+				}
+			}()
+			MustReverse(input)
+		})
+	}
+}

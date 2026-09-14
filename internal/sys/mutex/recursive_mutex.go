@@ -28,6 +28,21 @@ func (m *RecursiveMutex) Lock() {
 	m.recursion = 1
 }
 
+// TryLock acquires the mutex without blocking, including recursive ownership.
+func (m *RecursiveMutex) TryLock() bool {
+	gid := goid.GetGID()
+	if atomic.LoadInt64(&m.owner) == gid {
+		m.recursion++
+		return true
+	}
+	if !m.Mutex.TryLock() {
+		return false
+	}
+	atomic.StoreInt64(&m.owner, gid)
+	m.recursion = 1
+	return true
+}
+
 func (m *RecursiveMutex) Unlock() {
 	gid := goid.GetGID()
 	// 非持有锁的goroutine尝试释放锁，错误的使用

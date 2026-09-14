@@ -21,7 +21,12 @@ type Pool struct {
 func (p *Pool) init() {
 	p.once.Do(func() {
 		p.p = sync.Pool{
-			New: p.New,
+			New: func() interface{} {
+				if p.New != nil {
+					return p.New()
+				}
+				return nil
+			},
 		}
 	})
 }
