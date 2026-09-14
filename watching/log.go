@@ -125,9 +125,14 @@ func (w *Watching) writeString(content string) {
 // still the active handle: another writer may have rotated since ref was
 // acquired, in which case that rotation already replaced the file. Rotating
 // again off a retired handle's size would rotate the new (possibly nearly
-// empty) active file and, with the second-granularity suffix, collide with a
-// same-second backup. Only the holder of the still-current handle rotates.
+// empty) active file. Only the holder of the still-current handle rotates.
 func (w *Watching) rotate(ref *loggerRef) {
+	// Stdout belongs to the caller, even when redirected to a regular file.
+	// Start can log before initEnvironment disables stdout rotation.
+	if ref.file == os.Stdout {
+		return
+	}
+
 	w.config.L.RLock()
 	stale := w.config.activeLog != ref
 	w.config.L.RUnlock()
@@ -135,15 +140,28 @@ func (w *Watching) rotate(ref *loggerRef) {
 		return
 	}
 
-	dumpPath := w.config.DumpPath
 	suffix := time.Now().Format("20060102150405")
-	srcPath := filepath.Clean(filepath.Join(dumpPath, defaultLoggerName))
-	dstPath := srcPath + "_" + suffix + ".back"
-
-	if err := os.Rename(srcPath, dstPath); err != nil {
+	srcPath := filepath.Clean(ref.file.Name())
+	// Reserve the destination with exclusive creation. Timestamp precision alone
+	// cannot prevent a later rotation from overwriting a completed backup.
+	backup, err := os.CreateTemp(filepath.Dir(srcPath), filepath.Base(srcPath)+"_"+suffix+"_*.back")
+	if err != nil {
+		w.disableRotate()
+		fmt.Println("reserve backup err:", err, "from now on, it will be disabled split log")
+		return
+	}
+	dstPath := backup.Name()
+	err = backup.Close()
+	if err == nil {
+		err = os.Rename(srcPath, dstPath)
+	}
+	if err != nil {
+		if removeErr := os.Remove(dstPath); removeErr != nil {
+			fmt.Println("remove reserved backup err:", removeErr)
+		}
 		w.disableRotate()
 		//nolint
-		fmt.Println("rename err:", err, "from now on, it will be disabled split log")
+		fmt.Println("rotate log err:", err, "from now on, it will be disabled split log")
 		return
 	}
 
