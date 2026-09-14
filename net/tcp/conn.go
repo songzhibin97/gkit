@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/songzhibin97/gkit/cache/buffer"
@@ -20,6 +21,11 @@ type Conn struct {
 
 	// reader: 用于读取conn缓冲区
 	reader *bufio.Reader
+
+	// deadlineMu serializes underlying deadline changes with local state.
+	// Never hold it across Read or Write.
+	deadlineMu          sync.Mutex
+	readDeadlineVersion uint64
 
 	// sendTimeout: 发送超时时间
 	sendTimeout time.Time
@@ -118,7 +124,9 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		var local Retry
 		retry = &local
 	}
+	var retryWaitFailed bool
 	readWithRetry := func(dst []byte) (int, error) {
+		retryWaitFailed = false
 		for {
 			n, err := c.reader.Read(dst)
 			if err == nil || errors.Is(err, io.EOF) || retry.Count == 0 {
@@ -129,6 +137,7 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 				retry.Interval = DefaultRetryInterval
 			}
 			if waitErr := wait(retry.Interval); waitErr != nil {
+				retryWaitFailed = true
 				return n, waitErr
 			}
 			if n > 0 {
@@ -177,13 +186,18 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		return bf[:n], err
 	}
 
-	previousDeadline := c.recvTimeout
 	deadlineChanged := false
+	idleApplied := false
+	var probeVersion uint64
+	var idleDeadline time.Time
 	defer func() {
 		if !deadlineChanged {
 			return
 		}
-		if err := c.Conn.SetReadDeadline(previousDeadline); err != nil {
+		c.deadlineMu.Lock()
+		err := c.Conn.SetReadDeadline(c.recvTimeout)
+		c.deadlineMu.Unlock()
+		if err != nil {
 			restoreErr := fmt.Errorf("tcp receive: restore read deadline: %w", err)
 			if retErr == nil {
 				retErr = restoreErr
@@ -200,11 +214,23 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		}
 		n, err := readWithRetry(bf[index:])
 		index += n
+		// Retry waits use their own budget; their failures are never idle completion,
+		// even if an external setter has since extended the connection deadline.
+		if retryWaitFailed {
+			return bf[:index], fmt.Errorf("tcp receive stream retry wait after %d bytes: %w", index, err)
+		}
 		if errors.Is(err, io.EOF) {
 			return bf[:index], nil
 		}
 		if err != nil {
-			if deadlineChanged && isTimeout(err) {
+			c.deadlineMu.Lock()
+			now := time.Now()
+			// A retry wait may exhaust the overall budget after the idle probe
+			// expires. That timeout must remain an error with the partial bytes.
+			idleExpired := idleApplied && probeVersion == c.readDeadlineVersion && !now.Before(idleDeadline) &&
+				(c.recvTimeout.IsZero() || now.Before(c.recvTimeout))
+			c.deadlineMu.Unlock()
+			if idleExpired && isTimeout(err) {
 				return bf[:index], nil
 			}
 			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, err)
@@ -212,11 +238,17 @@ func (c *Conn) recv(length int, retry *Retry, wait retryWait) (result []byte, re
 		if n == 0 {
 			return bf[:index], fmt.Errorf("tcp receive stream after %d bytes: %w", index, io.ErrNoProgress)
 		}
-		idleDeadline := time.Now().Add(c.recvBufferInterval)
-		if !previousDeadline.IsZero() && previousDeadline.Before(idleDeadline) {
-			idleDeadline = previousDeadline
+		c.deadlineMu.Lock()
+		idleDeadline = time.Now().Add(c.recvBufferInterval)
+		idleApplied = true
+		if !c.recvTimeout.IsZero() && c.recvTimeout.Before(idleDeadline) {
+			idleDeadline = c.recvTimeout
+			idleApplied = false
 		}
-		if err := c.Conn.SetReadDeadline(idleDeadline); err != nil {
+		probeVersion = c.readDeadlineVersion
+		err = c.Conn.SetReadDeadline(idleDeadline)
+		c.deadlineMu.Unlock()
+		if err != nil {
 			return bf[:index], fmt.Errorf("tcp receive stream: set idle deadline: %w", err)
 		}
 		deadlineChanged = true
@@ -244,22 +276,30 @@ func (c *Conn) RecvLine(retry *Retry) ([]byte, error) {
 }
 
 // RecvWithTimeout 读取已经超时的链接
-func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) ([]byte, error) {
+func (c *Conn) RecvWithTimeout(length int, timeout time.Duration, retry *Retry) (result []byte, retErr error) {
 	deadline := time.Now().Add(timeout)
 	if err := c.SetRecvDeadline(deadline); err != nil {
 		return nil, err
 	}
-	defer c.SetRecvDeadline(time.Time{})
+	defer func() {
+		if err := c.SetRecvDeadline(time.Time{}); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("tcp receive: clear deadline: %w", err))
+		}
+	}()
 	return c.recv(length, retry, sleepForRetryUntil(deadline))
 }
 
 // SendWithTimeout 写入数据给已经超时的链接
-func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) error {
+func (c *Conn) SendWithTimeout(data []byte, timeout time.Duration, retry *Retry) (retErr error) {
 	deadline := time.Now().Add(timeout)
 	if err := c.SetSendDeadline(deadline); err != nil {
 		return err
 	}
-	defer c.SetSendDeadline(time.Time{})
+	defer func() {
+		if err := c.SetSendDeadline(time.Time{}); err != nil {
+			retErr = errors.Join(retErr, fmt.Errorf("tcp send: clear deadline: %w", err))
+		}
+	}()
 	return c.send(data, retry, sleepForRetryUntil(deadline))
 }
 
@@ -295,23 +335,31 @@ func (c *Conn) SendRecvWithTimeout(data []byte, timeout time.Duration, length in
 }
 
 func (c *Conn) SetDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	err := c.Conn.SetDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
+		c.readDeadlineVersion++
 		c.sendTimeout = t
 	}
 	return err
 }
 
 func (c *Conn) SetReadDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	err := c.Conn.SetReadDeadline(t)
 	if err == nil {
 		c.recvTimeout = t
+		c.readDeadlineVersion++
 	}
 	return err
 }
 
 func (c *Conn) SetWriteDeadline(t time.Time) error {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	err := c.Conn.SetWriteDeadline(t)
 	if err == nil {
 		c.sendTimeout = t
@@ -348,6 +396,8 @@ func RecoveryBuffer(data *[]byte) {
 
 // SetRecvBufferInterval 读取缓存间隔时间
 func (c *Conn) SetRecvBufferInterval(t time.Duration) {
+	c.deadlineMu.Lock()
+	defer c.deadlineMu.Unlock()
 	c.recvBufferInterval = t
 }
 

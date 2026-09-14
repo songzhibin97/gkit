@@ -17,6 +17,8 @@ var (
 	ErrOverdueToken         = errors.New("the field `page_token` is overdue")
 	ErrOverMaxPageSizeToken = errors.New("the field `page_token` is over max page size")
 	ErrInvalidPageSize      = errors.New("the page size provided must not be negative")
+	ErrInvalidNumElements   = errors.New("the number of elements must not be negative")
+	ErrInvalidMaxElements   = errors.New("the maximum number of elements must not be negative")
 
 	// ErrDefaultSalt is returned by NewTokenGenerateE when no SetSalt option
 	// has been supplied. The default salt "gkit" is hard-coded in this package
@@ -49,7 +51,7 @@ type token struct {
 }
 
 func (t *token) ForIndex(i int) string {
-	v, err := aes.EncryptGCM(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, time.Now().Format(layout), i), t.salt)
+	v, err := aes.EncryptGCM(fmt.Sprintf("%s%s%s:%d", t.resourceIdentification, resourceDelim, "v2|"+strconv.FormatInt(time.Now().UnixNano(), 10), i), t.salt)
 	if err != nil {
 		return ""
 	}
@@ -80,7 +82,17 @@ func (t *token) GetIndex(s string) (int, error) {
 		return -1, ErrInvalidToken
 	}
 	if t.timeLimitation != 0 {
-		generateTime, err := time.ParseInLocation(layout, parseToken[0], time.Local)
+		var generateTime time.Time
+		var err error
+		if strings.HasPrefix(parseToken[0], "v2|") {
+			var nanos int64
+			nanos, err = strconv.ParseInt(strings.TrimPrefix(parseToken[0], "v2|"), 10, 64)
+			generateTime = time.Unix(0, nanos)
+		} else {
+			// Legacy timestamps contain no zone. Preserve their reader-local
+			// interpretation; the unknown issuer zone cannot be recovered.
+			generateTime, err = time.ParseInLocation(layout, parseToken[0], time.Local)
+		}
 		if err != nil {
 			return -1, ErrInvalidToken
 		}
@@ -99,6 +111,12 @@ func (t *token) GetIndex(s string) (int, error) {
 }
 
 func (t *token) ProcessPageTokens(numElements int, pageSize int, pageToken string) (start, end int, nextToken string, err error) {
+	if numElements < 0 {
+		return 0, 0, "", ErrInvalidNumElements
+	}
+	if t.maxElements < 0 {
+		return 0, 0, "", ErrInvalidMaxElements
+	}
 	if pageSize < 0 {
 		return 0, 0, "", ErrInvalidPageSize
 	}
