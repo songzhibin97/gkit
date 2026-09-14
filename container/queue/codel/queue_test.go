@@ -98,8 +98,8 @@ func TestQueueJudgeDropScheduleAdvancesCount(t *testing.T) {
 		q := queueInDroppingState(7, nowMillis()+decisionMargin)
 		dropNext := atomic.LoadInt64(&q.dropNext)
 
-		if drop := q.judge(packet{ts: 0}); !drop {
-			t.Fatal("judge() allowed an above-target packet while dropping")
+		if drop := q.judge(packet{ts: 0}); drop {
+			t.Fatal("judge() dropped an above-target packet before dropNext")
 		}
 		if got := atomic.LoadInt64(&q.count); got != 7 {
 			t.Fatalf("drop count before dropNext = %d, want 7", got)

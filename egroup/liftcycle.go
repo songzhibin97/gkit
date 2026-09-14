@@ -3,6 +3,7 @@ package egroup
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -53,16 +54,39 @@ func (l *LifeAdmin) AddMember(la LifeAdminer) {
 
 // Start 启动
 func (l *LifeAdmin) Start() error {
+	// Register every shutdown and signal controller before a member Start
+	// can occupy the supplied pool's worker capacity.
 	for _, m := range l.members {
 		func(m Member) {
 			// 如果有shutdown进行注册
 			if m.Shutdown != nil {
-				l.g.Go(func() error {
+				l.goController(func() error {
 					// 等待异常或信号关闭触发
 					<-l.g.ctx.Done()
 					return goroutine.Delegate(context.Background(), l.opts.stopTimeout, m.Shutdown)
 				})
 			}
+		}(m)
+	}
+	if len(l.opts.signals) > 0 && l.opts.handler != nil {
+		c := make(chan os.Signal, len(l.opts.signals))
+		signal.Notify(c, l.opts.signals...)
+		// Stop notification even if the pool rejects the controller launch.
+		defer signal.Stop(c)
+		l.goController(func() error {
+			defer signal.Stop(c)
+			for {
+				select {
+				case <-l.g.ctx.Done():
+					return nil
+				case sig := <-c:
+					l.opts.handler(l, sig)
+				}
+			}
+		})
+	}
+	for _, m := range l.members {
+		func(m Member) {
 			if m.Start != nil {
 				l.g.Go(func() error {
 					err := goroutine.Delegate(l.g.ctx, l.opts.startTimeout, func(ctx context.Context) error {
@@ -83,28 +107,44 @@ func (l *LifeAdmin) Start() error {
 			}
 		}(m)
 	}
-	// 判断是否需要监听信号
-	if len(l.opts.signals) == 0 || l.opts.handler == nil {
-		return l.g.Wait()
-	}
-	c := make(chan os.Signal, len(l.opts.signals))
-	// 监听信号
-	signal.Notify(c, l.opts.signals...)
-	l.g.Go(func() error {
-		// Match Notify with Stop on exit. Previously the signal forwarder
-		// stayed registered for the lifetime of the process, accumulating
-		// handlers across every LifeAdmin.Start invocation.
-		defer signal.Stop(c)
-		for {
-			select {
-			case <-l.g.ctx.Done():
-				return nil
-			case sig := <-c:
-				l.opts.handler(l, sig)
-			}
-		}
-	})
 	return l.g.Wait()
+}
+
+// goController uses the pool only to launch a tracked shutdown or signal
+// waiter. Their count is bounded by the registered members plus one signal
+// watcher. Member Start callbacks retain Group.Go's pool concurrency limit.
+func (l *LifeAdmin) goController(f func() error) {
+	g := l.g
+	g.stateMu.Lock()
+	if g.closed {
+		g.stateMu.Unlock()
+		return
+	}
+	g.wg.Add(1)
+	g.stateMu.Unlock()
+	accepted := g.goroutine.AddTaskN(g.ctx, func() {
+		go func() {
+			defer g.wg.Done()
+			completed := false
+			defer func() {
+				value := recover()
+				// On Go 1.20, panic(nil) also makes recover return nil.
+				if !completed {
+					err, ok := value.(error)
+					if !ok {
+						err = fmt.Errorf("lifecycle panic: %v", value)
+					}
+					g.recordError(err)
+				}
+			}()
+			g.recordError(f())
+			completed = true
+		}()
+	})
+	if !accepted {
+		g.recordError(ErrGroupClosed)
+		g.wg.Done()
+	}
 }
 
 // Shutdown 停止服务
