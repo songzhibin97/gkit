@@ -23,7 +23,7 @@ func (r *rollingCounter) Add(val int64) {
 	if val < 0 {
 		panic(fmt.Errorf("stat/metric: cannot decrease in value. val: %d", val))
 	}
-	r.policy.Add(float64(val))
+	r.policy.addInteger(val)
 }
 
 func (r *rollingCounter) Reduce(f func(Iterator) float64) float64 {
@@ -47,7 +47,14 @@ func (r *rollingCounter) Sum() float64 {
 }
 
 func (r *rollingCounter) Value() int64 {
-	return int64(r.Sum())
+	var value int64
+	r.policy.Reduce(func(iterator Iterator) float64 {
+		for iterator.Next() {
+			value += iterator.Bucket().integerSum
+		}
+		return 0
+	})
+	return value
 }
 
 func (r *rollingCounter) Timespan() int {

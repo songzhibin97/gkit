@@ -77,6 +77,14 @@ func (r *RollingPolicy) Add(val float64) {
 	r.add(r.window.Add, val)
 }
 
+// addInteger updates both representations under the same rolling-window lock.
+func (r *RollingPolicy) addInteger(val int64) {
+	r.add(func(offset int, point float64) {
+		r.window.Add(offset, point)
+		r.window.window[offset].integerSum += val
+	}, float64(val))
+}
+
 // Reduce 缩减应用窗口
 func (r *RollingPolicy) Reduce(f func(Iterator) float64) (val float64) {
 	r.mu.RLock()
@@ -91,7 +99,7 @@ func (r *RollingPolicy) Reduce(f func(Iterator) float64) (val float64) {
 		for i := range buckets {
 			points := make([]float64, len(source.Points))
 			copy(points, source.Points)
-			buckets[i] = Bucket{Points: points, Count: source.Count}
+			buckets[i] = Bucket{Points: points, Count: source.Count, integerSum: source.integerSum}
 			if i > 0 {
 				buckets[i-1].next = &buckets[i]
 			}
