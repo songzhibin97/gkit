@@ -47,6 +47,7 @@ func deepCopy(dst, src reflect.Value, visited map[visitKey]reflect.Value) {
 	case reflect.Interface:
 		value := src.Elem()
 		if !value.IsValid() {
+			dst.Set(reflect.Zero(dst.Type()))
 			return
 		}
 		newValue := reflect.New(value.Type()).Elem()
@@ -54,6 +55,7 @@ func deepCopy(dst, src reflect.Value, visited map[visitKey]reflect.Value) {
 		dst.Set(newValue)
 	case reflect.Ptr:
 		if src.IsNil() {
+			dst.Set(reflect.Zero(dst.Type()))
 			return
 		}
 		key := visitKey{typ: src.Type(), ptr: src.Pointer()}
@@ -71,6 +73,7 @@ func deepCopy(dst, src reflect.Value, visited map[visitKey]reflect.Value) {
 		deepCopy(dst.Elem(), value, visited)
 	case reflect.Map:
 		if src.IsNil() {
+			dst.Set(reflect.Zero(dst.Type()))
 			return
 		}
 		key := visitKey{typ: src.Type(), ptr: src.Pointer()}
@@ -89,6 +92,7 @@ func deepCopy(dst, src reflect.Value, visited map[visitKey]reflect.Value) {
 		}
 	case reflect.Slice:
 		if src.IsNil() {
+			dst.Set(reflect.Zero(dst.Type()))
 			return
 		}
 		key := visitKey{typ: src.Type(), ptr: src.Pointer(), len: src.Len(), cap: src.Cap()}
@@ -162,7 +166,10 @@ func DeepCopy(dst, src interface{}) error {
 	if !dstV.IsValid() || !srcV.IsValid() {
 		return tools.ErrorInvalidValue
 	}
-	deepCopy(dstV, srcV, map[visitKey]reflect.Value{})
+	visited := map[visitKey]reflect.Value{
+		{typ: srcT, ptr: reflect.ValueOf(src).Pointer()}: reflect.ValueOf(dst),
+	}
+	deepCopy(dstV, srcV, visited)
 	return nil
 }
 

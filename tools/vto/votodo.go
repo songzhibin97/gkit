@@ -55,11 +55,15 @@ func VoToDo(dst interface{}, src interface{}) error {
 			continue
 		}
 		defaultTag := field.Tag.Get("default")
-		if _, ok := srcT.FieldByName(field.Name); !ok {
+		sourceField, ok := srcT.FieldByName(field.Name)
+		if !ok {
 			continue
 		}
 		d := dstV.Field(i)
-		s := srcV.FieldByName(field.Name)
+		s, err := srcV.FieldByIndexErr(sourceField.Index)
+		if err != nil {
+			continue
+		}
 		for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
 			s = s.Elem()
 		}
@@ -153,11 +157,15 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				continue
 			}
 			d := dstV.Field(i)
-			if _, ok := srcT.FieldByName(field.Name); !ok {
+			sourceField, ok := srcT.FieldByName(field.Name)
+			if !ok {
 				continue
 			}
 
-			s := srcV.FieldByName(field.Name)
+			s, err := srcV.FieldByIndexErr(sourceField.Index)
+			if err != nil {
+				continue
+			}
 			for s.Kind() == reflect.Ptr && d.Kind() != s.Kind() {
 				s = s.Elem()
 			}
@@ -251,7 +259,7 @@ func VoToDoPlus(dst interface{}, src interface{}, model ModelParameters) error {
 				if !ss.IsZero() {
 					if d.Type() == ss.Type() {
 						d.Set(ss)
-					} else if d.CanConvert(ss.Type()) {
+					} else if ss.CanConvert(d.Type()) {
 						d.Set(reflect.ValueOf(ss.Interface()).Convert(d.Type()))
 					}
 				}

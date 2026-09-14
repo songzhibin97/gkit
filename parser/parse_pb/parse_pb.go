@@ -26,6 +26,13 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 	}
 	ret.FilePath = filepath
 	for _, element := range definition.Elements {
+		if pkg, ok := element.(*proto.Package); ok {
+			ret.PkgName = pkg.Name
+		}
+	}
+	names := make(map[string]string)
+	indexTypes(definition.Elements, ret.PkgName, "", names)
+	for _, element := range definition.Elements {
 		switch v := element.(type) {
 		case *proto.Package:
 			ret.PkgName = v.Name
@@ -34,13 +41,18 @@ func ParsePb(filepath string, options ...options.Option) (parser.Parser, error) 
 			ret.AddNode(&Note{Comment: v})
 		case *proto.Message:
 			// message
-			ret.parseMessage(v, "")
+			if err := ret.parseMessage(v, "", ret.PkgName, names); err != nil {
+				return nil, err
+			}
 		case *proto.Service:
 			// service
-			ret.parseService(v)
+			if err := ret.parseService(v, names); err != nil {
+				return nil, err
+			}
 		case *proto.Enum:
 			ret.parseEnum(v, "")
 		}
 	}
+	ret.breakRecursiveValues()
 	return ret, nil
 }

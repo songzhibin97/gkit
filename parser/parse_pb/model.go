@@ -184,7 +184,8 @@ func (e *Enum) AddElem(name string, offset int, index int) {
 	}
 }
 
-func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
+func (p *PbParseGo) parseMessage(ms *proto.Message, prefix, scope string, names map[string]string) error {
+	scope = strings.TrimPrefix(scope+"."+ms.Name, ".")
 	ret := CreateMessage(prefix+ms.Name, ms.Position.Offset)
 	// note
 	if ms.Comment != nil {
@@ -195,20 +196,23 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
 		case *proto.NormalField:
 			// 正常的字段
 			if v.Repeated {
-				ret.AddFiles(CreateFile(v.Name, fmt.Sprintf("[]%s", PbTypeToGo(v.Type)), fmt.Sprintf("require %s", v.Type)))
+				ret.AddFiles(CreateFile(v.Name, fmt.Sprintf("[]%s", resolveType(v.Type, scope, names)), fmt.Sprintf("require %s", v.Type)))
 			} else {
-				ret.AddFiles(CreateFile(v.Name, PbTypeToGo(v.Type), v.Type))
+				ret.AddFiles(CreateFile(v.Name, resolveType(v.Type, scope, names), v.Type))
 			}
 
 		case *proto.MapField:
 			keyType := v.KeyType
 			valueType := v.Field.Type
 			ret.AddFiles(CreateFile(v.Field.Name, fmt.Sprintf("map[%s]%s",
-				PbTypeToGo(keyType), PbTypeToGo(valueType)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
+				PbTypeToGo(keyType), resolveType(valueType, scope, names)), fmt.Sprintf("<%s,%s>", keyType, valueType)))
 		case *proto.Message:
-			p.parseMessage(v, prefix+ms.Name)
+			if err := p.parseMessage(v, prefix+ms.Name, scope, names); err != nil {
+				return err
+			}
+		case *proto.Oneof:
+			return fmt.Errorf("parse_pb: message %s contains unsupported oneof %s", scope, v.Name)
 		case *proto.Enum:
-			ret.AddFiles(CreateFile(v.Name, v.Name, "enum"))
 			p.parseEnum(v, prefix+ms.Name)
 		}
 	}
@@ -216,16 +220,17 @@ func (p *PbParseGo) parseMessage(ms *proto.Message, prefix string) {
 		f(ret)
 	}
 	p.AddMessages(ret)
+	return nil
 }
 
-func (p *PbParseGo) parseService(sv *proto.Service) {
+func (p *PbParseGo) parseService(sv *proto.Service, names map[string]string) error {
 	for _, element := range sv.Elements {
 		switch v := element.(type) {
 		case *proto.RPC:
 			funcName := v.Name
 			reqType := v.RequestType
 			retType := v.ReturnsType
-			server := CreateServer(funcName, v.Position.Offset, PbTypeToGo(reqType), PbTypeToGo(retType))
+			server := CreateServer(funcName, v.Position.Offset, resolveType(reqType, p.PkgName, names), resolveType(retType, p.PkgName, names))
 			if sv.Comment != nil {
 				server.Notes = append(server.Notes, sv.Comment)
 				for _, doc := range sv.Comment.Lines {
@@ -235,9 +240,13 @@ func (p *PbParseGo) parseService(sv *proto.Service) {
 			for _, f := range p.ParseServices {
 				f(server)
 			}
+			if _, exists := p.Server[server.Name]; exists {
+				return fmt.Errorf("parse_pb: duplicate RPC %s in service %s", server.Name, sv.Name)
+			}
 			p.AddServers(server)
 		}
 	}
+	return nil
 }
 
 func (p *PbParseGo) PackageName() string {
